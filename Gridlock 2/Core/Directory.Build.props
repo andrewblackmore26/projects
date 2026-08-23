@@ -1,0 +1,23 @@
+<Project>
+  <!--
+    Keeps .NET SDK build output OUT of this folder.
+
+    /Core is a .NET SDK project directory AND a Unity local package
+    ("com.gridlock.core": "file:../../Core"). Unity imports every file in a
+    package folder and has no ignore rule for bin/ or obj/, so build artifacts
+    left here get compiled and imported by Unity:
+      - obj/**/Gridlock.Core.AssemblyInfo.cs  -> duplicate assembly attributes (CS0579)
+      - bin/**/Gridlock.Core.dll              -> imported as a precompiled assembly
+                                                 that collides with the asmdef
+                                                 assembly of the same name (CS0436)
+    Redirecting the output to ../artifacts/ keeps this folder pure source.
+
+    Scoped to Core/ on purpose. A repo-root Directory.Build.props would also
+    redirect the Godot project, and Godot.NET.Sdk expects its assembly where it
+    puts it.
+  -->
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)..\artifacts\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\artifacts\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

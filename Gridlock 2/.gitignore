@@ -1,0 +1,21 @@
+# .NET build output (Core's own output is redirected to artifacts/ — see Core/Directory.Build.props)
+artifacts/
+bin/
+obj/
+*.user
+
+# Unity-generated meta files inside the shared Core package and Unity project caches
+Core/**/*.meta
+UnityProject/Library/
+UnityProject/Temp/
+UnityProject/Logs/
+UnityProject/UserSettings/
+UnityProject/obj/
+
+# Godot caches
+GodotProject/.godot/
+GodotProject/bin/
+GodotProject/obj/
+
+# Test results
+TestResults/

@@ -1,0 +1,7 @@
+{
+  "name": "com.gridlock.core",
+  "version": "1.0.0",
+  "displayName": "Gridlock Core",
+  "description": "Engine-free deterministic simulation for Gridlock. Shared verbatim by the Unity and Godot presentation layers.",
+  "unity": "6000.0"
+}
