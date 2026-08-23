@@ -158,12 +158,19 @@ namespace Gridlock.Core.Ai
                     bool isCapture = normalHold >= 0;
                     if (normalHold < 0)
                     {
-                        // A chip that cannot zero the defense is charge thrown away
-                        // — banking is a valid move (spec §9.2). Offer no normal
-                        // candidate then. (Measured: an all-in chip fallback made
-                        // threshold-3 tiers strip themselves; tier 9 lost 97.5%
-                        // of its games to tier 8.)
+                        // Chip sized to ZERO the defense if we can (the next tap
+                        // then captures)...
                         normalHold = HoldTicksForPower(tuning, source.Charge, defense, overchargeTicks, maxNonBurstFraction);
+                        // ...else a progress chip (multi-send hub work, spec §5.7)
+                        // — but ONLY from a nearly-full bank. Low-charge all-in
+                        // chips measured as tiers stripping themselves (0-capture
+                        // losses); near cap, accrual overflow makes the chip the
+                        // correct play (Tuning.AiChipMinBankFraction).
+                        if (normalHold < 0 &&
+                            source.Charge >= source.MaxCharge(tuning) * tuning.AiChipMinBankFraction)
+                        {
+                            normalHold = overchargeTicks - 1;
+                        }
                     }
                     if (normalHold >= 0)
                     {

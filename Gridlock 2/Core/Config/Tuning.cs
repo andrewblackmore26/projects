@@ -110,13 +110,23 @@ namespace Gridlock.Core.Config
 
         /// <summary>
         /// Multiplier on the target-value terms (W_DEGREE, W_FRONTIER) for sends
-        /// that cannot capture. Unconditional value terms made "chip the hub with
-        /// everything" auto-pass the action threshold — measured as sharper tiers
-        /// sending 4 times with 0 captures and losing their stripped home (6v5
-        /// collapsed to 19%). A chip's value is preparatory, so it scores a
-        /// fraction of the prize. Unit: dimensionless [0..1].
+        /// that cannot capture. Default 1: the anti-spam mechanism is
+        /// AiChipMinBankFraction, not value discounting — discounting to 0.3 made
+        /// every tier below threshold-3 refuse to chip big hubs at all and
+        /// hub-gated boards stalled at 100%. Kept as a debug-panel knob.
+        /// Unit: dimensionless [0..1].
         /// </summary>
-        public float AiChipValueScale = 0.3f;
+        public float AiChipValueScale = 1.0f;
+
+        /// <summary>
+        /// A chip that cannot ZERO the target's defense (multi-send hub work,
+        /// spec §5.7) is only offered when the source bank is at least this full.
+        /// Root fix for the measured low-charge chip-spam collapse (sharper tiers
+        /// dumped their banks into hopeless chips and lost their stripped homes):
+        /// near cap, accrual is about to overflow, so throwing the bank at the
+        /// hub is the correct play; below it, banking wins. Unit: fraction of max charge.
+        /// </summary>
+        public float AiChipMinBankFraction = 0.9f;
 
         // ---- Derived integer tick counts (always compare ticks, never float seconds) ----
 
