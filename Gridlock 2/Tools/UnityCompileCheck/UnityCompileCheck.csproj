@@ -1,0 +1,142 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compile-verifies the Unity view scripts against the installed editor's
+    managed assemblies. It stands in for editor script compilation on a machine
+    with no activated Unity batchmode licence.
+
+    WHAT THIS CATCHES: C# API errors in UnityProject/Assets/Scripts, including
+    use of a type whose module is NOT in the project (for example
+    UnityEngine.Collider without com.unity.modules.physics, which is CS1069).
+    Core is a ProjectReference, mirroring Unity's split: its own asmdef assembly
+    with noEngineReferences.
+
+    WHAT THIS CANNOT CATCH: packaging and asset import. Local package layout,
+    build artifacts inside /Core, assembly-identity collisions, .meta state,
+    shader compilation, and anything about URP configuration. That class of
+    failure once broke Unity completely on this project's ancestor while this
+    check stayed green. Only opening the project in the editor proves that side,
+    and this machine cannot.
+
+    WHY THE REFERENCE LIST IS EXPLICIT AND NOT A GLOB: Unity's reference set is
+    a SUBSET of Managed/UnityEngine/, so globbing that folder makes this tool a
+    guaranteed false negative - it would supply modules the project excludes and
+    silently pass code Unity rejects. That is exactly how a real CS1069 once
+    shipped green. The list below is the non-strippable modules plus one entry
+    per com.unity.modules.* the manifest actually declares.
+
+    KEEP IN SYNC: if you add or remove a module in manifest.json, update this
+    list and _ExpectedModuleCount together. The drift guard below fails the
+    build otherwise, so this cannot rot silently.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <NoWarn>CS1701;CS1702</NoWarn>
+    <UnityManaged>C:\Program Files\Unity\Hub\Editor\6000.4.6f1\Editor\Data\Managed\UnityEngine</UnityManaged>
+    <ManifestPath>$(MSBuildThisFileDirectory)..\..\UnityProject\Packages\manifest.json</ManifestPath>
+    <_ExpectedModuleCount>34</_ExpectedModuleCount>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\UnityProject\Assets\Scripts\**\*.cs" />
+    <ProjectReference Include="..\..\Core\Gridlock.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine"><HintPath>$(UnityManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AccessibilityModule"><HintPath>$(UnityManaged)\UnityEngine.AccessibilityModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AIModule"><HintPath>$(UnityManaged)\UnityEngine.AIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule"><HintPath>$(UnityManaged)\UnityEngine.AndroidJNIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(UnityManaged)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ARModule"><HintPath>$(UnityManaged)\UnityEngine.ARModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(UnityManaged)\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(UnityManaged)\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ClothModule"><HintPath>$(UnityManaged)\UnityEngine.ClothModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ClusterInputModule"><HintPath>$(UnityManaged)\UnityEngine.ClusterInputModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ClusterRendererModule"><HintPath>$(UnityManaged)\UnityEngine.ClusterRendererModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ContentLoadModule"><HintPath>$(UnityManaged)\UnityEngine.ContentLoadModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnityManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CrashReportingModule"><HintPath>$(UnityManaged)\UnityEngine.CrashReportingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.DirectorModule"><HintPath>$(UnityManaged)\UnityEngine.DirectorModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.DSPGraphModule"><HintPath>$(UnityManaged)\UnityEngine.DSPGraphModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.GameCenterModule"><HintPath>$(UnityManaged)\UnityEngine.GameCenterModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.GIModule"><HintPath>$(UnityManaged)\UnityEngine.GIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.GraphicsStateCollectionSerializerModule"><HintPath>$(UnityManaged)\UnityEngine.GraphicsStateCollectionSerializerModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.GridModule"><HintPath>$(UnityManaged)\UnityEngine.GridModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.HierarchyCoreModule"><HintPath>$(UnityManaged)\UnityEngine.HierarchyCoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.HotReloadModule"><HintPath>$(UnityManaged)\UnityEngine.HotReloadModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IdentifiersModule"><HintPath>$(UnityManaged)\UnityEngine.IdentifiersModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(UnityManaged)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(UnityManaged)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputForUIModule"><HintPath>$(UnityManaged)\UnityEngine.InputForUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(UnityManaged)\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputModule"><HintPath>$(UnityManaged)\UnityEngine.InputModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InsightsModule"><HintPath>$(UnityManaged)\UnityEngine.InsightsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(UnityManaged)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.LocalizationModule"><HintPath>$(UnityManaged)\UnityEngine.LocalizationModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.MarshallingModule"><HintPath>$(UnityManaged)\UnityEngine.MarshallingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.MultiplayerModule"><HintPath>$(UnityManaged)\UnityEngine.MultiplayerModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(UnityManaged)\UnityEngine.ParticleSystemModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PerformanceReportingModule"><HintPath>$(UnityManaged)\UnityEngine.PerformanceReportingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.Physics2DModule"><HintPath>$(UnityManaged)\UnityEngine.Physics2DModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsBackendPhysXModule"><HintPath>$(UnityManaged)\UnityEngine.PhysicsBackendPhysXModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(UnityManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PropertiesModule"><HintPath>$(UnityManaged)\UnityEngine.PropertiesModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.RenderAs2DModule"><HintPath>$(UnityManaged)\UnityEngine.RenderAs2DModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule"><HintPath>$(UnityManaged)\UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule"><HintPath>$(UnityManaged)\UnityEngine.ScreenCaptureModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ScriptingModule"><HintPath>$(UnityManaged)\UnityEngine.ScriptingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ShaderVariantAnalyticsModule"><HintPath>$(UnityManaged)\UnityEngine.ShaderVariantAnalyticsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule"><HintPath>$(UnityManaged)\UnityEngine.SharedInternalsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule"><HintPath>$(UnityManaged)\UnityEngine.SpriteMaskModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.SpriteShapeModule"><HintPath>$(UnityManaged)\UnityEngine.SpriteShapeModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.StreamingModule"><HintPath>$(UnityManaged)\UnityEngine.StreamingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.SubstanceModule"><HintPath>$(UnityManaged)\UnityEngine.SubstanceModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.SubsystemsModule"><HintPath>$(UnityManaged)\UnityEngine.SubsystemsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TerrainModule"><HintPath>$(UnityManaged)\UnityEngine.TerrainModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TerrainPhysicsModule"><HintPath>$(UnityManaged)\UnityEngine.TerrainPhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextCoreFontEngineModule"><HintPath>$(UnityManaged)\UnityEngine.TextCoreFontEngineModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextCoreTextEngineModule"><HintPath>$(UnityManaged)\UnityEngine.TextCoreTextEngineModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(UnityManaged)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TilemapModule"><HintPath>$(UnityManaged)\UnityEngine.TilemapModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TLSModule"><HintPath>$(UnityManaged)\UnityEngine.TLSModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIElementsModule"><HintPath>$(UnityManaged)\UnityEngine.UIElementsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(UnityManaged)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UmbraModule"><HintPath>$(UnityManaged)\UnityEngine.UmbraModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsCommonModule"><HintPath>$(UnityManaged)\UnityEngine.UnityAnalyticsCommonModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsModule"><HintPath>$(UnityManaged)\UnityEngine.UnityAnalyticsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityConnectModule"><HintPath>$(UnityManaged)\UnityEngine.UnityConnectModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityConsentModule"><HintPath>$(UnityManaged)\UnityEngine.UnityConsentModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityCurlModule"><HintPath>$(UnityManaged)\UnityEngine.UnityCurlModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAssetBundleModule"><HintPath>$(UnityManaged)\UnityEngine.UnityWebRequestAssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule"><HintPath>$(UnityManaged)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule"><HintPath>$(UnityManaged)\UnityEngine.UnityWebRequestModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule"><HintPath>$(UnityManaged)\UnityEngine.UnityWebRequestTextureModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule"><HintPath>$(UnityManaged)\UnityEngine.UnityWebRequestWWWModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VehiclesModule"><HintPath>$(UnityManaged)\UnityEngine.VehiclesModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VFXModule"><HintPath>$(UnityManaged)\UnityEngine.VFXModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VideoModule"><HintPath>$(UnityManaged)\UnityEngine.VideoModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VirtualTexturingModule"><HintPath>$(UnityManaged)\UnityEngine.VirtualTexturingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.VRModule"><HintPath>$(UnityManaged)\UnityEngine.VRModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.WindModule"><HintPath>$(UnityManaged)\UnityEngine.WindModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.XRModule"><HintPath>$(UnityManaged)\UnityEngine.XRModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Fails the build if manifest.json's module set drifts from the list above,
+       which would silently turn this check back into a false negative. -->
+  <Target Name="VerifyManifestSync" BeforeTargets="CoreCompile">
+    <ReadLinesFromFile File="$(ManifestPath)">
+      <Output TaskParameter="Lines" ItemName="_ManifestLine" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_ModuleLine Include="@(_ManifestLine)"
+                   Condition="$([System.String]::Copy('%(Identity)').Contains('com.unity.modules.'))" />
+    </ItemGroup>
+    <Error Condition="'@(_ModuleLine->Count())' != '$(_ExpectedModuleCount)'"
+           Text="manifest.json declares @(_ModuleLine->Count()) Unity modules but this check references $(_ExpectedModuleCount). Update the Reference list and _ExpectedModuleCount together, or this check becomes a false negative." />
+  </Target>
+</Project>
