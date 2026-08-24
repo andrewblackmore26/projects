@@ -1,0 +1,22 @@
+<Project Sdk="Godot.NET.Sdk/4.7.1">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>Gridlock.View</RootNamespace>
+    <!-- Pinned so the main dev loop cannot accept C#10+ syntax in the shared
+         Core sources, which must stay Unity-6 compatible (netstandard2.1/C#9).
+         Without this pin only a Unity build would catch the drift. -->
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The shared simulation, compiled from source. Not a project reference:
+         Core is also a Unity local package, and its own build output is
+         redirected out of the folder (see Core/Directory.Build.props). -->
+    <Compile Include="..\Core\**\*.cs" Exclude="..\Core\obj\**;..\Core\bin\**" LinkBase="Core" />
+  </ItemGroup>
+
+</Project>

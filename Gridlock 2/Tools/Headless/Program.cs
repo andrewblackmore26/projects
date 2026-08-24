@@ -249,10 +249,8 @@ namespace Gridlock.Headless
             int a = int.Parse(Arg(args, "--a", "5"));
             ulong seed = ulong.Parse(Arg(args, "--seed", "1"));
 
-            var sim = new Simulation(level, new Tuning());
-            var root = new DeterministicRandom(seed);
-            sim.AddController(new Core.Ai.AiController(Owner.Player, Core.Ai.AiDifficulty.FromTier(p), root.Fork(0x51DE0001UL)));
-            sim.AddController(new Core.Ai.AiController(Owner.Ai, Core.Ai.AiDifficulty.FromTier(a), root.Fork(0x51DE0002UL)));
+            var sim = new Simulation(level, MakeTuning(args));
+            HeadlessMatch.AttachControllers(sim, p, a, seed, false, out _, out _);
             while (sim.Tick < ticks && sim.Result == MatchResult.None) sim.Step();
             Console.WriteLine("tick=" + sim.Tick + " result=" + sim.Result + " hash=" + StateHash.Compute(sim).ToString("x16"));
             return 0;
@@ -263,10 +261,8 @@ namespace Gridlock.Headless
             LevelData level = LoadLevel(Arg(args, "--level", "dev:duel"));
             long ticks = long.Parse(Arg(args, "--ticks", "20000"));
 
-            var sim = new Simulation(level, new Tuning());
-            var root = new DeterministicRandom(123);
-            sim.AddController(new Core.Ai.AiController(Owner.Player, Core.Ai.AiDifficulty.FromTier(8), root.Fork(1)));
-            sim.AddController(new Core.Ai.AiController(Owner.Ai, Core.Ai.AiDifficulty.FromTier(8), root.Fork(2)));
+            var sim = new Simulation(level, MakeTuning(args));
+            HeadlessMatch.AttachControllers(sim, 8, 8, 123, false, out _, out _);
 
             var perTick = new List<double>((int)Math.Min(ticks, 100000));
             var sw = new Stopwatch();

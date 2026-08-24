@@ -35,24 +35,36 @@ namespace Gridlock.Core
         public const float DefaultMaxSeconds = 600f;
 
         /// <summary>
-        /// mirrorSeeds swaps which decision stream each side receives — running
+        /// THE way to seat two AI controllers on a simulation. Every caller must
+        /// come through here — the headless CLI, the balance harness, and both
+        /// engines' viewers. The cross-engine determinism gate compares state
+        /// hashes, and that comparison only proves anything if both sides built
+        /// the match identically; forking the seed by hand in two places is
+        /// exactly how that guarantee rots (and it did, once).
+        ///
+        /// mirrorSeeds swaps which decision stream each side receives: running
         /// every seed both ways and aggregating cancels seed luck, and the delta
-        /// between the two orientations measures structural side bias directly
-        /// (the old project's unresolved 5W–15L mirror artifact — lessons.md).
+        /// between the two orientations measures structural side bias directly.
         /// </summary>
-        public static MatchStats Run(LevelData level, Tuning tuning, int playerTier, int aiTier,
-            ulong seed, float maxSeconds = DefaultMaxSeconds, bool mirrorSeeds = false)
+        public static void AttachControllers(Simulation sim, int playerTier, int aiTier, ulong seed,
+            bool mirrorSeeds, out AiController playerAi, out AiController aiAi)
         {
-            var sim = new Simulation(level, tuning);
             var root = new DeterministicRandom(seed);
             // Fork both streams FIRST, then assign — swapping salts inside the
             // Fork calls would not swap the streams (Fork advances root state).
             DeterministicRandom streamA = root.Fork(0x51DE0001UL);
             DeterministicRandom streamB = root.Fork(0x51DE0002UL);
-            var playerAi = new AiController(Owner.Player, AiDifficulty.FromTier(playerTier), mirrorSeeds ? streamB : streamA);
-            var aiAi = new AiController(Owner.Ai, AiDifficulty.FromTier(aiTier), mirrorSeeds ? streamA : streamB);
+            playerAi = new AiController(Owner.Player, AiDifficulty.FromTier(playerTier), mirrorSeeds ? streamB : streamA);
+            aiAi = new AiController(Owner.Ai, AiDifficulty.FromTier(aiTier), mirrorSeeds ? streamA : streamB);
             sim.AddController(playerAi);
             sim.AddController(aiAi);
+        }
+
+        public static MatchStats Run(LevelData level, Tuning tuning, int playerTier, int aiTier,
+            ulong seed, float maxSeconds = DefaultMaxSeconds, bool mirrorSeeds = false)
+        {
+            var sim = new Simulation(level, tuning);
+            AttachControllers(sim, playerTier, aiTier, seed, mirrorSeeds, out AiController playerAi, out AiController aiAi);
 
             long maxTicks = (long)(maxSeconds * tuning.TickRate);
             while (sim.Result == MatchResult.None && sim.Tick < maxTicks)

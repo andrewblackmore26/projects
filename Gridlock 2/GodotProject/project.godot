@@ -1,0 +1,33 @@
+; Gridlock 2 - Godot presentation layer.
+; The only scene file is scenes/Main.tscn, a bootstrap: everything else is built
+; from code so the board layout is driven entirely by the level data.
+
+config_version=5
+
+[application]
+
+config/name="Gridlock"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#")
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+
+[dotnet]
+
+project/assembly_name="Gridlock.Godot"
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+
+; HDR 2D is what lets a canvas shader write colour components above 1.0 so the
+; glow pass has something to bloom (spec section 8.1).
+viewport/hdr_2d=true
+anti_aliasing/quality/msaa_2d=2
+environment/defaults/default_clear_color=Color(0.0196078, 0.027451, 0.0509804, 1)
