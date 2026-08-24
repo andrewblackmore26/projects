@@ -140,7 +140,12 @@ namespace Gridlock.Core.Ai
                         float projected = source.Charge * SendFraction(tuning, holdTicks);
                         long travelTicks = (long)Math.Ceiling(wire.Length / tuning.BaseBeamSpeed * tuning.TickRate);
                         if (holdTicks + travelTicks >= threat.TicksUntilArrival) continue; // would land too late
-                        if (target.Charge + projected <= threat.BeamPower) continue;       // would not save it
+                        // Against the CAPPED charge: a deposit into a nearly full
+                        // node overflows and is lost, so the uncapped sum would
+                        // green-light a rescue that provably cannot hold — while
+                        // stripping the source, since W_DEFEND usually wins the argmax.
+                        float defended = Math.Min(target.Charge + projected, target.MaxCharge(tuning));
+                        if (defended <= threat.BeamPower) continue;
                         Evaluate(sim, side, enemy, diff, rng, source, wire, target, contest,
                             friendlyInFlight, enemyInFlight, threats, overchargingEnemies,
                             holdTicks, projected, tuning.BaseBeamSpeed, isBurst: false, isCapture: false,
@@ -255,8 +260,14 @@ namespace Gridlock.Core.Ai
 
                 // Interception: launch from the threatened node into the incoming
                 // beam's wire before it lands (informed addition).
+                //
+                // The margin is two ticks, not one. The threat resolves at
+                // tick N + m - 1 (it still moves during the deciding tick), while
+                // the interceptor only exists at N + H + 1 (BeginHold drains at
+                // N+1, the release at N+H+1). H = m-1 therefore buys a beam that
+                // spawns one tick AFTER the node has already fallen.
                 if (threats.TryGetValue(source.Id, out Threat selfThreat) &&
-                    selfThreat.WireId == wire.Id && holdTicks < selfThreat.TicksUntilArrival)
+                    selfThreat.WireId == wire.Id && holdTicks + 1 < selfThreat.TicksUntilArrival)
                     score += tuning.WDefend * source.Degree;
             }
 

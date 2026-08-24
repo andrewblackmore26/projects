@@ -46,10 +46,10 @@ namespace Gridlock.Core
                 bool aiDead = c.PowerAi <= eps;
                 if (playerDead || aiDead)
                 {
-                    c.ClampContact();
                     if (playerDead && aiDead)
                     {
                         // Evenly matched to the end: mutual annihilation (matrix #13).
+                        c.ClampContact();
                         ContestMutualDeaths++;
                         ContestResolved?.Invoke(c.Id, c.WireId, Owner.Neutral, 0f);
                     }
@@ -62,8 +62,36 @@ namespace Gridlock.Core
                         float power = playerDead ? c.PowerAi : c.PowerPlayer;
                         float speed = playerDead ? c.SpeedAi : c.SpeedPlayer;
                         int dir = playerDead ? c.DirAi : c.DirPlayer;
-                        if (power > eps)
-                            SpawnBeam(_wiresById[c.WireId], side, power, speed, dir, c.ContactT, holdThisTick: true);
+
+                        // If the front ALSO ran off the end this tick and the
+                        // survivor is the side heading that way, it arrives
+                        // rather than being parked on the boundary. Clamping
+                        // first would erase the crossing fraction and stamp the
+                        // arrival with tau 0, sorting it ahead of everything
+                        // else that really did happen at the start of the tick.
+                        bool offEnd = (raw <= 0f && dir < 0) || (raw >= 1f && dir > 0);
+                        if (offEnd && power > eps)
+                        {
+                            float boundary = raw >= 1f ? 1f : 0f;
+                            float moved = raw - c.PrevContactT;
+                            float tau = moved == 0f ? 1f : Clamp01((boundary - c.PrevContactT) / moved);
+                            Wire w = _wiresById[c.WireId];
+                            _arrivals.Add(new ArrivalEvent
+                            {
+                                Tau = tau,
+                                WireId = w.Id,
+                                SourceId = c.Id + ContestSourceOffset,
+                                Owner = side,
+                                Power = power,
+                                NodeId = w.DestinationNode(dir),
+                            });
+                        }
+                        else
+                        {
+                            c.ClampContact();
+                            if (power > eps)
+                                SpawnBeam(_wiresById[c.WireId], side, power, speed, dir, c.ContactT, holdThisTick: true);
+                        }
                         ContestSideDeathResolutions++;
                         ContestResolved?.Invoke(c.Id, c.WireId, side, power);
                     }
@@ -126,7 +154,7 @@ namespace Gridlock.Core
 
         // ---- Phase 7: beams ----
 
-        private enum SweepKind { Arrival = 0, Absorb = 1, Merge = 2, Chase = 3, SpawnContest = 4 }
+        private enum SweepKind { Arrival = 0, Absorb = 1, Merge = 2, Net = 3, Chase = 4, SpawnContest = 5 }
 
         private void StepBeams()
         {
@@ -189,8 +217,16 @@ namespace Gridlock.Core
                 contest = c;
             }
 
-            // Chronological event sweep. Every processed event removes at least
-            // one beam, so the loop terminates.
+            // Chronological event sweep over the tick. Every processed event
+            // removes at least one beam, so the loop terminates.
+            //
+            // tauFloor is the time of the last event applied. All remaining
+            // interactions are evaluated over [tauFloor, 1] only: without it, an
+            // object CREATED mid-tick (a contest, a survivor beam) would be
+            // tested against the part of a trajectory that happened before it
+            // existed, and could for instance absorb a beam that passed its
+            // position earlier in the same tick and is now moving away.
+            float tauFloor = 0f;
             while (bucket.Count > 0)
             {
                 float bestTau = float.MaxValue;
@@ -200,23 +236,24 @@ namespace Gridlock.Core
                 for (int i = 0; i < bucket.Count; i++)
                 {
                     Beam b = bucket[i];
+                    float bAtFloor = At(b.PrevT, b.T, tauFloor);
 
                     // Endpoint arrival.
                     if (b.Dir > 0 && b.T >= 1f)
-                        ConsiderEvent(SafeTau(1f - b.PrevT, b.T - b.PrevT), SweepKind.Arrival, i, -1,
+                        ConsiderEvent(Remap(tauFloor, SafeTau(1f - bAtFloor, b.T - bAtFloor)), SweepKind.Arrival, i, -1,
                             bucket, ref bestTau, ref bestKind, ref bestI, ref bestJ);
                     else if (b.Dir < 0 && b.T <= 0f)
-                        ConsiderEvent(SafeTau(b.PrevT, b.PrevT - b.T), SweepKind.Arrival, i, -1,
+                        ConsiderEvent(Remap(tauFloor, SafeTau(bAtFloor, bAtFloor - b.T)), SweepKind.Arrival, i, -1,
                             bucket, ref bestTau, ref bestKind, ref bestI, ref bestJ);
 
                     // Absorption into the active contest (owner-based: covers
                     // reinforcement from either geometric side — matrix #5/#6/#7).
                     if (contest != null)
                     {
-                        float d0 = b.PrevT - contest.PrevContactT;
+                        float d0 = bAtFloor - At(contest.PrevContactT, contest.ContactT, tauFloor);
                         float d1 = b.T - contest.ContactT;
                         if (Meets(d0, d1))
-                            ConsiderEvent(CrossTau(d0, d1), SweepKind.Absorb, i, -1,
+                            ConsiderEvent(Remap(tauFloor, CrossTau(d0, d1)), SweepKind.Absorb, i, -1,
                                 bucket, ref bestTau, ref bestKind, ref bestI, ref bestJ);
                     }
 
@@ -226,26 +263,29 @@ namespace Gridlock.Core
                         Beam o = bucket[j];
                         SweepKind kind;
                         if (b.Owner == o.Owner)
-                        {
-                            if (b.Dir != o.Dir) continue; // same owner, opposite dirs: pass through (matrix #4)
-                            kind = SweepKind.Merge;
-                        }
+                            kind = b.Dir == o.Dir ? SweepKind.Merge : SweepKind.Net;
                         else
-                        {
                             kind = b.Dir != o.Dir ? SweepKind.SpawnContest : SweepKind.Chase;
-                        }
-                        float p0 = b.PrevT - o.PrevT;
+
+                        float p0 = bAtFloor - At(o.PrevT, o.T, tauFloor);
                         float p1 = b.T - o.T;
                         if (!Meets(p0, p1)) continue;
-                        ConsiderEvent(CrossTau(p0, p1), kind, i, j,
+                        ConsiderEvent(Remap(tauFloor, CrossTau(p0, p1)), kind, i, j,
                             bucket, ref bestTau, ref bestKind, ref bestI, ref bestJ);
                     }
                 }
 
                 if (bestI < 0) break;
-                if (!ProcessSweepEvent(wire, bucket, ref contest, bestKind, bestTau, bestI, bestJ)) break;
+                ProcessSweepEvent(wire, bucket, ref contest, bestKind, bestTau, bestI, bestJ);
+                tauFloor = bestTau;
             }
         }
+
+        /// <summary>Position along a tick trajectory at fraction tau.</summary>
+        private static float At(float prev, float now, float tau) => prev + (now - prev) * tau;
+
+        /// <summary>Map a fraction of the remaining sub-interval back onto the whole tick.</summary>
+        private static float Remap(float floor, float tauWithin) => floor + tauWithin * (1f - floor);
 
         /// <summary>Two trajectories meet within the tick if their separation changes sign or touches zero.</summary>
         private static bool Meets(float d0, float d1) =>
@@ -291,8 +331,13 @@ namespace Gridlock.Core
             bestJ = j;
         }
 
-        /// <summary>Apply one sweep event. Returns false if the sweep should stop (defensive only).</summary>
-        private bool ProcessSweepEvent(Wire wire, List<Beam> bucket, ref Contest contest,
+        /// <summary>
+        /// Apply one sweep event. Every branch consumes at least one beam, which
+        /// is what makes the sweep terminate — there is deliberately no "give up
+        /// and stop" path, because abandoning a wire mid-tick would leave a
+        /// crossing unresolved and silently break the rules.
+        /// </summary>
+        private void ProcessSweepEvent(Wire wire, List<Beam> bucket, ref Contest contest,
             SweepKind kind, float tau, int i, int j)
         {
             Beam a = bucket[i];
@@ -310,21 +355,14 @@ namespace Gridlock.Core
                         NodeId = wire.DestinationNode(a.Dir),
                     });
                     RemoveBeam(bucket, i);
-                    return true;
+                    return;
                 }
 
                 case SweepKind.Absorb:
                 {
-                    // Reinforcement transfers POWER ONLY (spec §5.6); the side
-                    // keeps the speed it entered with, so the survivor resumes at
-                    // its "original speed" per the resolution rule. Speed and
-                    // power are deliberately separate axes (§5.4) — a burst
-                    // reinforcement lends its weight, not its momentum.
-                    if (a.Owner == Owner.Player) contest.PowerPlayer += a.Power;
-                    else contest.PowerAi += a.Power;
-                    ContestReinforced?.Invoke(contest.Id, wire.Id, a.Owner, a.Power);
+                    AbsorbIntoContest(contest, a, wire);
                     RemoveBeam(bucket, i);
-                    return true;
+                    return;
                 }
 
                 case SweepKind.Merge:
@@ -335,10 +373,53 @@ namespace Gridlock.Core
                     Beam kept = aFront ? a : o;
                     Beam gone = aFront ? o : a;
                     kept.Power += gone.Power;
-                    if (gone.Speed > kept.Speed) kept.Speed = gone.Speed;
+                    if (gone.Speed > kept.Speed)
+                    {
+                        // Take the faster beam's speed AND its position: the
+                        // merged packet travels at that speed for the rest of the
+                        // tick, so leaving it at the slower front's position
+                        // would quietly lose distance on every merge.
+                        kept.Speed = gone.Speed;
+                        kept.T = gone.T;
+                        kept.PrevT = gone.PrevT;
+                    }
                     BeamMerged?.Invoke(kept.Id, gone.Id);
                     RemoveBeam(bucket, bucket.IndexOf(gone));
-                    return true;
+                    return;
+                }
+
+                case SweepKind.Net:
+                {
+                    // Same owner, opposite directions: charge flowing both ways
+                    // along one wire nets out, and the difference carries on in
+                    // the direction of the larger send. The mirror of the chase
+                    // rule, and load-bearing: letting these pass through each
+                    // other is what lets a beam end up on the far side of a
+                    // front, which in turn allows a SECOND opposing crossing on
+                    // the same wire -- a configuration a single Contest cannot
+                    // represent (its two sides would each need two directions).
+                    Beam o = bucket[j];
+                    float diff = a.Power - o.Power;
+                    if (diff > Tuning.PowerEpsilon)
+                    {
+                        a.Power = diff;
+                        BeamMerged?.Invoke(a.Id, o.Id);
+                        RemoveBeam(bucket, bucket.IndexOf(o));
+                    }
+                    else if (diff < -Tuning.PowerEpsilon)
+                    {
+                        o.Power = -diff;
+                        BeamMerged?.Invoke(o.Id, a.Id);
+                        RemoveBeam(bucket, bucket.IndexOf(a));
+                    }
+                    else
+                    {
+                        BeamMerged?.Invoke(-1, a.Id);
+                        int oi = bucket.IndexOf(o);
+                        RemoveBeam(bucket, oi);
+                        RemoveBeam(bucket, bucket.IndexOf(a));
+                    }
+                    return;
                 }
 
                 case SweepKind.Chase:
@@ -366,7 +447,7 @@ namespace Gridlock.Core
                         RemoveBeam(bucket, oi);
                         RemoveBeam(bucket, bucket.IndexOf(a));
                     }
-                    return true;
+                    return;
                 }
 
                 case SweepKind.SpawnContest:
@@ -374,10 +455,25 @@ namespace Gridlock.Core
                     Beam o = bucket[j];
                     if (contest != null)
                     {
-                        // Impossible by the no-pass-through invariant (matrix #9/#10):
-                        // both beams would have been absorbed before crossing.
+                        // Should be unreachable: opposing beams cannot pass each
+                        // other, and same-owner opposite-direction beams now net
+                        // out rather than passing through, so a second disjoint
+                        // crossing cannot form (matrix #9/#10).
+                        //
+                        // If it ever does, fold both beams into the existing
+                        // front by owner. Never leave a crossing unresolved: the
+                        // assert compiles out of Release builds, so bailing here
+                        // would mean tests (Debug) and the balance harness
+                        // (Release) silently running different physics, with the
+                        // Release path letting opposing beams pass through each
+                        // other forever.
                         Debug.Assert(false, "invariant violated: second contest on wire " + wire.Id);
-                        return false;
+                        AbsorbIntoContest(contest, a, wire);
+                        AbsorbIntoContest(contest, o, wire);
+                        int oi2 = bucket.IndexOf(o);
+                        RemoveBeam(bucket, oi2);
+                        RemoveBeam(bucket, bucket.IndexOf(a));
+                        return;
                     }
                     float pos = Clamp01(a.PrevT + (a.T - a.PrevT) * tau);
                     Beam playerBeam = a.Owner == Owner.Player ? a : o;
@@ -400,10 +496,23 @@ namespace Gridlock.Core
                     int oi = bucket.IndexOf(o);
                     RemoveBeam(bucket, oi);
                     RemoveBeam(bucket, bucket.IndexOf(a));
-                    return true;
+                    return;
                 }
             }
-            return false;
+        }
+
+        /// <summary>
+        /// Fold a beam into a contest side. Reinforcement transfers POWER ONLY
+        /// (spec §5.6): the side keeps the speed it entered with, so the
+        /// survivor later resumes at its "original speed" per the resolution
+        /// rule. Speed and power are deliberately separate axes (§5.4) — a burst
+        /// reinforcement lends its weight, not its momentum.
+        /// </summary>
+        private void AbsorbIntoContest(Contest contest, Beam beam, Wire wire)
+        {
+            if (beam.Owner == Owner.Player) contest.PowerPlayer += beam.Power;
+            else contest.PowerAi += beam.Power;
+            ContestReinforced?.Invoke(contest.Id, wire.Id, beam.Owner, beam.Power);
         }
 
         private void RemoveBeam(List<Beam> bucket, int index)

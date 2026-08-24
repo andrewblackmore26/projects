@@ -1,0 +1,16 @@
+{
+    "name": "Gridlock.View",
+    "rootNamespace": "Gridlock.View",
+    "references": [
+        "Gridlock.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

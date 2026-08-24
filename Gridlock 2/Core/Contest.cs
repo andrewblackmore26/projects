@@ -7,10 +7,17 @@ namespace Gridlock.Core
     /// style mutual attrition: each side burns the other proportionally to its
     /// own power; the contact point shoves toward the weaker side.
     ///
-    /// Invariants: at most one contest per wire (opposing beams can never pass
-    /// each other, so a second disjoint crossing cannot form); the two sides
-    /// always travel in opposite directions (DirAi == -DirPlayer — same-direction
-    /// opposing contact is a chase clash, resolved instantly, never a contest).
+    /// Invariants: at most one contest per wire, and the two sides always travel
+    /// in opposite directions (DirAi == -DirPlayer — same-direction opposing
+    /// contact is a chase clash, resolved instantly, never a contest).
+    ///
+    /// The single-contest invariant is what makes this two-sided type sufficient,
+    /// and it holds because NO pair of beams on a wire can pass through each
+    /// other: opposing beams contest or clash, same-owner same-direction beams
+    /// merge, and same-owner opposite-direction beams net out. Allowing any of
+    /// them through would permit two disjoint fronts on one wire, and the wedge
+    /// between two fronts belongs to a single owner pushing BOTH ways — which
+    /// this type structurally cannot express.
     /// </summary>
     public class Contest
     {

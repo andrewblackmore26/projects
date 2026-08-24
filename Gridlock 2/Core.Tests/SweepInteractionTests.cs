@@ -92,14 +92,32 @@ namespace Gridlock.Core.Tests
         }
 
         [Fact]
-        public void SameOwner_OppositeDirections_PassThrough()
+        public void SameOwner_OppositeDirections_NetOut()
         {
+            // Charge flowing both ways along one wire nets out; the difference
+            // carries on in the direction of the larger send. Letting them pass
+            // through instead is what allowed a second front on one wire — see
+            // AuditRegressionTests.Sweep_NoSecondContestOnAWire.
             var sim = NewSim(DevBoards.TwoNodeStrip(), FrozenTuning());
             sim.SpawnBeamForTest(0, Owner.Player, 3f, 4f, 0.2f, 1);
-            sim.SpawnBeamForTest(0, Owner.Player, 5f, 4f, 0.8f, -1);
-            StepN(sim, 30); // they cross around t=0.5 with no interaction
-            Assert.Equal(2, sim.Beams.Count);
-            Assert.True(sim.Beams[0].T > sim.Beams[1].T); // genuinely passed each other
+            Beam bigger = sim.SpawnBeamForTest(0, Owner.Player, 5f, 4f, 0.8f, -1);
+
+            int t = StepUntil(sim, s => s.Beams.Count <= 1, 60);
+            Assert.True(t >= 0, "beams never netted");
+            Assert.Single(sim.Beams);
+            Assert.Equal(bigger.Id, sim.Beams[0].Id);
+            Assert.True(Math.Abs(sim.Beams[0].Power - 2f) < 1e-5f, "power " + sim.Beams[0].Power);
+            Assert.Equal(-1, sim.Beams[0].Dir);
+        }
+
+        [Fact]
+        public void SameOwner_OppositeDirections_EqualPower_BothConsumed()
+        {
+            var sim = NewSim(DevBoards.TwoNodeStrip(), FrozenTuning());
+            sim.SpawnBeamForTest(0, Owner.Player, 4f, 4f, 0.2f, 1);
+            sim.SpawnBeamForTest(0, Owner.Player, 4f, 4f, 0.8f, -1);
+            int t = StepUntil(sim, s => s.Beams.Count == 0, 60);
+            Assert.True(t >= 0, "beams never netted");
         }
 
         [Fact]
