@@ -206,13 +206,14 @@ namespace Gridlock.Core
                         if (node.State != NodeState.Idle) break;
                         if (node.Charge < Tuning.MinSendCharge) break;
                         node.HoldStartTick = _tick;
+                        node.OverchargeArmed = false;
                         SetNodeState(node, NodeState.Overcharging);
                         NodeOvercharging?.Invoke(node.Id);
                         break;
 
                     case IntentKind.CancelHold:
                         if (node.State != NodeState.Overcharging) break;
-                        node.HoldStartTick = -1;
+                        EndHold(node);
                         SetNodeState(node, NodeState.Idle);
                         break;
 
@@ -237,7 +238,7 @@ namespace Gridlock.Core
         private void ExecuteSend(GameNode node, Wire wire)
         {
             long holdTicks = node.HoldTicks(_tick);
-            node.HoldStartTick = -1;
+            EndHold(node);
             float power;
             float speed;
 
@@ -319,9 +320,20 @@ namespace Gridlock.Core
             foreach (GameNode n in _nodes)
             {
                 if (n.State != NodeState.Overcharging) continue;
-                if (n.HoldTicks(_tick) == Tuning.OverchargeTicks)
+                if (n.OverchargeArmed) continue;
+                if (n.HoldTicks(_tick) >= Tuning.OverchargeTicks)
+                {
+                    n.OverchargeArmed = true;
                     NodeOverchargeArmed?.Invoke(n.Id);
+                }
             }
+        }
+
+        /// <summary>Clear all hold state on a node (cancel, send, or capture).</summary>
+        private static void EndHold(GameNode node)
+        {
+            node.HoldStartTick = -1;
+            node.OverchargeArmed = false;
         }
 
         private void SetNodeState(GameNode node, NodeState state)
@@ -354,7 +366,7 @@ namespace Gridlock.Core
                 Owner prevOwner = node.Owner;
                 node.Owner = owner;
                 node.Charge = power - defense;
-                node.HoldStartTick = -1; // capture cancels any hold in progress
+                EndHold(node); // capture cancels any hold in progress
                 node.LockUntilTick = _tick + Tuning.CaptureLockTicks;
                 SetNodeState(node, NodeState.CaptureLocked);
                 if (owner == Owner.Player) PlayerCaptures++;
@@ -412,11 +424,15 @@ namespace Gridlock.Core
                     break;
 
                 case ObjectiveType.Survive:
+                    // "Hold at least one node for N seconds": decided ONCE, at the
+                    // deadline tick. Holding a node then wins; holding none loses,
+                    // even with beams still in flight — a beam is not a holding.
                     if (!playerAlive) result = MatchResult.AiWin;
                     else
                     {
                         long surviveTicks = (long)Math.Round(Level.ObjectiveSeconds * Tuning.TickRate);
-                        if (_tick + 1 >= surviveTicks && playerNodes) result = MatchResult.PlayerWin;
+                        if (_tick + 1 >= surviveTicks)
+                            result = playerNodes ? MatchResult.PlayerWin : MatchResult.AiWin;
                     }
                     break;
 

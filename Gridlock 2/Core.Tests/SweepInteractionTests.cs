@@ -60,14 +60,18 @@ namespace Gridlock.Core.Tests
         }
 
         [Fact]
-        public void Reinforce_SpeedTakesMax()
+        public void Reinforce_LendsPowerNotSpeed()
         {
+            // Spec §5.6: reinforcement adds POWER to the side; the survivor later
+            // resumes at its "original speed". Speed and power stay separate axes
+            // (§5.4). Full survivor-speed regression lives in AuditRegressionTests.
             var sim = NewSim(DevBoards.TwoNodeStrip(), FrozenTuning());
             Contest c = sim.SpawnContestForTest(0, 0.5f, 5f, 5f, 1, 4f, 4f);
             sim.SpawnBeamForTest(0, Owner.Player, 3f, 10f, 0.2f, 1); // burst-speed reinforcement
             StepUntil(sim, s => s.Beams.Count == 0, 60);
-            Assert.Equal(10f, c.SpeedPlayer);
+            Assert.Equal(4f, c.SpeedPlayer);
             Assert.Equal(4f, c.SpeedAi);
+            Assert.True(c.PowerPlayer > c.PowerAi + 2.9f);
         }
 
         [Fact]

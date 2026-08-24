@@ -38,6 +38,14 @@ namespace Gridlock.Core
         /// <summary>Tick the current hold started, -1 when not holding. holdTicks = now − this.</summary>
         public long HoldStartTick = -1;
 
+        /// <summary>
+        /// Set once per hold, the first tick the hold reaches burst length —
+        /// a latch, not an equality test, so the armed signal and the burst
+        /// itself stay on the same predicate even if OverchargeTime is edited
+        /// live from the debug panel mid-hold.
+        /// </summary>
+        public bool OverchargeArmed;
+
         public float MaxCharge(Tuning t) => t.MaxChargePerDegree * Degree;
 
         /// <summary>Hold ticks accumulated so far (0 when not holding).</summary>

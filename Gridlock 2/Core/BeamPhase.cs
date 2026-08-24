@@ -315,16 +315,13 @@ namespace Gridlock.Core
 
                 case SweepKind.Absorb:
                 {
-                    if (a.Owner == Owner.Player)
-                    {
-                        contest.PowerPlayer += a.Power;
-                        if (a.Speed > contest.SpeedPlayer) contest.SpeedPlayer = a.Speed;
-                    }
-                    else
-                    {
-                        contest.PowerAi += a.Power;
-                        if (a.Speed > contest.SpeedAi) contest.SpeedAi = a.Speed;
-                    }
+                    // Reinforcement transfers POWER ONLY (spec §5.6); the side
+                    // keeps the speed it entered with, so the survivor resumes at
+                    // its "original speed" per the resolution rule. Speed and
+                    // power are deliberately separate axes (§5.4) — a burst
+                    // reinforcement lends its weight, not its momentum.
+                    if (a.Owner == Owner.Player) contest.PowerPlayer += a.Power;
+                    else contest.PowerAi += a.Power;
                     ContestReinforced?.Invoke(contest.Id, wire.Id, a.Owner, a.Power);
                     RemoveBeam(bucket, i);
                     return true;

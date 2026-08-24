@@ -57,7 +57,10 @@ namespace Gridlock.Core.Levels
             }
             if (root == null) throw new LevelValidationException("Level root must be a JSON object");
 
-            int version = GetInt(root, "version", -1);
+            // A file with no 'version' is the spec §10.1 shape, which IS v1 —
+            // the spec's own example JSON must load. An explicit wrong version
+            // is still a hard error (no migration; re-export the level).
+            int version = GetInt(root, "version", LevelData.FormatVersion);
             if (version != LevelData.FormatVersion)
                 throw new LevelValidationException(
                     "Unsupported level version " + version + " (this build reads version " +
@@ -377,19 +380,39 @@ namespace Gridlock.Core.Levels
         private static string Prefix(LevelData level) =>
             (level.Id.Length > 0 ? level.Id : "<level>") + ": ";
 
-        private static string GetString(Dictionary<string, object> obj, string key, string fallback) =>
-            obj.TryGetValue(key, out object v) && v is string s ? s : fallback;
+        // A present key with the wrong type is an authoring ERROR, never a
+        // fallback: silently defaulting "q": "3" to 0 relocates a node and can
+        // still pass every structural rule. Absent optional keys take the
+        // fallback; present ones must be well typed. Integer keys additionally
+        // reject non-integral numbers rather than truncating.
 
-        private static int GetInt(Dictionary<string, object> obj, string key, int fallback) =>
-            obj.TryGetValue(key, out object v) && v is double d ? (int)d : fallback;
+        private static string GetString(Dictionary<string, object> obj, string key, string fallback)
+        {
+            if (!obj.TryGetValue(key, out object v) || v == null) return fallback;
+            if (v is string s) return s;
+            throw new LevelValidationException("'" + key + "' must be a string");
+        }
 
-        private static float GetFloat(Dictionary<string, object> obj, string key, float fallback) =>
-            obj.TryGetValue(key, out object v) && v is double d ? (float)d : fallback;
+        private static int GetInt(Dictionary<string, object> obj, string key, int fallback)
+        {
+            if (!obj.TryGetValue(key, out object v) || v == null) return fallback;
+            return ToInt(v, "'" + key + "'");
+        }
+
+        private static float GetFloat(Dictionary<string, object> obj, string key, float fallback)
+        {
+            if (!obj.TryGetValue(key, out object v) || v == null) return fallback;
+            if (v is double d) return (float)d;
+            throw new LevelValidationException("'" + key + "' must be a number");
+        }
 
         private static int ToInt(object o, string context)
         {
-            if (o is double d) return (int)d;
-            throw new LevelValidationException(context + " must be a number");
+            if (!(o is double d))
+                throw new LevelValidationException(context + " must be a number");
+            if (d != Math.Floor(d))
+                throw new LevelValidationException(context + " must be a whole number, got " + d);
+            return (int)d;
         }
     }
 }

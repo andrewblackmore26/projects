@@ -19,6 +19,12 @@ namespace Gridlock.Core
             ulong h = FnvOffset;
             h = Mix(h, sim.Tick);
             h = Mix(h, (long)sim.Result);
+            // Send counters are real state, not just stats: the Efficiency
+            // objective gates releases on PlayerSends, so two boards identical
+            // except for their send counts respond differently to the next
+            // intent and must not fingerprint equal.
+            h = Mix(h, sim.PlayerSends);
+            h = Mix(h, sim.AiSends);
 
             foreach (GameNode n in sim.Nodes)
             {
