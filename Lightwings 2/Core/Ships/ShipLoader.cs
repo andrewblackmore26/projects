@@ -30,7 +30,7 @@ namespace Lightship.Core.Ships
         private static readonly HashSet<string> PartKeys = new HashSet<string>
         {
             "id", "shape", "pos", "rot", "color", "from", "to", "light_period", "light_phase",
-            "component", "layer", "dashed", "cut_offset",
+            "component", "layer", "dashed", "cut_offset", "replaces",
         };
 
         public static ShipDefinition LoadFile(string path, List<string> warnings) =>
@@ -84,6 +84,7 @@ namespace Lightship.Core.Ships
             p.To = OptString(e, "to", null);
             p.Component = OptString(e, "component", null);
             p.Dashed = OptBool(e, "dashed", false);
+            p.Replaces = OptString(e, "replaces", null);
             string layer = OptString(e, "layer", null);
             if (layer != null) p.Layer = ParseEnum<PartLayer>(layer, ctx + " layer");
 
@@ -128,8 +129,13 @@ namespace Lightship.Core.Ships
             foreach (PartDefinition p in ship.Parts)
             {
                 if (!p.IsTether) continue;
-                if (!ids.Contains(p.From)) throw new ShipFormatException(ctx + " part '" + p.Id + "': tether from unknown part '" + p.From + "'");
-                if (!ids.Contains(p.To)) throw new ShipFormatException(ctx + " part '" + p.Id + "': tether to unknown part '" + p.To + "'");
+                string pctx = ctx + " part '" + p.Id + "'";
+                if (!ids.Contains(p.From)) throw new ShipFormatException(pctx + ": tether from unknown part '" + p.From + "'");
+                if (!ids.Contains(p.To)) throw new ShipFormatException(pctx + ": tether to unknown part '" + p.To + "'");
+                if (p.From == p.To) throw new ShipFormatException(pctx + ": a tether must join two different parts");
+                // A tether has no position of its own, so one drawn to a tether would run to the core.
+                if (ship.FindPart(p.From).IsTether || ship.FindPart(p.To).IsTether)
+                    throw new ShipFormatException(pctx + ": a tether must join two parts, not another tether");
             }
 
             ShipGeometry geometry;
@@ -140,6 +146,16 @@ namespace Lightship.Core.Ships
             catch (ArgumentException ex)
             {
                 throw new ShipFormatException(ctx + ": " + ex.Message);
+            }
+
+            // Every non-tether part must actually produce geometry: a missing size parameter
+            // defaults to 0 and the builder drops the part, silently, abilities and all.
+            foreach (PartDefinition p in ship.Parts)
+            {
+                if (p.IsTether) continue;
+                if (geometry.Find(p.Id) == null)
+                    throw new ShipFormatException(ctx + " part '" + p.Id + "': produces no geometry (a size parameter of " +
+                        p.Shape.ToString().ToLowerInvariant() + " is missing or zero)");
             }
 
             if (warnings == null) return;
@@ -234,6 +250,7 @@ namespace Lightship.Core.Ships
             if (!string.IsNullOrEmpty(p.Component)) w.WriteString("component", p.Component);
             if (p.Layer.HasValue) w.WriteString("layer", Snake(p.Layer.Value.ToString()));
             if (p.Dashed) w.WriteBoolean("dashed", true);
+            if (!string.IsNullOrEmpty(p.Replaces)) w.WriteString("replaces", p.Replaces);
             w.WriteEndObject();
         }
 

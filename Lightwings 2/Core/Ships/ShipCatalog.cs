@@ -59,6 +59,22 @@ namespace Lightship.Core.Ships
 
         public ShipDefinition Get(string id) => _byId.TryGetValue(id, out ShipDefinition s) ? s : null;
 
+        /// <summary>Add a ship, or replace the one with the same id (the editor after a save).</summary>
+        public void Put(ShipDefinition ship)
+        {
+            if (_byId.TryGetValue(ship.Id, out ShipDefinition old)) _all[_all.IndexOf(old)] = ship;
+            else _all.Add(ship);
+            _byId[ship.Id] = ship;
+        }
+
+        /// <summary>The id of another ship that already claims this element and tier, or null.</summary>
+        public string ClaimedBy(Element element, int tier, string exceptId)
+        {
+            foreach (ShipDefinition s in _all)
+                if (s.Element == element && s.Tier == tier && s.Id != exceptId) return s.Id;
+            return null;
+        }
+
         /// <summary>The authored design for an element at a tier, or null when it does not exist yet.</summary>
         public ShipDefinition Find(Element element, int tier)
         {
@@ -85,6 +101,15 @@ namespace Lightship.Core.Ships
                 if (prev == null) continue;
                 if (s.Parts.Count <= prev.Parts.Count)
                     warnings.Add("ship '" + s.Id + "': " + s.Parts.Count + " parts is not more than tier " + prev.Tier + " (" + prev.Parts.Count + "); tiers grow by addition (spec 11.8)");
+                // Spec 11.8 / 12: earlier parts remain. Each id of the previous tier is kept, or named by a part's "replaces".
+                foreach (PartDefinition old in prev.Parts)
+                {
+                    if (s.FindPart(old.Id) != null) continue;
+                    bool replaced = false;
+                    foreach (PartDefinition p in s.Parts) if (p.Replaces == old.Id) { replaced = true; break; }
+                    if (!replaced)
+                        warnings.Add("ship '" + s.Id + "': drops tier " + prev.Tier + " part '" + old.Id + "' without a part that replaces it (spec 11.8: earlier parts remain)");
+                }
             }
         }
     }

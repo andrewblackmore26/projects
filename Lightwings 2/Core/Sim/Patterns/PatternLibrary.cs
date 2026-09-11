@@ -16,7 +16,7 @@ namespace Lightship.Core.Sim.Patterns
             var def = new PatternDefinition { Id = "flame_spray", Element = Element.Fire, Range = 170f, PreferredRange = 110f };
             def.Steps.Add(new PatternStep
             {
-                Kind = StepKind.Cone, Count = 5, SpreadDeg = 30f, Speed = 220f, Radius = 3f, Damage = 8f,
+                Kind = StepKind.Cone, Count = 5, SpreadDeg = 30f, Speed = 220f, Radius = 3f, Damage = 5f,
                 TtlTicks = 42, IntervalTicks = 20, Repeat = 3, PauseTicks = 72, Aim = AimMode.AtPlayer,
             });
             return def;

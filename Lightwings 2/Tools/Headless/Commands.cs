@@ -75,28 +75,36 @@ namespace Lightship.Headless
             for (int r = 0; r < runs; r++)
             {
                 ulong s = seed + (ulong)r;
-                var game = new Game(tuning, catalog, s, ship, new BotPilot { Dodge = !opts.ContainsKey("nododge") });
+                BotSkill skill = opts.ContainsKey("novice") ? BotSkill.Novice() : BotSkill.Perfect();
+                if (opts.ContainsKey("nododge")) skill.Dodge = false;
+                var game = new Game(tuning, catalog, s, ship, new BotPilot(s) { Skill = skill });
                 float energy60 = -1f, energy120 = -1f;
+                // First evolution in GAME ticks, sampled here: event ticks are arena ticks,
+                // which restart at every death, so a run that died first would under-report.
+                long first = -1;
                 while (game.Tick < ticks)
                 {
                     game.Step(default);
+                    if (first < 0 && game.Events.Count(EventKind.Evolved) > 0) first = game.Tick;
                     if (energy60 < 0f && game.Time >= 60f) energy60 = game.Run.Energy;
                     if (energy120 < 0f && game.Time >= 120f) energy120 = game.Run.Energy;
                 }
-                long first = game.Events.FirstTick(EventKind.Evolved);
                 float firstSec = first >= 0 ? first * tuning.Dt : -1f;
                 if (first < 0) allEvolved = false; else worst = Math.Max(worst, firstSec);
                 Console.WriteLine("bot: seed=" + s + " firstEvolveSec=" + (first >= 0 ? firstSec.ToString("F1") : "none") +
                     " energy60=" + energy60.ToString("F0") + " energy120=" + energy120.ToString("F0") +
                     " energyEnd=" + game.Run.Energy.ToString("F0") + " tier=" + game.Run.Tier +
                     " evolutions=" + game.Events.Count(EventKind.Evolved) +
-                    " kills=" + game.Events.Count(EventKind.Kill) + " deaths=" + game.Meta.Deaths +
+                    " kills=" + game.Events.Count(EventKind.Kill) + " spawned=" + game.Events.Count(EventKind.EnemySpawned) +
+                    " deaths=" + game.Meta.Deaths + " drones=" + game.Events.Count(EventKind.DroneHatched) +
+                    " infections=" + game.Events.Count(EventKind.Infected) + " spreads=" + game.Events.Count(EventKind.InfectSpread) +
                     " damageTaken=" + game.Events.Count(EventKind.PlayerDamaged) +
                     " energyShed=" + game.Run.EnergyShed.ToString("F0") +
                     " ambientShare=" + (game.Run.EnergyAbsorbed > 0 ? game.Run.EnergyFromAmbient / game.Run.EnergyAbsorbed : 0f).ToString("F2"));
             }
             bool pass = allEvolved && worst <= gate;
-            Console.WriteLine("bot: runs=" + runs + " firstEvolveMaxSec=" + (allEvolved ? worst.ToString("F1") : "none") +
+            Console.WriteLine("bot: profile=" + (opts.ContainsKey("novice") ? "novice" : "perfect") + (opts.ContainsKey("nododge") ? "+nododge" : "") +
+                " runs=" + runs + " firstEvolveMaxSec=" + (allEvolved ? worst.ToString("F1") : "none") +
                 " gateSec=" + gate + " pass=" + (pass ? 1 : 0));
             return pass ? 0 : 1;
         }
@@ -147,14 +155,16 @@ namespace Lightship.Headless
         }
 
         /// <summary>The headless twin of the sheet capture: where each light sits at t = 2.0 s.</summary>
-        public static int SheetInfo()
+        public static int SheetInfo(Dictionary<string, string> opts = null)
         {
             ShipCatalog catalog = Catalog();
-            const float t = 2.0f;
+            float t = opts != null && opts.ContainsKey("t") ? float.Parse(opts["t"], System.Globalization.CultureInfo.InvariantCulture) : 2.0f;
+            string only = opts != null && opts.ContainsKey("ship") ? opts["ship"] : null;
             foreach (ShipDefinition s in catalog.All)
             {
+                if (only != null && s.Id != only) continue;
                 ShipGeometry g = ShipGeometry.Build(ResolvedShip.From(s));
-                Console.WriteLine("sheet-info: id=" + s.Id + " footprintPx=" + g.Footprint.ToString("F1") + " parts=" + g.Parts.Count);
+                Console.WriteLine("sheet-info: t=" + t + " id=" + s.Id + " footprintPx=" + g.Footprint.ToString("F1") + " parts=" + g.Parts.Count);
                 foreach (PartGeometry p in g.Parts)
                 {
                     if (p.Dashed) continue;

@@ -53,8 +53,22 @@ namespace Lightship.Core.Config
         public float PlayerBulletRadius = 2.5f;           // world units
         public int PlayerBulletTtlTicks = 72;             // ticks a player bullet lives
 
+        // ---- corruption abilities (spec 12) ----
+        public int InfectDurationTicks = 180;             // ticks an infection lasts (3 s), refreshed by each infecting hit
+        public float InfectDps = 5f;                      // HP per second while infected
+        public float SpreadRadius = 150f;                 // world units an infection can jump
+        public int SpreadIntervalTicks = 60;              // ticks between jumps from one host
+        public int SpreadFirstJumpTicks = 15;             // ticks from infection to the first jump (0.25 s: seen before the host dies)
+        public int HatchIntervalTicks = 240;              // ticks between drones from one pod (4 s)
+        public float DroneSpeed = 300f;                   // world units per second
+        public float DroneHp = 12f;                       // HP
+        public float DroneRamDamage = 14f;                // HP dealt when a drone rams a hostile
+        public int DroneLifeTicks = 720;                  // ticks before an unused drone fades (12 s)
+
         // ---- enemies (spec 8) ----
-        public int EnemySpawnIntervalTicks = 360;         // ticks between enemy spawns while below MaxEnemies
+        public int EnemySpawnIntervalTicks = 540;         // ticks between enemy packs while below MaxEnemies
+        public int EnemyPackSize = 2;                     // enemies per spawn, arriving together (gives spread a neighbour)
+        public float EnemyPackSpacing = 70f;              // world units between pack members
         public int MaxEnemies = 4;                        // enemies alive at once (M1 arena)
         public float EnemyT1Hp = 40f;                     // HP of a tier-1 regular enemy
         public float EnemyHpPerTier = 30f;                // HP added per enemy tier

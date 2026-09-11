@@ -32,6 +32,12 @@ namespace Lightship.Core.Ships
         public PartLayer? Layer;
         /// <summary>Reference/reach ring: 1 px dashed, 40-60 % opacity, no fill, no running light.</summary>
         public bool Dashed;
+        /// <summary>
+        /// The previous tier's part this one supersedes (spec 12: fire T3 "body
+        /// becomes a hexagon chassis"). Growth by addition (spec 11.8) requires
+        /// every part id of tier n-1 to remain in tier n or be named here.
+        /// </summary>
+        public string Replaces;
 
         public bool IsTether => Shape == Shape.Tether;
 
@@ -46,7 +52,7 @@ namespace Lightship.Core.Ships
             {
                 Id = Id, Shape = Shape, Pos = Pos, RotDeg = RotDeg, Color = Color,
                 From = From, To = To, PeriodIndex = PeriodIndex, PhaseIndex = PhaseIndex,
-                Component = Component, Layer = Layer, Dashed = Dashed,
+                Component = Component, Layer = Layer, Dashed = Dashed, Replaces = Replaces,
             };
             foreach (var kv in Params) c.Params[kv.Key] = kv.Value;
             return c;

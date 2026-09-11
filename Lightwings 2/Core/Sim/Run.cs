@@ -42,7 +42,12 @@ namespace Lightship.Core.Sim
         public float Zoom => T.ZoomForTier(Tier);
         public bool Invulnerable => Reshape != null;
         public float Threshold => T.ThresholdForTier(Tier);
-        public bool EvolveAvailable => Tier < 5 && Offer.Count > 0 && Energy >= Threshold;
+        /// <summary>
+        /// Spec 5: locks at the threshold and stays available until taken. Never
+        /// during a reshape: a second evolution mid-tween would snap the ship and
+        /// the camera from a half-blended pose (the next offer waits for the end).
+        /// </summary>
+        public bool EvolveAvailable => Tier < 5 && Reshape == null && Offer.Count > 0 && Energy >= Threshold;
         public bool Dead => Player == null || !Player.Alive;
 
         public Run(Game game, ShipDefinition seed, Element sectorElement, IPilot playerPilot)
@@ -51,8 +56,11 @@ namespace Lightship.Core.Sim
             T = game.T;
             Ship = seed.AsPlayerVariant();
             Root = seed.Element;
+            // A seed is played at its own tier (a T3 seed has T3 HP, zoom and offers).
+            Tier = Math.Clamp(seed.Tier, 1, 5);
+            Energy = Tier >= 2 ? T.ThresholdForTier(Tier - 1) : 0f;
             Arena = new Arena(T, game.Rng.Fork(0x5A5A), game.Events, this, game.Catalog, sectorElement);
-            Arena.SpawnPlayer(Ship, Arena.Centre, playerPilot ?? Human, Health.MaxHp(1, T));
+            Arena.SpawnPlayer(Ship, Arena.Centre, playerPilot ?? Human, Health.MaxHp(Tier, T));
             RecomputeOffer();
         }
 
@@ -129,13 +137,18 @@ namespace Lightship.Core.Sim
         /// current tier's floor, so a hit can cost progress but never an evolution.
         /// </summary>
         public float EnergyShed;
+        private float _shedCarry;   // fractional light owed, so contact damage (0.25 HP a tick) sheds too
 
         public void OnPlayerDamaged(float amount, Vec2 at)
         {
             float f = T.DamageShedsLightFraction;
             if (f <= 0f) return;
             float floor = Tier >= 2 ? T.ThresholdForTier(Tier - 1) : 0f;
-            float shed = MathF.Min(MathF.Floor(amount * f), MathF.Max(0f, Energy - floor));
+            _shedCarry += amount * f;
+            float whole = MathF.Floor(_shedCarry);
+            if (whole < 1f) return;
+            _shedCarry -= whole;
+            float shed = MathF.Min(whole, MathF.Max(0f, Energy - floor));
             if (shed < 1f) return;
             Energy -= shed;
             EnergyShed += shed;

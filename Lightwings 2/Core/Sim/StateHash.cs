@@ -32,6 +32,9 @@ namespace Lightship.Core.Sim
                 h = Mix(h, Bits(s.Hp));
                 h = Mix(h, (ulong)s.Tier);
                 h = Mix(h, s.Alive ? 1UL : 0UL);
+                h = Mix(h, s.Side);
+                h = Mix(h, (ulong)s.InfectedUntil);
+                h = Mix(h, s.IsDrone ? 1UL : 0UL);
             }
             BulletPool b = a.Bullets;
             for (int i = 0; i < b.High; i++)
@@ -41,6 +44,8 @@ namespace Lightship.Core.Sim
                 h = Mix(h, Bits(b.X[i])); h = Mix(h, Bits(b.Y[i]));
                 h = Mix(h, Bits(b.VX[i])); h = Mix(h, Bits(b.VY[i]));
                 h = Mix(h, (ulong)b.Ttl[i]);
+                h = Mix(h, b.Side[i]);
+                h = Mix(h, b.Flags[i]);
             }
             PickupPool p = a.Pickups;
             for (int i = 0; i < p.High; i++)

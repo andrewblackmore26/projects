@@ -70,7 +70,8 @@ namespace Lightship.View
                     parts.Add(mark + "[" + (i + 1) + "] " + o.Element + " " + o.Name);
                 }
                 _prompt.Text = "EVOLVE  (E)    " + string.Join("     ", parts);
-                _prompt.Modulate = new Color(1, 1, 1, 0.65f + 0.35f * Mathf.Sin(game.Time * Mathf.Tau * 2f));
+                // Spec 5: a step change, not a ramp.
+                _prompt.Modulate = new Color(1, 1, 1, ((int)Mathf.Floor(game.Time * 4f) % 2 == 0) ? 1f : 0.45f);
             }
             else
             {
@@ -134,7 +135,7 @@ namespace Lightship.View
                 Color c1 = first == Element.None ? new Color(0.86f, 0.96f, 1f) : Palette.StrokeOf(Palette.RoleOf(first));
                 Color c2 = second == Element.None ? c1 : Palette.StrokeOf(Palette.RoleOf(second));
                 bool locked = run.EvolveAvailable;
-                float pulse = locked ? 0.6f + 0.4f * Mathf.Sin(game.Time * Mathf.Tau * 2f) : 1f;
+                float pulse = locked ? (((int)Mathf.Floor(game.Time * 4f) % 2 == 0) ? 1f : 0.45f) : 1f;
                 DrawRect(new Rect2(x, ey, firstW, h), c1 * new Color(1, 1, 1, pulse));
                 DrawRect(new Rect2(x + firstW, ey, filled - firstW, h), c2 * new Color(1, 1, 1, pulse));
                 if (locked) DrawRect(new Rect2(x - 2, ey - 2, w + 4, h + 4), new Color(1, 1, 1, pulse), false, 1f);

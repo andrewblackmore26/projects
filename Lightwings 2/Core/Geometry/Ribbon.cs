@@ -4,17 +4,23 @@ using System.Collections.Generic;
 namespace Lightship.Core.Geometry
 {
     /// <summary>
-    /// Turns a polyline into a ribbon (two vertices per point) with exact UVs:
+    /// Turns a polyline into a ribbon (two vertices per ring) with exact UVs:
     /// U runs 0..1 along the path and V is -1..1 across it. The running light
     /// lives entirely in the shader, driven by U, so the mesh is only rebuilt
     /// when the geometry itself changes.
     ///
-    /// Joints are mitred with the mitre length clamped, so a prong tip gets a
-    /// short spike rather than a mile-long one, and no gaps open at corners.
+    /// Joints are mitred up to MitreLimit (the mitre length over the
+    /// half-width). Past it (interior angles under about 60 degrees: triangle
+    /// tips, prongs, chevron points) the joint is BEVELLED: two rings at the
+    /// corner, one on each edge's own normal, both carrying the corner's U. A
+    /// long mitre there pulls its inner vertex several pixels along the
+    /// bisector, which bends the U interpolation so the drawn light runs ahead
+    /// of its true position (measured on the Ember's wing tip), and on thin
+    /// prongs it would cross the opposite edge.
     /// </summary>
     public static class Ribbon
     {
-        public const float MitreClamp = 0.35f;
+        public const float MitreLimit = 2.0f;
 
         /// <summary>
         /// Appends ring vertices (position, u, side) and quad triangles. The
@@ -37,44 +43,54 @@ namespace Lightship.Core.Geometry
             }
             if (total <= 1e-9f) return;
 
+            int rings = 0;
             for (int i = 0; i < ringCount; i++)
             {
                 Vec2 p = points[i % n];
-                Vec2 normal = NormalAt(points, n, i, ringCount, closed, out float scale);
-                Vec2 offset = normal * (halfWidth * scale);
                 float u = cumulative[i] / total;
-                verts.Add(p + offset); us.Add(u); sides.Add(1f);
-                verts.Add(p - offset); us.Add(u); sides.Add(-1f);
+                bool hasPrev = closed || i > 0;
+                bool hasNext = closed || i < ringCount - 1;
+                Vec2 dPrev = hasPrev ? (points[i % n] - points[Mod(i - 1, n)]).Normalized() : Vec2.Zero;
+                Vec2 dNext = hasNext ? (points[(i + 1) % n] - points[i % n]).Normalized() : Vec2.Zero;
+
+                if (!hasPrev || !hasNext)
+                {
+                    Vec2 nEnd = (hasNext ? dNext : dPrev).Perp();
+                    AddRing(p, nEnd * halfWidth, u, verts, us, sides);
+                    rings++;
+                    continue;
+                }
+
+                Vec2 nPrev = dPrev.Perp(), nNext = dNext.Perp();
+                Vec2 mitre = nPrev + nNext;
+                float denom = mitre.LengthSquared() < 1e-8f ? 0f : Vec2.Dot(mitre.Normalized(), nPrev);
+                float scale = MathF.Abs(denom) > 1e-6f ? 1f / MathF.Abs(denom) : float.MaxValue;
+                if (scale <= MitreLimit)
+                {
+                    AddRing(p, mitre.Normalized() * (halfWidth * scale), u, verts, us, sides);
+                    rings++;
+                }
+                else
+                {
+                    // Bevel: end the previous edge square, start the next edge square, same u.
+                    AddRing(p, nPrev * halfWidth, u, verts, us, sides);
+                    AddRing(p, nNext * halfWidth, u, verts, us, sides);
+                    rings += 2;
+                }
             }
 
-            for (int i = 0; i + 1 < ringCount; i++)
+            for (int r = 0; r + 1 < rings; r++)
             {
-                int a = baseVertex + i * 2, b = a + 1, c = a + 2, d = a + 3;
+                int a = baseVertex + r * 2, b = a + 1, c = a + 2, d = a + 3;
                 tris.Add(a); tris.Add(b); tris.Add(c);
                 tris.Add(c); tris.Add(b); tris.Add(d);
             }
         }
 
-        private static Vec2 NormalAt(Vec2[] points, int n, int i, int ringCount, bool closed, out float scale)
+        private static void AddRing(Vec2 p, Vec2 offset, float u, List<Vec2> verts, List<float> us, List<float> sides)
         {
-            scale = 1f;
-            bool hasPrev = closed || i > 0;
-            bool hasNext = closed || i < ringCount - 1;
-
-            Vec2 dPrev = hasPrev ? (points[i % n] - points[Mod(i - 1, n)]).Normalized() : Vec2.Zero;
-            Vec2 dNext = hasNext ? (points[(i + 1) % n] - points[i % n]).Normalized() : Vec2.Zero;
-
-            if (!hasPrev) return dNext.Perp();
-            if (!hasNext) return dPrev.Perp();
-
-            Vec2 nPrev = dPrev.Perp();
-            Vec2 nNext = dNext.Perp();
-            Vec2 mitre = nPrev + nNext;
-            if (mitre.LengthSquared() < 1e-8f) return nPrev;   // doubled back
-            mitre = mitre.Normalized();
-            float denom = Vec2.Dot(mitre, nPrev);
-            scale = 1f / MathF.Max(MathF.Abs(denom), MitreClamp);
-            return mitre;
+            verts.Add(p + offset); us.Add(u); sides.Add(1f);
+            verts.Add(p - offset); us.Add(u); sides.Add(-1f);
         }
 
         private static int Mod(int a, int m) => ((a % m) + m) % m;

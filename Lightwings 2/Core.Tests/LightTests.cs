@@ -45,14 +45,13 @@ namespace Lightship.Core.Tests
         }
 
         [Fact]
-        public void ScheduleSpreadsPeriodsAndPhases()
+        public void ScheduleSpreadsPeriodsAndPhasesAcrossIds()
         {
+            // Spec 11.5: about one part in four at 1.6 s, phases spread over three values.
             var parts = new List<PartDefinition>();
-            for (int i = 0; i < 12; i++) parts.Add(new PartDefinition { Id = "p" + i, Shape = Shape.Circle });
-            var dashed = new PartDefinition { Id = "reach", Shape = Shape.Circle, Dashed = true };
-            parts.Insert(4, dashed);
+            for (int i = 0; i < 400; i++) parts.Add(new PartDefinition { Id = "part_" + i, Shape = Shape.Circle });
+            parts.Add(new PartDefinition { Id = "reach", Shape = Shape.Circle, Dashed = true });
             LightSchedule.Assign(parts);
-
             int fast = 0;
             var phases = new int[3];
             foreach (PartDefinition p in parts)
@@ -61,23 +60,38 @@ namespace Lightship.Core.Tests
                 if (p.PeriodIndex == 1) fast++;
                 phases[p.PhaseIndex]++;
             }
-            Assert.Equal(3, fast);                         // every fourth part runs at 1.6 s
-            Assert.Equal(new[] { 4, 4, 4 }, phases);       // phases 0 / -0.7 / -1.3 evenly spread
-            Assert.Equal(1, parts[3].PeriodIndex);
-            Assert.Equal(0, parts[0].PeriodIndex);
+            Assert.InRange(fast / 400f, 0.18f, 0.32f);
+            foreach (int n in phases) Assert.InRange(n / 400f, 0.25f, 0.42f);
+        }
+
+        [Fact]
+        public void CarriedPartsKeepTheirScheduleWhateverTheListOrder()
+        {
+            // A part carried between tiers keeps its light, so it runs on continuously through the reshape.
+            var a = new List<PartDefinition> { new PartDefinition { Id = "blob", Shape = Shape.Circle }, new PartDefinition { Id = "tail_1", Shape = Shape.Circle } };
+            var b = new List<PartDefinition>
+            {
+                new PartDefinition { Id = "tether_tail_1", Shape = Shape.Tether },
+                new PartDefinition { Id = "pod_l", Shape = Shape.Circle },
+                new PartDefinition { Id = "tail_1", Shape = Shape.Circle },
+                new PartDefinition { Id = "blob", Shape = Shape.Circle },
+            };
+            LightSchedule.Assign(a);
+            LightSchedule.Assign(b);
+            Assert.Equal((a[0].PeriodIndex, a[0].PhaseIndex), (b[3].PeriodIndex, b[3].PhaseIndex));
+            Assert.Equal((a[1].PeriodIndex, a[1].PhaseIndex), (b[2].PeriodIndex, b[2].PhaseIndex));
+            // The crossfading old copy of a part keeps its schedule too.
+            var old = new List<PartDefinition> { new PartDefinition { Id = "blob~old", Shape = Shape.Circle } };
+            LightSchedule.Assign(old);
+            Assert.Equal((a[0].PeriodIndex, a[0].PhaseIndex), (old[0].PeriodIndex, old[0].PhaseIndex));
         }
 
         [Fact]
         public void PinnedScheduleValuesAreKept()
         {
-            var parts = new List<PartDefinition>
-            {
-                new PartDefinition { Id = "a", Shape = Shape.Circle, PeriodIndex = 1, PhaseIndex = 2 },
-                new PartDefinition { Id = "b", Shape = Shape.Circle },
-            };
+            var parts = new List<PartDefinition> { new PartDefinition { Id = "a", Shape = Shape.Circle, PeriodIndex = 1, PhaseIndex = 2 } };
             LightSchedule.Assign(parts);
             Assert.Equal((1, 2), (parts[0].PeriodIndex, parts[0].PhaseIndex));
-            Assert.Equal((0, 1), (parts[1].PeriodIndex, parts[1].PhaseIndex));
         }
 
         [Fact]

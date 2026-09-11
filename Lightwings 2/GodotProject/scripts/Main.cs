@@ -52,8 +52,6 @@ namespace Lightship.View
         private float _shotSeconds = 10f;
         private bool _captureArmed;
         private int _framesSinceTarget;
-        private bool _diffPending;
-        private Frame _frameA;
         private float _maxSeconds = -1f;
         private double _elapsed;
 
@@ -150,8 +148,10 @@ namespace Lightship.View
         private void SetupPlay()
         {
             ulong seed = ulong.Parse(Arg("seed", "1"));
-            bool bot = Has("bot") || _mode == "bench";
+            bool bot = Has("bot") || _mode == "bench" || Has("lockprobe");
             _gc = new GameController(_tuning, _catalog, seed, Arg("ship", null), bot);
+            // The lock-pulse capture holds the bot at its threshold instead of evolving.
+            if (Has("lockprobe") && _gc.Game.Arena.Player.Pilot is BotPilot bp) bp.Skill.Evolves = false;
 
             _arenaView = new ArenaView();
             AddChild(_arenaView);
@@ -321,18 +321,60 @@ namespace Lightship.View
                     _gc.AdvanceTicks((long)Math.Round(_shotSeconds * _tuning.TickRate));
                     _probe = new PlayProbe();
                     _probe.Plant(_gc.Game.Arena);
+                    _probe.PlantRider(_gc.Game.Arena);
+                    // Draw between ticks so interpolation is actually exercised by the capture.
+                    if (Has("alpha")) _gc.SetAlphaForProbe(ArgFloat("alpha", 0.5f));
                     SyncViews();
                 }
+                if (_sheet != null) _sheet.SetTime(SheetLayout.Times[0]);
                 _framesSinceTarget = 1;
                 return;
             }
             if (_gc != null) SyncViews();   // no ticks: the frame is frozen, only the views settle
             _framesSinceTarget++;
-            if (_framesSinceTarget >= 4)
+            if (_framesSinceTarget < 4) return;
+
+            if (_sheet != null)
             {
-                if (_diffPending) CaptureSecond();
-                else CaptureFirst();
+                // The sheet is measured over several light times: every part at its visible moment.
+                _sheetFrames.Add(Frame.Grab(GetViewport()));
+                if (_sheetFrames.Count < SheetLayout.Times.Length)
+                {
+                    _sheet.SetTime(SheetLayout.Times[_sheetFrames.Count]);
+                    _framesSinceTarget = 1;
+                    return;
+                }
+                FinishSheet();
+                return;
             }
+            if (_lockPhase == 1)
+            {
+                CaptureLockSecond();
+                return;
+            }
+            CaptureFirst();
+        }
+
+        private readonly List<Frame> _sheetFrames = new List<Frame>();
+        private int _lockPhase;
+        private int _lockBrightA;
+        private float _lockPulseA;
+
+        private void FinishSheet()
+        {
+            _captureArmed = false;
+            Frame first = _sheetFrames[0];
+            if (!Save(first, _shotPath)) return;
+            string pathB = System.IO.Path.ChangeExtension(_shotPath, null) + "_b.png";
+            if (!Save(_sheetFrames[SheetLayout.DiffStep], pathB)) return;
+            GD.Print("lightship: screenshot " + _shotPath + " mode=sheet frames=" + _sheetFrames.Count + " (+0.5 s in " + pathB + ")");
+            GD.Print("measure: groundRect=" + (_backgroundRect == null ? "none" : _backgroundRect.Size.ToString()));
+            GD.Print(first.BasicMeasureLine());
+            foreach (string line in _sheet.Measure(_sheetFrames)) GD.Print(line);
+            if (Has("dumpframes"))
+                for (int k = 0; k < _sheetFrames.Count; k++)
+                    _sheetFrames[k].SavePng(System.IO.Path.ChangeExtension(_shotPath, null) + "_t" + SheetLayout.Times[k].ToString("F2", CultureInfo.InvariantCulture) + ".png");
+            GetTree().Quit(0);
         }
 
         private void CaptureFirst()
@@ -345,34 +387,41 @@ namespace Lightship.View
 
             if (_mode == "bg" && Has("emitter")) Diagnostics.Measure(frame);
             if (_gc != null && _probe != null)
-                foreach (string line in _probe.Measure(frame, GetViewport().GetCanvasTransform(), _gc.Game, _arenaView, _camera.CurrentZoom))
-                    GD.Print(line);
-
-            if (_sheet != null)
             {
-                foreach (string line in _sheet.Measure(frame)) GD.Print(line);
-                if (Has("lightdiff"))
-                {
-                    // Second capture half a second later: every lit point must have moved on.
-                    _frameA = frame;
-                    _sheet.SetTime(SheetLayout.CaptureTime + SheetLayout.DiffSeconds);
-                    _diffPending = true;
-                    _framesSinceTarget = 1;
-                    return;
-                }
+                foreach (string line in _probe.Measure(frame, GetViewport().GetCanvasTransform(), _gc.Game, _arenaView, _camera.CurrentZoom, _gc.Alpha))
+                    GD.Print(line);
+                GD.Print(_probe.MeasureRider(frame, GetViewport().GetCanvasTransform(), _gc.Game.Arena, _camera.CurrentZoom, _gc.Alpha, _tuning.Dt));
+            }
+
+            if (_gc != null && Has("lockprobe"))
+            {
+                // Spec 5: at the threshold the ship pulses as a step change. Capture its other step
+                // (1/PulseStepsPerSecond later, 15 ticks) and compare the bright pixels in its box.
+                _lockBrightA = PlayProbe.PlayerBrightPixels(frame, GetViewport().GetCanvasTransform(), _gc.Game.Arena, _camera.CurrentZoom, _gc.Alpha);
+                _lockPulseA = _arenaView.PlayerPulse;
+                GD.Print("lightship: lock A locked=" + _arenaView.PlayerLocked + " pulse=" + _lockPulseA + " bright=" + _lockBrightA);
+                _gc.AdvanceTicks((long)Math.Round(_tuning.TickRate / ArenaView.PulseStepsPerSecond));
+                SyncViews();
+                _lockPhase = 1;
+                _framesSinceTarget = 1;
+                return;
             }
             _captureArmed = false;
             GetTree().Quit(0);
         }
 
-        private void CaptureSecond()
+        private void CaptureLockSecond()
         {
             _captureArmed = false;
-            Frame frameB = Frame.Grab(GetViewport());
+            Frame b = Frame.Grab(GetViewport());
             string pathB = System.IO.Path.ChangeExtension(_shotPath, null) + "_b.png";
-            if (!Save(frameB, pathB)) return;
-            GD.Print("lightship: screenshot " + pathB + " at sim " + _sheet.Time.ToString("F2") + "s");
-            foreach (string line in _sheet.MeasureDiff(_frameA, frameB, SheetLayout.CaptureTime)) GD.Print(line);
+            if (!Save(b, pathB)) return;
+            int brightB = PlayProbe.PlayerBrightPixels(b, GetViewport().GetCanvasTransform(), _gc.Game.Arena, _camera.CurrentZoom, _gc.Alpha);
+            float pulseB = _arenaView.PlayerPulse;
+            int on = _lockPulseA > pulseB ? _lockBrightA : brightB, off = _lockPulseA > pulseB ? brightB : _lockBrightA;
+            bool ok = _arenaView.PlayerLocked && _lockPulseA != pulseB && on > off * 1.5f + 5;
+            GD.Print("measure: lockPulse locked=" + (_arenaView.PlayerLocked ? 1 : 0) + " pulseA=" + _lockPulseA + " pulseB=" + pulseB +
+                     " brightOn=" + on + " brightOff=" + off + " ok=" + (ok ? 1 : 0));
             GetTree().Quit(0);
         }
 
@@ -415,7 +464,8 @@ namespace Lightship.View
                      " avgFrameMs=" + Mean(_frameMs).ToString("F3") + " p50FrameMs=" + _frameMs[n / 2].ToString("F3") +
                      " p99FrameMs=" + _frameMs[(int)(n * 0.99)].ToString("F3") +
                      " avgStepMs=" + Mean(_stepMs).ToString("F3") + " avgSyncMs=" + Mean(_syncMs).ToString("F3") +
-                     " drawCalls=" + (_drawCallsSum / Math.Max(n, 1)) + " fps=" + (1000.0 / Mean(_frameMs)).ToString("F0"));
+                     " drawCalls=" + (_drawCallsSum / Math.Max(n, 1)) + " fps=" + (1000.0 / Mean(_frameMs)).ToString("F0") +
+                     " ok=" + (Mean(_frameMs) < 16.0 && _gc.Game.Arena.Bullets.Live >= (int)(int.Parse(Arg("bench", "2000")) * 0.9) ? 1 : 0));
             // A bench run still has to leave a frame behind for the harness.
             Frame frame = Frame.Grab(GetViewport());
             if (_shotPath != null) Save(frame, _shotPath);

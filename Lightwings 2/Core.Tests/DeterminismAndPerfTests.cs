@@ -28,17 +28,18 @@ namespace Lightship.Core.Tests
         }
 
         [Fact]
-        public void HashChangesEveryTick()
+        public void HashCoversStateNotJustTheTick()
         {
-            Game a = SimTestHelpers.BotGame(7);
-            ulong prev = StateHash.Compute(a);
-            for (int i = 0; i < 10; i++)
-            {
-                a.Step(default);
-                ulong h = StateHash.Compute(a);
-                Assert.NotEqual(prev, h);
-                prev = h;
-            }
+            // Games at the same tick that differ only in one bullet's position, or in the player's HP,
+            // must hash apart. (A tick-only hash would pass a "changes every tick" test.)
+            Game a = SimTestHelpers.QuietGame(7), b = SimTestHelpers.QuietGame(7);
+            a.Arena.SpawnBullet(Faction.Enemy, Lightship.Core.Ships.Element.Fire, new Vec2(100f, 100f), Vec2.Zero, 3f, 1f, 600);
+            b.Arena.SpawnBullet(Faction.Enemy, Lightship.Core.Ships.Element.Fire, new Vec2(100f, 101f), Vec2.Zero, 3f, 1f, 600);
+            Assert.NotEqual(StateHash.Compute(a), StateHash.Compute(b));
+            Game c = SimTestHelpers.QuietGame(7), d = SimTestHelpers.QuietGame(7);
+            d.Arena.Player.Hp -= 1f;
+            Assert.NotEqual(StateHash.Compute(c), StateHash.Compute(d));
+            Assert.Equal(StateHash.Compute(c), StateHash.Compute(SimTestHelpers.QuietGame(7)));
         }
     }
 

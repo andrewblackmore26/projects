@@ -18,13 +18,16 @@ namespace Lightship.Headless
     /// </summary>
     public static class Program
     {
+        /// <summary>Joins repeated --set values inside one option string (a character no argument contains).</summary>
+        private const char SetSeparator = '';
+
         public static int Main(string[] argv)
         {
             if (argv.Length == 0) { Usage(); return 2; }
             string cmd = argv[0];
             var opts = ParseOptions(argv, 1, out List<string> positional);
             var tuning = new Tuning();
-            foreach (string set in opts.GetValueOrDefault("set-list", "").Split('', StringSplitOptions.RemoveEmptyEntries))
+            foreach (string set in opts.GetValueOrDefault("set-list", "").Split(SetSeparator, StringSplitOptions.RemoveEmptyEntries))
             {
                 int eq = set.IndexOf('=');
                 if (eq < 0 || !tuning.TrySet(set.Substring(0, eq), set.Substring(eq + 1)))
@@ -43,7 +46,7 @@ namespace Lightship.Headless
                     case "bot": return Commands.Bot(tuning, opts);
                     case "bench": return Commands.Bench(tuning, opts);
                     case "hash": return Commands.Hash(tuning, opts);
-                    case "sheet-info": return Commands.SheetInfo();
+                    case "sheet-info": return Commands.SheetInfo(opts);
                     default: Usage(); return 2;
                 }
             }
@@ -73,7 +76,7 @@ namespace Lightship.Headless
                 int eq = key.IndexOf('=');
                 if (eq >= 0) { value = key.Substring(eq + 1); key = key.Substring(0, eq); }
                 else if (i + 1 < argv.Length && !argv[i + 1].StartsWith("--")) { value = argv[++i]; }
-                if (key == "set") map["set-list"] = map.GetValueOrDefault("set-list", "") + value + "";
+                if (key == "set") map["set-list"] = map.GetValueOrDefault("set-list", "") + value + SetSeparator.ToString();
                 else map[key] = value;
             }
             return map;

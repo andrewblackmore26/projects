@@ -101,7 +101,7 @@ namespace Lightship.Core.Tests
             // 15-tick interval: shots at ticks 1, 16, 31, 46 -> 4 in the first second, ttl 72 keeps them alive.
             Assert.Equal(4, game.Arena.Bullets.Live);
             for (int i = 0; i < game.Arena.Bullets.High; i++)
-                if (game.Arena.Bullets.Alive[i]) Assert.Equal((byte)Faction.Player, game.Arena.Bullets.Owner[i]);
+                if (game.Arena.Bullets.Alive[i]) Assert.Equal(Sides.Player, game.Arena.Bullets.Side[i]);
         }
     }
 }

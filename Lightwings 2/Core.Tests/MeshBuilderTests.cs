@@ -77,6 +77,32 @@ namespace Lightship.Core.Tests
         }
 
         [Fact]
+        public void SharpCornersAreBevelledSoNoVertexStraysAndUStaysExact()
+        {
+            // A thin prong (length 6x base): its tip is far sharper than the mitre limit.
+            var prong = GeometryTests.Part("prong", Shape.Prong, ColorRole.LightningYellow, 0f, 0f, 0f, ("base", 3f), ("length", 18f));
+            MeshData m = Build(GeometryTests.Ship(prong), 1f);
+            MeshSpan s = SpanOf(m, "prong");
+            PartGeometry g = ShipGeometry.Build(ResolvedShip.From(GeometryTests.Ship(prong))).Find("prong");
+            int tipRings = 0;
+            for (int i = s.FirstIndex; i < s.FirstIndex + s.IndexCount; i++)
+            {
+                int v = m.Indices[i];
+                ShipMeshBuilder.UnpackFlags(m.Flags(v), out int kind, out _, out _);
+                if (kind != ShipMeshBuilder.KindStroke) continue;
+                // No ribbon vertex is farther from the outline than the mitre limit allows.
+                Assert.True(g.DistanceToOutline(m.Position(v)) <= 1.3f * Ribbon.MitreLimit + 1e-3f, "stray vertex " + m.Position(v));
+            }
+            // The tip (outline point 0, u = 0 and its closing twin u = 1) has bevel rings sharing its u.
+            for (int v = 0; v < m.VertexCount; v++)
+            {
+                ShipMeshBuilder.UnpackFlags(m.Flags(v), out int kind, out _, out _);
+                if (kind == ShipMeshBuilder.KindStroke && Vec2.Distance(m.Position(v), g.Outline[0]) <= 1.31f) tipRings++;
+            }
+            Assert.True(tipRings >= 6, "expected bevel rings at the tip, found " + tipRings + " vertices");
+        }
+
+        [Fact]
         public void EveryPartEmitsASpanAndDashedPartsHaveNoFill()
         {
             var body = GeometryTests.Part("body", Shape.Ellipse, ColorRole.CorruptionGreen, 0f, 0f, 0f, ("rx", 9f), ("ry", 7f));

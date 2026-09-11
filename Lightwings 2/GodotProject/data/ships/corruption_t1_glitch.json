@@ -8,8 +8,8 @@
   "breathes": true,
   "abilities": ["infect"],
   "parts": [
-    { "id": "blob", "shape": "ellipse", "rx": 10.5, "ry": 9.5, "pos": [0, 0], "color": "corruption_green", "layer": "body" },
-    { "id": "tail_1", "shape": "circle", "radius": 3, "pos": [-5.5, 10], "color": "corruption_green", "layer": "outer" },
-    { "id": "spore_c", "shape": "circle", "radius": 2.6, "pos": [5.5, -9], "color": "lightning_yellow", "component": "infect" }
+    { "id": "tail_1", "shape": "circle", "radius": 3, "pos": [0, 13], "color": "corruption_green", "layer": "outer" },
+    { "id": "blob", "shape": "ellipse", "rx": 9.5, "ry": 9, "pos": [0, 0], "color": "corruption_green", "layer": "body" },
+    { "id": "spore_c", "shape": "circle", "radius": 2.8, "pos": [0, -12], "color": "lightning_yellow", "component": "infect" }
   ]
 }

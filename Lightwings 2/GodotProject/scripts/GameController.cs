@@ -68,6 +68,9 @@ namespace Lightship.View
             Game.Step(input);
         }
 
+        /// <summary>Capture probes only: draw the frozen frame part-way between ticks.</summary>
+        public void SetAlphaForProbe(float alpha) => Alpha = alpha;
+
         /// <summary>Advance an exact number of ticks (deterministic capture and gates).</summary>
         public void AdvanceTicks(long ticks)
         {

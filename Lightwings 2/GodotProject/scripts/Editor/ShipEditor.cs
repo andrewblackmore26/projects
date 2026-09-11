@@ -42,6 +42,9 @@ namespace Lightship.View.Editor
         public List<string> LastWarnings { get; } = new List<string>();
         public ShipCatalog Catalog => _catalog;
         public float Footprint { get; private set; }
+        /// <summary>What the working view actually drew (the self-test checks the tween preview against it).</summary>
+        public ShipGeometry WorkGeometry => _work.Geometry;
+        public event Action CatalogChanged;
 
         public void Setup(ShipCatalog catalog, ShaderMaterial material, string shipId)
         {
@@ -89,6 +92,8 @@ namespace Lightship.View.Editor
         /// <summary>Re-validate and rebuild every view. Called after every edit.</summary>
         public void Changed()
         {
+            // Any edit may have shortened the part list; a stale selection would index past its end.
+            if (Selected >= Ship.Parts.Count) Selected = Ship.Parts.Count - 1;
             LastWarnings.Clear();
             LastError = null;
             try
@@ -147,9 +152,11 @@ namespace Lightship.View.Editor
             }
             if (shape == Shape.Tether)
             {
-                if (Ship.Parts.Count < 2) return;
-                p.From = Ship.Parts[0].Id;
-                p.To = Ship.Parts[Ship.Parts.Count - 1].Id;
+                // A tether joins two parts; tethers have no position, so never pick one as an end.
+                var ends = Ship.Parts.FindAll(q => !q.IsTether);
+                if (ends.Count < 2) return;
+                p.From = ends[0].Id;
+                p.To = ends[ends.Count - 1].Id;
             }
             Ship.Parts.Add(p);
             Selected = Ship.Parts.Count - 1;
@@ -179,7 +186,8 @@ namespace Lightship.View.Editor
             m.Pos = new Vec2(-p.Pos.X, p.Pos.Y);
             m.RotDeg = -p.RotDeg;
             if (m.Params.ContainsKey("cut_dx")) m.Params["cut_dx"] = -m.Params["cut_dx"];
-            if (m.Params.ContainsKey("start_deg")) m.Params["start_deg"] = -m.Param("start_deg") - m.Param("sweep_deg");
+            // An arc's angular range mirrors too, whether or not start_deg was written (it defaults to 0).
+            if (m.Shape == Shape.Arc) m.Params["start_deg"] = -p.Param("start_deg") - p.Param("sweep_deg");
             Ship.Parts.Insert(Selected + 1, m);
             Selected++;
             Changed();
@@ -226,14 +234,42 @@ namespace Lightship.View.Editor
         public string SavePath(string dir = null) =>
             (dir ?? ProjectSettings.GlobalizePath(ShipData.ShipsDir)) + "/" + Ship.Id + ".json";
 
-        /// <summary>Refuses to write a ship that fails the loader's hard rules.</summary>
+        /// <summary>
+        /// Refuses to write a ship that fails the loader's hard rules, or one that
+        /// would give an element two designs for one tier (the catalog refuses
+        /// that at startup, so saving it would stop the game and the editor from
+        /// opening). After a save the catalog holds the saved version, so load
+        /// and the tween list see it.
+        /// </summary>
         public bool Save(string dir, out string path)
         {
             path = SavePath(dir);
             Changed();
             if (LastError != null) return false;
+            string other = _catalog.ClaimedBy(Ship.Element, Ship.Tier, Ship.Id);
+            if (other != null)
+            {
+                LastError = "'" + other + "' already is " + Ship.Element + " tier " + Ship.Tier + "; change the tier or element, or edit that ship";
+                _panel?.Refresh();
+                return false;
+            }
             System.IO.File.WriteAllText(path, ShipLoader.Serialize(Ship));
+            _catalog.Put(Ship.Clone());
+            CatalogChanged?.Invoke();
             return true;
+        }
+
+        /// <summary>Load a ship from its file on disk (falling back to the catalog copy), never a stale snapshot.</summary>
+        public void LoadById(string id)
+        {
+            string path = ProjectSettings.GlobalizePath(ShipData.ShipsDir) + "/" + id + ".json";
+            ShipDefinition def = null;
+            if (System.IO.File.Exists(path))
+            {
+                try { def = ShipLoader.LoadFile(path, new List<string>()); _catalog.Put(def.Clone()); }
+                catch (ShipFormatException e) { LastError = e.Message; }
+            }
+            Load((def ?? _catalog.Get(id))?.Clone() ?? NewShip());
         }
 
         // ---- mouse on the working view ----

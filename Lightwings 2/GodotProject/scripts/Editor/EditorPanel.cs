@@ -76,17 +76,14 @@ namespace Lightship.View.Editor
             fileRow.AddChild(Button("New", () => _ed.Load(ShipEditor.NewShip())));
             left.AddChild(fileRow);
             _load = new OptionButton();
-            foreach (ShipDefinition s in _ed.Catalog.All) _load.AddItem(s.Id);
-            _load.ItemSelected += i => { if (!_refreshing) _ed.Load(_ed.Catalog.All[(int)i].Clone()); };
+            _load.ItemSelected += i => { if (!_refreshing) _ed.LoadById(_load.GetItemText((int)i)); };
             left.AddChild(Labeled("load", _load));
 
             left.AddChild(Title("RESHAPE PREVIEW"));
             _tweenTarget = new OptionButton();
-            _tweenTarget.AddItem("(none)");
-            foreach (ShipDefinition s in _ed.Catalog.All) _tweenTarget.AddItem(s.Id);
             _tweenTarget.ItemSelected += i =>
             {
-                _ed.TweenTarget = i == 0 ? null : _ed.Catalog.All[(int)i - 1];
+                _ed.TweenTarget = i == 0 ? null : _ed.Catalog.Get(_tweenTarget.GetItemText((int)i));
                 _ed.TweenT = i == 0 ? -1f : (float)_tween.Value;
                 _ed.Changed();
             };
@@ -102,7 +99,24 @@ namespace Lightship.View.Editor
             _status.AddThemeFontSizeOverride("font_size", 13);
             AddChild(_status);
 
+            _ed.CatalogChanged += RebuildShipLists;
+            RebuildShipLists();
             Refresh();
+        }
+
+        /// <summary>The load and tween lists follow the catalog, including ships saved this session.</summary>
+        private void RebuildShipLists()
+        {
+            _refreshing = true;
+            _load.Clear();
+            _tweenTarget.Clear();
+            _tweenTarget.AddItem("(none)");
+            foreach (ShipDefinition s in _ed.Catalog.All)
+            {
+                _load.AddItem(s.Id);
+                _tweenTarget.AddItem(s.Id);
+            }
+            _refreshing = false;
         }
 
         private void MoveInList(int dir)
@@ -151,6 +165,15 @@ namespace Lightship.View.Editor
             Line(_props, "id", t =>
             {
                 string old = p.Id;
+                if (t == old) return;
+                // Reject an empty id or one another part already has, before touching any tether:
+                // merging two parts' tether references under one id cannot be undone by renaming back.
+                if (t.Length == 0 || _ed.Ship.FindPart(t) != null)
+                {
+                    _status.Text = "rename refused: '" + t + "' is " + (t.Length == 0 ? "empty" : "already a part id");
+                    Refresh();
+                    return;
+                }
                 p.Id = t;
                 foreach (PartDefinition q in _ed.Ship.Parts) { if (q.From == old) q.From = t; if (q.To == old) q.To = t; }
                 _ed.Changed();

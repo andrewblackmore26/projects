@@ -2,19 +2,21 @@ using System;
 using Lightship.Core.Config;
 using Lightship.Core.Geometry;
 using Lightship.Core.Ships;
+using Lightship.Core.Sim.Abilities;
 using Lightship.Core.Sim.Patterns;
 
 namespace Lightship.Core.Sim
 {
     /// <summary>
     /// A ship in the arena: definition, geometry (ship-local world units), pose,
-    /// HP and its pilot. The player's hitbox is the core only; enemies are hit
-    /// anywhere on the body (decision 2 in the plan).
+    /// HP, status and its pilot. The player's hitbox is the core only; every
+    /// other ship is hit anywhere on its drawn body.
     /// </summary>
     public sealed class Ship
     {
         public int Id;
         public Faction Faction;
+        public byte Side;
         public Element Element;
         public int Tier;
         public ShipDefinition Def;
@@ -28,17 +30,35 @@ namespace Lightship.Core.Sim
         public float MaxHp;
         public long LastDamageTick = long.MinValue / 2;
         public long LastShedTick = long.MinValue / 2;
-        public long NextFireTick;
         public long SpawnTick;
         public bool Alive = true;
         public float BreathPhase;
         public float Speed;
 
+        /// <summary>Spec 9: only the player's core takes bullets; everything else is hit on its body.</summary>
+        public bool CoreOnlyHitbox;
+
         public IPilot Pilot;
-        public PatternRunner Pattern;
+        public PatternRunner Pattern;     // regular enemies: fixed patterns (spec 8)
+        public Loadout Loadout;           // the player and rivals: abilities from their parts (spec 11.7)
         public PlayerInput LastInput;
 
+        // Drones (corruption T3 hatch): short-lived rammers belonging to another ship.
+        public bool IsDrone;
+        public int OwnerShipId = -1;
+        public long DespawnTick = long.MaxValue;
+        public float RamDamage;
+        public byte RamFlags;
+
+        // Infection (corruption): damage over time from a hostile side, optionally spreading.
+        public long InfectedUntil = long.MinValue / 2;
+        public float InfectDps;
+        public byte InfectSide;
+        public bool InfectSpreads;
+        public long NextSpreadTick;
+
         public float BoundRadius => Geometry.BoundRadius;
+        public bool Infected(long tick) => tick < InfectedUntil;
 
         /// <summary>Node rotation in radians: local forward (0,-1) turned onto Facing.</summary>
         public float Rotation => Facing.Angle() + MathF.PI / 2f;
@@ -56,6 +76,7 @@ namespace Lightship.Core.Sim
             Geometry = ShipGeometry.Build(ResolvedShip.From(def));
             Element = def.Element;
             Tier = def.Tier;
+            if (Loadout != null) Loadout = Loadout.Build(def, Loadout.Tuning);
         }
     }
 }

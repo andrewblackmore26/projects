@@ -77,15 +77,20 @@ namespace Lightship.View
         public ShaderMaterial ShaderMat => (ShaderMaterial)Material;
     }
 
-    /// <summary>One faction's bullets: the player's under the enemies' (spec 9, 15).</summary>
+    /// <summary>
+    /// The player's side's bullets, or everyone else's: the player's are drawn
+    /// under the rest (spec 9, 15). Drawn at the same moment as ships: ships
+    /// lerp PrevPos to Pos (tick n-1 to n), so bullets are drawn at
+    /// X + V (alpha - 1) dt, which is exact for constant-velocity bullets.
+    /// </summary>
     public partial class BulletLayer : InstanceLayer
     {
-        private Faction _faction;
+        private bool _playerSide;
         public const float QuadScale = 1.6f;   // quad half-size over the collision radius
 
         public void Setup(int capacity, Faction faction, int zIndex)
         {
-            _faction = faction;
+            _playerSide = faction == Faction.Player;
             ZIndex = zIndex;
             Init(capacity, GD.Load<Shader>("res://shaders/bullet.gdshader"));
             ShaderMat.SetShaderParameter("emission", Palette.BulletEmission);
@@ -94,16 +99,18 @@ namespace Lightship.View
         public void Sync(BulletPool b, float alpha, float dt)
         {
             int k = 0;
-            bool player = _faction == Faction.Player;
+            float back = (alpha - 1f) * dt;
             for (int i = 0; i < b.High; i++)
             {
                 if (!b.Alive[i]) continue;
-                if ((b.Owner[i] == (byte)Faction.Player) != player) continue;
+                bool mine = b.Side[i] == Sides.Player;
+                if (mine != _playerSide) continue;
                 float vx = b.VX[i], vy = b.VY[i];
                 float len = MathF.Sqrt(vx * vx + vy * vy);
                 float dx = len > 1e-3f ? vx / len : 0f, dy = len > 1e-3f ? vy / len : -1f;
-                ColorRole role = player ? ColorRole.PlayerBlue : Palette.RoleOf((Element)b.Elem[i]);
-                Put(Buf, k++, b.X[i] + vx * alpha * dt, b.Y[i] + vy * alpha * dt, dx, dy, b.Radius[i] * QuadScale,
+                // Spec 13: the player's bullets are light blue whatever they carry; others wear their element.
+                ColorRole role = mine ? ColorRole.PlayerBlue : Palette.RoleOf((Element)b.Elem[i]);
+                Put(Buf, k++, b.X[i] + vx * back, b.Y[i] + vy * back, dx, dy, b.Radius[i] * QuadScale,
                     b.Shape[i], (float)role, 0f, 0f);
             }
             Commit(k);
@@ -139,11 +146,12 @@ namespace Lightship.View
         public void Sync(PickupPool p, float alpha, float dt)
         {
             int k = 0;
+            float back = (alpha - 1f) * dt;   // same moment as the ships (see BulletLayer)
             for (int i = 0; i < p.High; i++)
             {
                 if (!p.Alive[i]) continue;
                 var e = (Element)p.Elem[i];
-                Put(Buf, k++, p.X[i] + p.VX[i] * alpha * dt, p.Y[i] + p.VY[i] * alpha * dt, 0f, -1f, SizeScale[p.Size[i]],
+                Put(Buf, k++, p.X[i] + p.VX[i] * back, p.Y[i] + p.VY[i] * back, 0f, -1f, SizeScale[p.Size[i]],
                     ShapeOf(e), (float)Palette.RoleOf(e), p.PeriodIndex[i], p.PhaseIndex[i]);
             }
             Commit(k);

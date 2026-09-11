@@ -13,7 +13,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Seconds = "10",
-    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg", "emitter", "editor")][string]$Mode = "play",
+    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg", "emitter", "editor", "lock")][string]$Mode = "play",
     [int]$Seed = 1,
     [switch]$Bot,
     [string]$Ship = "",
@@ -67,6 +67,7 @@ switch ($Mode) {
     "bg"        { $godotArgs += " --bg" }
     "emitter"   { $godotArgs += " --bg --emitter" }
     "editor"    { $godotArgs += " --editor --selftest" }
+    "lock"      { $godotArgs += " --play --lockprobe" }
 }
 if ($Emitter) { $godotArgs += " --emitter" }
 if ($Extra -ne "") { $godotArgs += " $Extra" }
@@ -103,5 +104,14 @@ if (-not (Test-Path $outPath)) { Write-Error "FAIL: no screenshot was written to
 $measure = $lines | Select-String -Pattern "^measure:"
 if (-not $measure) { Write-Error "FAIL: no measurement line in the engine output" }
 Write-Host ""
-Write-Host "OK  $outPath"
 $measure | ForEach-Object { Write-Host "    $($_.Line)" }
+# Every instrument ends its line with ok=1 or ok=0. Any ok=0 is a failed gate, and the
+# script says so and exits non-zero: printing numbers is not the same as checking them.
+$failed = $measure | Where-Object { $_.Line -cmatch "(^|\s)ok=0(\s|$)" }
+if ($failed) {
+    Write-Host "GATE FAIL  $outPath"
+    $failed | ForEach-Object { Write-Host "    $($_.Line)" }
+    exit 1
+}
+Write-Host "OK  $outPath"
+exit 0

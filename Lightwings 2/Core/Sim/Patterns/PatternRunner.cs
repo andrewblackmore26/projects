@@ -48,40 +48,43 @@ namespace Lightship.Core.Sim.Patterns
         private void Emit(Arena arena, Ship self, PatternStep step)
         {
             Vec2 aim = AimDirection(arena, self, step);
-            float muzzle = self.BoundRadius * 0.6f;
+            // Spec 11.7: shots leave from the part that carries the pattern's component
+            // (the Ember's ember_c for flame_spray); a ship without one fires from ahead of its core.
+            Vec2 origin = self.Pos + aim * (self.BoundRadius * 0.6f);
+            foreach (Ships.PartDefinition p in self.Def.Parts)
+                if (p.Component == Def.Id && !p.IsTether) { origin = self.ToWorld(p.Pos); break; }
             switch (step.Kind)
             {
                 case StepKind.Cone:
                     for (int k = 0; k < step.Count; k++)
                     {
                         float t = step.Count > 1 ? k / (float)(step.Count - 1) - 0.5f : 0f;
-                        Fire(arena, self, aim.Rotated(Geometry.Outline.Rad(step.SpreadDeg * t)), muzzle, step);
+                        Fire(arena, self, origin, aim.Rotated(Geometry.Outline.Rad(step.SpreadDeg * t)), step);
                     }
                     break;
                 case StepKind.Fan:
                 {
                     float t = step.Repeat > 1 ? _fanIndex / (float)(step.Repeat - 1) - 0.5f : 0f;
-                    Fire(arena, self, aim.Rotated(Geometry.Outline.Rad(step.SpreadDeg * t)), muzzle, step);
+                    Fire(arena, self, origin, aim.Rotated(Geometry.Outline.Rad(step.SpreadDeg * t)), step);
                     _fanIndex++;
                     break;
                 }
                 case StepKind.Ring:
                     for (int k = 0; k < step.Count; k++)
-                        Fire(arena, self, aim.Rotated(2f * MathF.PI * k / step.Count), muzzle, step);
+                        Fire(arena, self, origin, aim.Rotated(2f * MathF.PI * k / step.Count), step);
                     break;
                 case StepKind.Mine:
-                    arena.SpawnBullet(self.Faction, self.Element, self.Pos, Vec2.Zero, step.Radius, step.Damage, step.TtlTicks);
+                    arena.SpawnBullet(self.Side, self.Element, self.Pos, Vec2.Zero, step.Radius, step.Damage, step.TtlTicks, 0, self.Id);
                     break;
                 default:   // Bolt and the M3 kinds fire a single bullet for now
-                    Fire(arena, self, aim, muzzle, step);
+                    Fire(arena, self, origin, aim, step);
                     break;
             }
-            self.NextFireTick = arena.Tick;
         }
 
-        private static void Fire(Arena arena, Ship self, Vec2 dir, float muzzle, PatternStep step)
+        private static void Fire(Arena arena, Ship self, Vec2 origin, Vec2 dir, PatternStep step)
         {
-            arena.SpawnBullet(self.Faction, self.Element, self.Pos + dir * muzzle, dir * step.Speed, step.Radius, step.Damage, step.TtlTicks);
+            arena.SpawnBullet(self.Side, self.Element, origin, dir * step.Speed, step.Radius, step.Damage, step.TtlTicks, 0, self.Id);
         }
 
         private static Vec2 AimDirection(Arena arena, Ship self, PatternStep step)

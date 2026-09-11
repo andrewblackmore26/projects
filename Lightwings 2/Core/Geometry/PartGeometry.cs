@@ -48,6 +48,32 @@ namespace Lightship.Core.Geometry
             return true;
         }
 
+        /// <summary>Shortest distance from a ship-local point to this part's outline (open for tethers).</summary>
+        public float DistanceToOutline(Vec2 p)
+        {
+            if (Outline == null || Outline.Length == 0) return float.MaxValue;
+            int n = Outline.Length;
+            int segments = IsTether ? n - 1 : n;
+            float best = float.MaxValue;
+            for (int i = 0; i < segments; i++)
+            {
+                Vec2 a = Outline[i], b = Outline[(i + 1) % n];
+                Vec2 ab = b - a;
+                float len2 = ab.LengthSquared();
+                float t = len2 > 1e-12f ? Math.Clamp(Vec2.Dot(p - a, ab) / len2, 0f, 1f) : 0f;
+                best = MathF.Min(best, Vec2.Distance(p, a + ab * t));
+            }
+            return best;
+        }
+
+        /// <summary>A circle at p with radius r touches the drawn part (filled shape, not its bounding circle).</summary>
+        public bool Touches(Vec2 p, float r)
+        {
+            if (IsTether || Dashed) return false;
+            if (Vec2.Distance(p, Centre) > BoundRadius + r) return false;
+            return ContainsPoint(p) || DistanceToOutline(p) <= r;
+        }
+
         /// <summary>Point on the outline at perimeter fraction u (wrapping), ship-local.</summary>
         public Vec2 PointAtU(float u)
         {

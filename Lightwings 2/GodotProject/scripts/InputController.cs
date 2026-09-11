@@ -14,6 +14,8 @@ namespace Lightship.View
         private GameController _gc;
         private Node2D _world;
         public bool AutoFire { get; private set; }
+        private bool _aimByStick;
+        private Vector2 _lastMouse = new Vector2(float.NaN, float.NaN);
         public bool DebugVisible { get; private set; }
         public int SelectedOption { get; private set; }
 
@@ -78,11 +80,22 @@ namespace Lightship.View
             input.Move = new Vec2(move.X, move.Y);
 
             Ship player = _gc.Game.Arena.Player;
+            // Aim follows whichever device was used last: a controller player who lets the
+            // right stick recentre keeps their facing instead of snapping to an idle cursor.
             Vector2 stick = Input.GetVector("aim_left", "aim_right", "aim_up", "aim_down");
+            Vector2 screenMouse = _world.GetViewport().GetMousePosition();
+            bool mouseMoved = !float.IsNaN(_lastMouse.X) && screenMouse.DistanceTo(_lastMouse) > 2f;
+            _lastMouse = screenMouse;
+            if (stick.Length() > 0.3f) _aimByStick = true;
+            else if (mouseMoved || Input.IsMouseButtonPressed(MouseButton.Left)) _aimByStick = false;
             if (stick.Length() > 0.3f)
             {
                 Vector2 d = stick.Normalized();
                 input.Aim = new Vec2(d.X, d.Y);
+            }
+            else if (player != null && _aimByStick)
+            {
+                input.Aim = player.Facing;
             }
             else if (player != null)
             {

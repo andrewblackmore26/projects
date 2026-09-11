@@ -179,13 +179,90 @@ namespace Lightship.Core.Tests
         [Fact]
         public void TierGrowsByAddition()
         {
+            // Spec 11.8 / 12: every part of tier n-1 is kept in tier n, or named by a part's "replaces".
             ShipCatalog c = Authored(out _);
-            ShipDefinition t1 = c.Find(Element.Corruption, 1), t2 = c.Find(Element.Corruption, 2), t3 = c.Find(Element.Corruption, 3);
-            Assert.True(t2.Parts.Count > t1.Parts.Count);
-            Assert.True(t3.Parts.Count > t2.Parts.Count);
-            foreach (PartDefinition p in t1.Parts) Assert.NotNull(t2.FindPart(p.Id));
-            Assert.NotNull(t3.FindPart("blob"));
-            Assert.NotNull(t3.FindPart("spore_c"));
+            int pairs = 0;
+            foreach (ShipDefinition s in c.All)
+            {
+                ShipDefinition prev = s.Tier > 1 ? c.Find(s.Element, s.Tier - 1) : null;
+                if (prev == null) continue;
+                pairs++;
+                Assert.True(s.Parts.Count > prev.Parts.Count, s.Id);
+                foreach (PartDefinition p in prev.Parts)
+                    Assert.True(s.FindPart(p.Id) != null || s.Parts.Exists(q => q.Replaces == p.Id), s.Id + " drops " + p.Id);
+            }
+            Assert.True(pairs >= 2);
+        }
+
+        [Fact]
+        public void CatalogWarnsWhenAPartIsDroppedWithoutReplacement()
+        {
+            var w = new List<string>();
+            ShipDefinition t1 = ShipLoader.Parse(Json(), w);
+            ShipDefinition t2 = t1.Clone();
+            t2.Id = "t2";
+            t2.Tier = 2;
+            t2.Parts.RemoveAll(p => p.Id == "body");
+            t2.Parts.Add(GeometryTests.Part("hex_body", Shape.Hexagon, ("radius", 13f)));
+            t2.Parts.Add(GeometryTests.Part("wing", Shape.Circle, ColorRole.FireRed, 10f, 0f, 0f, ("radius", 4f)));
+            ShipCatalog.FromShips(new[] { t1, t2 }).Validate(w);
+            Assert.Contains(w, m => m.Contains("drops tier 1 part 'body'"));
+            w.Clear();
+            t2.FindPart("hex_body").Replaces = "body";
+            ShipCatalog.FromShips(new[] { t1, t2 }).Validate(w);
+            Assert.DoesNotContain(w, m => m.Contains("drops"));
+        }
+
+        [Fact]
+        public void RejectsTethersToTethersToThemselvesAndPartsWithoutGeometry()
+        {
+            Assert.Contains("two parts", Assert.Throws<ShipFormatException>(() => ShipLoader.Parse(Json(
+                @", { ""id"": ""tether_a"", ""shape"": ""tether"", ""from"": ""body"", ""to"": ""ember_c"", ""color"": ""fire_red"" }
+                  , { ""id"": ""tether_b"", ""shape"": ""tether"", ""from"": ""tether_a"", ""to"": ""body"", ""color"": ""fire_red"" }"), null)).Message);
+            Assert.Contains("different", Assert.Throws<ShipFormatException>(() => ShipLoader.Parse(Json(
+                @", { ""id"": ""tether_a"", ""shape"": ""tether"", ""from"": ""body"", ""to"": ""body"", ""color"": ""fire_red"" }"), null)).Message);
+            Assert.Contains("no geometry", Assert.Throws<ShipFormatException>(() => ShipLoader.Parse(Json(
+                @", { ""id"": ""ghost"", ""shape"": ""circle"", ""pos"": [5, 5], ""color"": ""fire_red"" }"), null)).Message);
+        }
+
+        [Fact]
+        public void ReplacesRoundTrips()
+        {
+            var w = new List<string>();
+            ShipDefinition s = ShipLoader.Parse(Json(@", { ""id"": ""hex_body"", ""shape"": ""hexagon"", ""radius"": 8, ""pos"": [0, 20], ""color"": ""fire_red"", ""replaces"": ""old_body"" }"), w);
+            Assert.Equal("old_body", ShipLoader.Parse(ShipLoader.Serialize(s), w).FindPart("hex_body").Replaces);
+        }
+
+        [Fact]
+        public void EveryAuthoredAbilityHasBehaviour()
+        {
+            ShipCatalog c = Authored(out _);
+            foreach (ShipDefinition s in c.All)
+                foreach (string ability in s.Abilities)
+                    Assert.True(Lightship.Core.Sim.Abilities.AbilityLibrary.Known.Contains(ability), s.Id + ": ability '" + ability + "' does nothing");
+        }
+
+        [Fact]
+        public void SingleForwardComponentsSitOnTheAxisAndPairsMirror()
+        {
+            // Spec 11.3: bilateral symmetry; the single forward component sits on the axis, pairs mirror.
+            ShipCatalog c = Authored(out _);
+            foreach (ShipDefinition s in c.All)
+                foreach (PartDefinition p in s.Parts)
+                {
+                    if (p.IsTether) continue;
+                    string mirrorId = p.Id.EndsWith("_l") ? p.Id.Substring(0, p.Id.Length - 2) + "_r"
+                                    : p.Id.EndsWith("_r") ? p.Id.Substring(0, p.Id.Length - 2) + "_l" : null;
+                    if (mirrorId == null)
+                    {
+                        Assert.True(System.MathF.Abs(p.Pos.X) < 1e-3f, s.Id + "/" + p.Id + " is unpaired but off the axis");
+                        continue;
+                    }
+                    PartDefinition m = s.FindPart(mirrorId);
+                    Assert.NotNull(m);
+                    Assert.Equal(-p.Pos.X, m.Pos.X, 3);
+                    Assert.Equal(p.Pos.Y, m.Pos.Y, 3);
+                }
         }
 
         [Fact]

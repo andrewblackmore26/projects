@@ -107,9 +107,11 @@ namespace Lightship.View
             return png.SavePng(path);
         }
 
-        public int R(int x, int y) => Srgb[(y * W + x) * 4];
-        public int G(int x, int y) => Srgb[(y * W + x) * 4 + 1];
-        public int B(int x, int y) => Srgb[(y * W + x) * 4 + 2];
+        // Out-of-frame reads return 0 rather than throwing or wrapping into the next row:
+        // a probe that lands off screen then reads as dark and fails its gate honestly.
+        public int R(int x, int y) => InBounds(x, y) ? Srgb[(y * W + x) * 4] : 0;
+        public int G(int x, int y) => InBounds(x, y) ? Srgb[(y * W + x) * 4 + 1] : 0;
+        public int B(int x, int y) => InBounds(x, y) ? Srgb[(y * W + x) * 4 + 2] : 0;
         public string Rgb(int x, int y) => R(x, y) + "," + G(x, y) + "," + B(x, y);
         /// <summary>The smallest channel: near 255 only for near-white pixels, which is what a lit segment clips to.</summary>
         public int MinChannel(int x, int y) => Math.Min(R(x, y), Math.Min(G(x, y), B(x, y)));

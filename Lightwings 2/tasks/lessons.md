@@ -118,4 +118,40 @@ project. Gridlock-domain rules (wires, contests, Unity) were left behind.
   and lit/moved gate.
 - Tooling: a Bash tool command above a few KB fails to parse as a whole (a quoted heredoc
   loses its terminator and every apostrophe after it becomes a shell error); nothing in it
-  runs. Keep shell calls short; write source files with the Write tool.
+  runs. Keep shell calls short; write source files with the Write tool. Re-hit in M1 review:
+  put multi-edit scripts in a scratchpad .py file and run the file.
+- `dotnet test --no-build` after a FAILED build runs the previous DLL and reports its green
+  result. A "passed" line from a run whose build step errored proves nothing: read the build
+  output first, or never pass --no-build after an edit.
+- Python inside a bash heredoc: "\b" in a normal Python string is a BACKSPACE character; it
+  landed in shoot.ps1 as a regex that could never match, so the gate could never fail. Write
+  regexes with Edit/Write, and check a new gate with a negative control that must fail.
+- `ShaderMaterial.Duplicate()` dropped the `Color[]` array uniforms: the player's own material
+  rendered the ship as a black silhouette (play probe: 0 light-blue pixels). Build per-object
+  materials fresh (`ShipMeshFactory.NewMaterial()`), never by duplicating.
+- PowerShell `-match` is case-insensitive: "fillOk=0" matches "ok=0". Gate patterns use
+  `-cmatch` with delimiters: `(^|\s)ok=0(\s|$)`.
+- A gate that prints numbers but cannot fail is not a gate. Every instrument ends its line with
+  ok=1/0, shoot.ps1 exits 1 on any ok=0, and `Tools\gates.ps1` runs a negative control that
+  must fail. An insensitive probe (the interpolation probe with a stationary player) reports
+  ok=0, not a pass.
+- A mechanic can pass its unit test and never happen in play: spread worked in AbilityTests but
+  measured 0 times in 10 bot runs, because enemies came one at a time. Bot runs count every
+  ability's events; a zero there is a content bug even when the tests are green.
+- Enemy reach vs preferred range: a pattern that holds 220 units with a 154-unit reach never
+  lands (the bot took 0 hits). PatternDefinition carries both and a test asserts reach > range.
+- Read intents from what the PILOT decided (Ship.LastInput), not from the input argument:
+  the argument only feeds the human pilot, so every bot's evolve request was silently dropped.
+- Event ticks are ARENA ticks, which restart at every death. Anything measured "since game
+  start" samples game.Tick itself; effects use a monotonic sequence number and skip events from
+  a previous arena.
+- Sharp corners (triangle tips, prongs): a mitre pulls the ribbon's inner vertex several px along
+  the bisector, bending the U interpolation so the drawn light runs ahead of its arc-length
+  position (and on prongs crosses the opposite edge). Ribbon bevels past MitreLimit 2.0.
+- "Occluded" means covered by a later part's FILL or STROKE (1.3 px each side plus AA): ignoring
+  strokes put a tether's probe under the blob's rim.
+- Measurement probes near the part's own geometry: a light rounding a sharp apex stays within
+  2 px of where it was; the motion check requires clearance from the part's own light too.
+- Fill sampling by distance to outline VERTICES missed that a triangle's edge was 1.85 px away;
+  use DistanceToOutline (segments) and choose the max-clearance point, and never let "no sample"
+  silently shrink the denominator (it read 6/6 for a 7-ship sheet).

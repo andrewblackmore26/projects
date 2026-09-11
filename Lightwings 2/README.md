@@ -52,13 +52,24 @@ data rides in `CUSTOM0`, never in vertex COLOR. See `tasks/lessons.md`.
 
 | milestone | state |
 |---|---|
-| M1 prototype | in progress |
+| M1 prototype | done — 16/16 gates (`Tools\gates.ps1`), adversarially reviewed |
 | M2 world | not started |
 | M3 elements | not started |
 | M4 character | not started |
 | M5 demo | not started |
 
-Measured numbers live in `tasks/todo.md` under "Review".
+Measured numbers live in `tasks/todo.md` under "Review". Everything the harness cannot prove
+(human feel, Steam Deck, a real controller) is listed there under "What is NOT verified".
+
+## Gates
+
+    Tools\gates.ps1
+
+runs the unit tests, ship validation, headless bench, bot runs (a perfect and a novice
+profile), every capture instrument (playfield, sheet with and without bloom, play probes,
+interpolation, lock pulse, in-engine bench, editor self-test), the cross-engine hash, and a
+negative control that must fail. Every instrument line ends in `ok=1` or `ok=0`; any `ok=0`
+fails the run.
 
 ## House rules
 
