@@ -1,0 +1,23 @@
+{
+  "id": "corruption_t3_trojan",
+  "name": "Trojan",
+  "element": "corruption",
+  "tier": 3,
+  "chassis_color": "corruption_green",
+  "core": { "color": "corruption_green", "radius": 3 },
+  "breathes": true,
+  "abilities": ["infect", "spread", "hatch"],
+  "parts": [
+    { "id": "tether_pod_l", "shape": "tether", "from": "blob", "to": "pod_l", "color": "corruption_green" },
+    { "id": "tether_pod_r", "shape": "tether", "from": "blob", "to": "pod_r", "color": "corruption_green" },
+    { "id": "tether_tail_1", "shape": "tether", "from": "blob", "to": "tail_1", "color": "corruption_green" },
+    { "id": "pod_l", "shape": "circle", "radius": 6, "pos": [-24, 0], "color": "corruption_green", "layer": "outer" },
+    { "id": "pod_r", "shape": "circle", "radius": 6, "pos": [24, 0], "color": "corruption_green", "layer": "outer" },
+    { "id": "tail_1", "shape": "circle", "radius": 4.5, "pos": [0, 15], "color": "corruption_green", "layer": "outer" },
+    { "id": "blob", "shape": "ellipse", "rx": 12, "ry": 11, "pos": [0, -2], "color": "corruption_green", "layer": "body" },
+    { "id": "spore_c", "shape": "circle", "radius": 3, "pos": [0, -14], "color": "lightning_yellow", "component": "infect" },
+    { "id": "nucleus_1", "shape": "circle", "radius": 2, "pos": [0, 15], "color": "lightning_yellow", "component": "spread" },
+    { "id": "nucleus_l", "shape": "circle", "radius": 2.4, "pos": [-24, 0], "color": "lightning_yellow", "component": "hatch" },
+    { "id": "nucleus_r", "shape": "circle", "radius": 2.4, "pos": [24, 0], "color": "lightning_yellow", "component": "hatch" }
+  ]
+}

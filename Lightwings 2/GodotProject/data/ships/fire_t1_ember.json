@@ -1,0 +1,16 @@
+{
+  "id": "fire_t1_ember",
+  "name": "Ember",
+  "element": "fire",
+  "tier": 1,
+  "chassis_color": "fire_red",
+  "core": { "color": "fire_red", "radius": 3 },
+  "breathes": false,
+  "abilities": ["flame_spray"],
+  "parts": [
+    { "id": "body", "shape": "triangle", "base": 14, "height": 22, "pos": [0, 1], "color": "fire_red", "layer": "body" },
+    { "id": "wing_l", "shape": "triangle", "base": 10, "height": 14, "pos": [-8, 6], "color": "fire_red", "layer": "outer" },
+    { "id": "wing_r", "shape": "triangle", "base": 10, "height": 14, "pos": [8, 6], "color": "fire_red", "layer": "outer" },
+    { "id": "ember_c", "shape": "circle", "radius": 3.4, "pos": [0, -13], "color": "lightning_yellow", "light_period": 1.6, "component": "flame_spray" }
+  ]
+}
