@@ -21,13 +21,22 @@ namespace Lightship.Core.Ships
             if (!Directory.Exists(dir)) throw new DirectoryNotFoundException("ship directory not found: " + dir);
             string[] files = Directory.GetFiles(dir, "*.json");
             Array.Sort(files, StringComparer.Ordinal);
-            var catalog = new ShipCatalog();
+            var texts = new List<KeyValuePair<string, string>>();
             foreach (string file in files)
+                texts.Add(new KeyValuePair<string, string>(Path.GetFileName(file), File.ReadAllText(file)));
+            return FromFiles(texts, warnings);
+        }
+
+        /// <summary>Build from (file name, JSON text) pairs: the game reads them through the engine's own file access.</summary>
+        public static ShipCatalog FromFiles(IEnumerable<KeyValuePair<string, string>> files, List<string> warnings)
+        {
+            var catalog = new ShipCatalog();
+            foreach (KeyValuePair<string, string> kv in files)
             {
-                ShipDefinition ship = ShipLoader.LoadFile(file, warnings);
-                string expectedId = Path.GetFileNameWithoutExtension(file);
+                ShipDefinition ship = ShipLoader.Parse(kv.Value, warnings);
+                string expectedId = Path.GetFileNameWithoutExtension(kv.Key);
                 if (ship.Id != expectedId)
-                    throw new ShipFormatException("file " + Path.GetFileName(file) + " holds ship '" + ship.Id + "' (file name and id must match)");
+                    throw new ShipFormatException("file " + kv.Key + " holds ship '" + ship.Id + "' (file name and id must match)");
                 catalog.Add(ship);
             }
             catalog.Validate(warnings);

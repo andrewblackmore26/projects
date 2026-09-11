@@ -4,16 +4,17 @@ Spec: `docs/LIGHTSHIP_GAME_SPEC.md` (v0.1). Plan approved 2026-09-12: C#, headle
 Godot layer, M1 through M3 in this run, then hands-on review.
 
 ## M1 — Prototype (does the loop feel good?)
-- [ ] 0 Scaffold: sln, four csproj, project.godot, Main.tscn, Main.cs (environment + background +
-      capture), build.ps1, shoot.ps1, measure_frame.py, README/todo/lessons — `bg` capture measures
-      5,5,7 (±2) with no engine errors
-- [ ] 1 Core geometry: Vec2, Outline per primitive, Triangulator, Ribbon, PartGeometry, ShipGeometry,
-      LightSegment, MeshData, ShipMeshBuilder + GeometryTests / MeshBuilderTests / LightTests
-- [ ] 2 Ship data: schema, ShipLoader, ShipCatalog, LightSchedule, ShipTween; fire_t1_ember +
-      corruption_t1/t2/t3 JSONs; `validate` zero warnings; LoaderTests / TweenTests
-- [ ] 3 Ship renderer: Palette, ship.gdshader, ShipMeshFactory, ShipView, SheetLayout, Capture sidecar;
-      sheet capture lit=P/P, footprints ±20 %, lightBlueOutsidePlayer=0, lightdiff moved=P/P, halo
-      monotone, hdrPeak>1
+- [x] 0 Scaffold: sln, four csproj, project.godot, Main.tscn, Main.cs (environment + background +
+      capture), build.ps1, shoot.ps1, measure_frame.py, README/todo/lessons — `bg` capture measured
+      5,5,7 in all four corners, no engine errors (commit ec0fcf7)
+- [x] 1 Core geometry: Vec2, Outline per primitive, Triangulator, Ribbon, PartGeometry, ShipGeometry,
+      LightSegment, MeshData, ShipMeshBuilder + GeometryTests / MeshBuilderTests / LightTests — 68 tests
+- [x] 2 Ship data: schema, ShipLoader, ShipCatalog, LightSchedule, ShipTween; fire_t1_ember +
+      corruption_t1/t2/t3 JSONs; `validate` ships=4 warnings=0; 90 tests (commit 19c2e27)
+- [x] 3 Ship renderer: Palette, ship.gdshader (CUSTOM0 packing), ShipMeshFactory, ShipView, SheetLayout,
+      BloomLayer (own bloom: Godot glow is blind to < 12 px emitters, see lessons) — sheet bloom=on:
+      litParts=36/36, lightdiff moved=36/36, halo=255,107,64,12,5,5 haloOk=1, hdrPeak=2.11,
+      lightBlueOutsidePlayer=0, footprintErrMaxPx=6; bloom=off: fillOk=7/7 exact, footprintErrMaxPx=3
 - [ ] 4 Bullets/pickups/hash: pools, SpatialHash, Arena collisions, patterns, MultiMesh layers,
       bullet/pickup shaders; headless bench < 2 ms/step @2000; engine < 16 ms/frame @2000;
       draw-order capture ok
@@ -40,14 +41,16 @@ Godot layer, M1 through M3 in this run, then hands-on review.
 
 | metric | gate | measured |
 |---|---|---|
-| playfield bg (sRGB re-encoded capture) | 5,5,7 ±2 | |
+| playfield bg (sRGB re-encoded capture) | 5,5,7 ±2 | 5,5,7 (all four corners) |
 | first evolution (bot, seeds 1–5) | ≤ 120 s | |
-| sheet lit parts | P/P | |
-| lightdiff moved | P/P | |
+| sheet lit parts (bloom on / off) | P/P | 36/36 / 36/36 (10 occluded by later parts at t=2.0) |
+| lightdiff moved (bloom on / off) | P/P | 36/36 / 36/36 |
+| palette fills, no bloom | exact | 7/7 |
 | void hull | 0,0,0 | (M3) |
-| light blue outside player | 0 | |
-| hdrPeak | > 1.0 | |
-| halo luma at +0/3/6/10/16/24 px | monotone | |
+| light blue outside player | 0 | 0 |
+| hdrPeak | > 1.0 | 2.11 (bloom on), 1.80 (off) |
+| halo luma at +0/3/6/10/16/24 px | monotone, +6 > bg+10, +24 < bg+8 | 255,107,64,12,5,5 |
+| validate ships / warnings | 0 warnings | 4 / 0 |
 | headless ms/step @1000 / @2000 | < 2.0 | |
 | engine avg frame ms @2000 | < 16 | |
 | hash Godot == CLI | equal | |

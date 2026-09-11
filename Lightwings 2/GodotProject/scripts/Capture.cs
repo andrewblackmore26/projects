@@ -111,6 +111,8 @@ namespace Lightship.View
         public int G(int x, int y) => Srgb[(y * W + x) * 4 + 1];
         public int B(int x, int y) => Srgb[(y * W + x) * 4 + 2];
         public string Rgb(int x, int y) => R(x, y) + "," + G(x, y) + "," + B(x, y);
+        /// <summary>The smallest channel: near 255 only for near-white pixels, which is what a lit segment clips to.</summary>
+        public int MinChannel(int x, int y) => Math.Min(R(x, y), Math.Min(G(x, y), B(x, y)));
         public double Luma(int x, int y) => 0.2126 * R(x, y) + 0.7152 * G(x, y) + 0.0722 * B(x, y);
         public bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < W && y < H;
 

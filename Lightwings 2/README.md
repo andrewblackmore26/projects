@@ -38,12 +38,15 @@ Tools\shoot.ps1 -Out docs\screenshots\sheet.png -Mode sheet   # capture + measur
 
 ## The look is a pipeline, not art
 
-Colours are written raw (no `source_color` hints); running lights, cores and
-bullets are written above 1.0 and the glow pass turns them into light; base
-strokes sit just under the threshold. The hdr_2d buffer is linear, so the
-capture path re-encodes to sRGB before measuring. A shader that fails to
-compile renders black, which looks like "no change": `shoot.ps1` greps the
-engine log and fails. See `tasks/lessons.md`.
+Colours are passed as `Color` (they arrive linearised; shader output is not
+converted); running lights, cores and bullets are written above 1.0 and the
+bloom turns them into light; base strokes sit just under the threshold. The
+bloom is our own (`BloomLayer`: back-buffer copy, threshold 1.0, 9x9 gaussian
+over +-8 px) because Godot's built-in glow measurably ignores emitters under
+about 12 px. The hdr_2d buffer is linear, so the capture path re-encodes to
+sRGB before measuring. A shader that fails to compile renders black, which
+looks like "no change": `shoot.ps1` greps the engine log and fails. Per-vertex
+data rides in `CUSTOM0`, never in vertex COLOR. See `tasks/lessons.md`.
 
 ## Where it stands
 

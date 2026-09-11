@@ -13,13 +13,15 @@
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Seconds = "10",
-    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg")][string]$Mode = "play",
+    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg", "emitter")][string]$Mode = "play",
     [int]$Seed = 1,
     [switch]$Bot,
     [string]$Ship = "",
     [int]$Bullets = 2000,
     [int]$Frames = 300,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$Emitter,
+    [string]$Extra = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,7 +65,10 @@ switch ($Mode) {
     "lightdiff" { $godotArgs += " --sheet --lightdiff" }
     "bench"     { $godotArgs += " --bench=$Bullets --frames=$Frames --bot" }
     "bg"        { $godotArgs += " --bg" }
+    "emitter"   { $godotArgs += " --emitter" }
 }
+if ($Emitter) { $godotArgs += " --emitter" }
+if ($Extra -ne "") { $godotArgs += " $Extra" }
 
 # Run through Start-Process with redirected streams. Piping a native exe's
 # stderr in PowerShell 5.1 wraps every line in an ErrorRecord, which turns
