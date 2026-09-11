@@ -79,8 +79,8 @@ namespace Lightship.Headless
                 if (opts.ContainsKey("nododge")) skill.Dodge = false;
                 var game = new Game(tuning, catalog, s, ship, new BotPilot(s) { Skill = skill });
                 float energy60 = -1f, energy120 = -1f;
-                // First evolution in GAME ticks, sampled here: event ticks are arena ticks,
-                // which restart at every death, so a run that died first would under-report.
+                // First evolution in GAME ticks, sampled here (the game clock is the one the spec's
+                // two minutes are measured on; arena ticks happen to match it but need not).
                 long first = -1;
                 while (game.Tick < ticks)
                 {
@@ -106,6 +106,160 @@ namespace Lightship.Headless
             Console.WriteLine("bot: profile=" + (opts.ContainsKey("novice") ? "novice" : "perfect") + (opts.ContainsKey("nododge") ? "+nododge" : "") +
                 " runs=" + runs + " firstEvolveMaxSec=" + (allEvolved ? worst.ToString("F1") : "none") +
                 " gateSec=" + gate + " pass=" + (pass ? 1 : 0));
+            return pass ? 0 : 1;
+        }
+
+        /// <summary>
+        /// The world bot, several seeds (spec 19 M2): when it leaves the origin, clears
+        /// sectors, reaches and beats the gate; how the rival fought; and, with --regrow,
+        /// how long a death after the gate costs before the bot is back at the checkpoint.
+        /// Exit 1 when a gate is not beaten within --gate-sec or a regrow exceeds --regrow-sec.
+        /// </summary>
+        public static int World(Tuning tuning, Dictionary<string, string> opts)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            float seconds = float.Parse(Opt(opts, "seconds", "900"), inv);
+            ulong seed = ulong.Parse(Opt(opts, "seed", "1"));
+            int runs = int.Parse(Opt(opts, "runs", "3"));
+            float gateLimit = float.Parse(Opt(opts, "gate-sec", "600"), inv);
+            float regrowLimit = float.Parse(Opt(opts, "regrow-sec", "240"), inv);
+            bool regrow = opts.ContainsKey("regrow");
+            ShipCatalog catalog = Catalog();
+            bool pass = true;
+            for (int r = 0; r < runs; r++)
+            {
+                ulong s = seed + (ulong)r;
+                BotSkill skill = opts.ContainsKey("novice") ? BotSkill.Novice() : BotSkill.Perfect();
+                Game game = Game.NewWorld(tuning, catalog, s, skill);
+                long limit = (long)(seconds * tuning.TickRate);
+                long firstEvolve = -1, firstExit = -1, gateEntered = -1, gateBeaten = -1, died = -1, back = -1;
+                int warningsBeforeGate = 0, deathsAtGate = 0;
+                float energyAtGate = 0f, energyBack = 0f;
+                int tierAtGate = 0, blockedTraced = 0;
+                bool trace = opts.ContainsKey("trace");
+                var seen = new List<GameEvent>();
+                long seq = 0;
+                while (game.Tick < limit)
+                {
+                    game.Step(default);
+                    game.Events.Since(seq, seen);
+                    seq = game.Events.Total;
+                    foreach (GameEvent e in seen)
+                    {
+                        if (trace && (e.Kind == EventKind.SectorEntered || e.Kind == EventKind.GateLocked || e.Kind == EventKind.GateBeaten ||
+                                      e.Kind == EventKind.PlayerDied || e.Kind == EventKind.Evolved || e.Kind == EventKind.Teleported ||
+                                      e.Kind == EventKind.RivalRetreat || e.Kind == EventKind.SectorCleared ||
+                                      (e.Kind == EventKind.CrossBlocked && blockedTraced++ < 12)))
+                            Console.WriteLine("  trace: t=" + (game.Tick * tuning.Dt).ToString("F1") + " " + e.Kind + " to=(" + e.To.X + "," + e.To.Y + ")" +
+                                " value=" + e.Value.ToString("F2") + " sector=" + game.Run.Sector + " ship=" + game.Run.Ship.Id +
+                                " pos=(" + e.Pos.X.ToString("F0") + "," + e.Pos.Y.ToString("F0") + ") hp=" + (game.Run.Player?.Hp ?? 0f).ToString("F0") +
+                                " energy=" + game.Run.Energy.ToString("F0"));
+                        if (e.Kind == EventKind.Evolved && firstEvolve < 0) firstEvolve = game.Tick;
+                        if (e.Kind == EventKind.SectorEntered && firstExit < 0 && (e.To.X != 0f || e.To.Y != 0f)) firstExit = game.Tick;
+                        if (e.Kind == EventKind.GateWarning && gateEntered < 0) warningsBeforeGate++;
+                        if (e.Kind == EventKind.GateLocked && gateEntered < 0) { gateEntered = game.Tick; energyAtGate = game.Run.Energy; tierAtGate = game.Run.Tier; }
+                        if (e.Kind == EventKind.GateBeaten && gateBeaten < 0) gateBeaten = game.Tick;
+                        if (e.Kind == EventKind.Teleported && died >= 0 && back < 0) { back = game.Tick; energyBack = game.Run.Energy; }
+                    }
+                    if (gateEntered >= 0 && gateBeaten < 0 && game.Run.Sector.Layer == 0) deathsAtGate++;
+                    if (opts.TryGetValue("trace-from", out string tf) && game.Tick >= float.Parse(tf, inv) * tuning.TickRate && game.Tick % 60 == 0)
+                    {
+                        Arena a = game.Arena; Ship p = a.Player;
+                        Ship h = a.NearestHostile(p.Pos, p.Side);
+                        Console.WriteLine("  life: t=" + (game.Tick * tuning.Dt).ToString("F0") + " sector=" + game.Run.Sector + " pos=(" + p.Pos.X.ToString("F0") + "," + p.Pos.Y.ToString("F0") +
+                            ") hp=" + p.Hp.ToString("F0") + " infected=" + p.Infected(a.Tick) + " energy=" + game.Run.Energy.ToString("F0") + " alive=" + a.AliveRegulars() +
+                            " spawned=" + a.EnemiesSpawned + "/" + a.EnemyBudget + " hostile=" + (h == null ? "none" : h.Def.Id + "#" + h.Id + "@(" + h.Pos.X.ToString("F0") + "," + h.Pos.Y.ToString("F0") + ") hp=" + h.Hp.ToString("F0") + " d=" + Lightship.Core.Vec2.Distance(h.Pos, p.Pos).ToString("F0")) +
+                            " move=(" + p.LastInput.Move.X.ToString("F2") + "," + p.LastInput.Move.Y.ToString("F2") + ") fire=" + p.LastInput.Fire + " bullets=" + a.Bullets.Live);
+                    }
+                    if (regrow && gateBeaten >= 0 && died < 0)
+                    {
+                        // The scripted death: everything the run carried goes; the checkpoint stays.
+                        died = game.Tick;
+                        game.Die();
+                    }
+                    if (regrow && back >= 0) break;
+                    if (!regrow && gateBeaten >= 0 && game.Tick > gateBeaten + 60 && !opts.ContainsKey("trace-from")) break;
+                }
+                float Sec(long t) => t < 0 ? -1f : t * tuning.Dt;
+                float regrowSec = back >= 0 ? (back - died) * tuning.Dt : -1f;
+                bool ok = gateBeaten >= 0 && Sec(gateBeaten) <= gateLimit && (!regrow || (back >= 0 && regrowSec <= regrowLimit));
+                if (!ok) pass = false;
+                Console.WriteLine("world: seed=" + s + " firstEvolveSec=" + Sec(firstEvolve).ToString("F1") +
+                    " firstExitSec=" + Sec(firstExit).ToString("F1") + " gateEnteredSec=" + Sec(gateEntered).ToString("F1") +
+                    " gateBeatenSec=" + Sec(gateBeaten).ToString("F1") + " energyAtGate=" + energyAtGate.ToString("F0") +
+                    " tierAtGate=" + tierAtGate + " gateWarnings=" + warningsBeforeGate +
+                    " deaths=" + game.Meta.Deaths + " crossings=" + game.Events.Count(EventKind.SectorEntered) +
+                    " cleared=" + game.Events.Count(EventKind.SectorCleared) + " territory=" + game.Meta.PlayerTerritory.Count +
+                    " checkpoints=" + game.Meta.Checkpoints.Count + " blocked=" + game.Events.Count(EventKind.CrossBlocked) +
+                    " aimLines=" + game.Events.Count(EventKind.AimLine) + " retreats=" + game.Events.Count(EventKind.RivalRetreat) +
+                    " rivalGrabs=" + game.Events.Count(EventKind.RivalAbsorb) +
+                    (regrow ? " regrowSec=" + regrowSec.ToString("F1") + " energyBack=" + energyBack.ToString("F0") : "") +
+                    " ok=" + (ok ? 1 : 0));
+            }
+            Console.WriteLine("world: profile=" + (opts.ContainsKey("novice") ? "novice" : "perfect") + " runs=" + runs +
+                " gateLimitSec=" + gateLimit + (regrow ? " regrowLimitSec=" + regrowLimit : "") + " pass=" + (pass ? 1 : 0));
+            return pass ? 0 : 1;
+        }
+
+        /// <summary>
+        /// Can a fresh life beat the sectors next to the origin? For each sector owner and
+        /// layer, a new tier-1 life is warped in and fights with the (non-travelling) bot
+        /// until the sector is clear, it dies, or --limit seconds pass. Prints clear time,
+        /// HP lost and the energy it earned, per profile and seed.
+        /// </summary>
+        public static int Sweep(Tuning tuning, Dictionary<string, string> opts)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            ulong seed = ulong.Parse(Opt(opts, "seed", "1"));
+            int runs = int.Parse(Opt(opts, "runs", "5"));
+            float limitSec = float.Parse(Opt(opts, "limit", "120"), inv);
+            int layer = int.Parse(Opt(opts, "layer", "1"));
+            string ship = Opt(opts, "ship", Game.DefaultSeedShip);
+            ShipCatalog catalog = Catalog();
+            bool pass = true;
+            foreach (string profile in new[] { "perfect", "novice" })
+            {
+                foreach (Element owner in new[] { Element.Fire, Element.Corruption })
+                {
+                    int cleared = 0, died = 0;
+                    float clearSum = 0f, hpLostSum = 0f, energySum = 0f;
+                    for (int r = 0; r < runs; r++)
+                    {
+                        ulong s = seed + (ulong)r;
+                        BotSkill skill = profile == "novice" ? BotSkill.Novice() : BotSkill.Perfect();
+                        var game = new Game(tuning, catalog, s, ship, new BotPilot(s) { Skill = skill }, GameMode.World);
+                        Lightship.Core.World.SectorCoord at = default;
+                        foreach (var sec in game.World.SortedSectors())
+                            if (sec.Layer == layer && sec.Owner == owner && !sec.IsGate) { at = sec.Coord; break; }
+                        game.Run.Warp(at);
+                        Run run = game.Run;
+                        long start = game.Tick, limit = start + (long)(limitSec * tuning.TickRate);
+                        float hpLost = 0f, lastHp = run.Player.Hp;
+                        bool dead = false;
+                        while (game.Tick < limit)
+                        {
+                            game.Step(default);
+                            if (!ReferenceEquals(game.Run, run)) { dead = true; break; }
+                            if (run.Player.Hp < lastHp) hpLost += lastHp - run.Player.Hp;
+                            lastHp = run.Player.Hp;
+                            if (run.Life(at).Cleared) break;
+                        }
+                        bool clear = !dead && run.Life(at).Cleared;
+                        if (clear) { cleared++; clearSum += (game.Tick - start) * tuning.Dt; }
+                        if (dead) died++;
+                        hpLostSum += hpLost;
+                        energySum += run.Energy;
+                    }
+                    bool ok = died == 0 && cleared == runs;
+                    if (profile == "perfect" && !ok) pass = false;
+                    Console.WriteLine("sweep: profile=" + profile + " owner=" + owner + " layer=" + layer + " ship=" + ship + " runs=" + runs +
+                        " cleared=" + cleared + " died=" + died +
+                        " clearSecMean=" + (cleared > 0 ? clearSum / cleared : -1f).ToString("F1") +
+                        " hpLostMean=" + (hpLostSum / runs).ToString("F0") + " energyMean=" + (energySum / runs).ToString("F0") +
+                        " ok=" + (ok ? 1 : 0));
+                }
+            }
+            Console.WriteLine("sweep: pass=" + (pass ? 1 : 0) + " (perfect must clear every sector without dying; novice is reported)");
             return pass ? 0 : 1;
         }
 
@@ -147,7 +301,9 @@ namespace Lightship.Headless
         {
             long ticks = long.Parse(Opt(opts, "ticks", "3600"));
             ulong seed = ulong.Parse(Opt(opts, "seed", "1"));
-            var game = new Game(tuning, Catalog(), seed, Game.DefaultSeedShip, new BotPilot());
+            Game game = opts.ContainsKey("world")
+                ? Game.NewWorld(tuning, Catalog(), seed, BotSkill.Perfect())
+                : new Game(tuning, Catalog(), seed, Game.DefaultSeedShip, new BotPilot());
             while (game.Tick < ticks) game.Step(default);
             Console.WriteLine("tick=" + game.Tick + " energy=" + game.Run.Energy.ToString("F1") + " tier=" + game.Run.Tier +
                 " hash=" + StateHash.Compute(game).ToString("x16"));

@@ -1,4 +1,5 @@
 using Lightship.Core.Ships;
+using Lightship.Core.World;
 
 namespace Lightship.Core.Sim
 {
@@ -68,6 +69,9 @@ namespace Lightship.Core.Sim
         public bool Evolve;
         public bool Map;
         public int EvolveChoice;
+        /// <summary>Spec 7: jump to a checkpoint (from the map). Applied only if the run allows it.</summary>
+        public bool Teleport;
+        public SectorCoord TeleportTarget;
     }
 
     /// <summary>Anything that steers a ship: the human's latest input, an enemy behaviour, the test bot, a drone, a rival (M2).</summary>

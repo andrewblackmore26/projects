@@ -56,6 +56,20 @@ namespace Lightship.Core.Sim
                 h = Mix(h, Bits(p.Value[i]));
             }
             h = Mix(h, (ulong)game.Events.Total);
+            // The world, only when there is one: the sandbox hash stays M1's, a regression check for free.
+            if (game.World != null)
+            {
+                h = Mix(h, (ulong)(uint)run.Sector.X);
+                h = Mix(h, (ulong)(uint)run.Sector.Y);
+                h = Mix(h, run.LockedIn ? 1UL : 0UL);
+                foreach (World.Sector s in game.World.SortedSectors())
+                {
+                    h = Mix(h, (ulong)s.Owner);
+                    h = Mix(h, game.Meta.PlayerTerritory.Contains(s.Coord) ? 1UL : 0UL);
+                    h = Mix(h, game.Meta.Checkpoints.Contains(s.Coord) ? 1UL : 0UL);
+                    h = Mix(h, game.Meta.Explored.Contains(s.Coord) ? 1UL : 0UL);
+                }
+            }
             return h;
         }
 

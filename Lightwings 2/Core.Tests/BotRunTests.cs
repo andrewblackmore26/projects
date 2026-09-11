@@ -86,5 +86,95 @@ namespace Lightship.Core.Tests
                 Assert.True(ticks >= 0, "novice seed " + seed + " did not evolve within 120 s");
             }
         }
+
+        // ---- M2: the world ----
+
+        private static BotSkill Skill(bool novice) => novice ? BotSkill.Novice() : BotSkill.Perfect();
+
+        /// <summary>Spec 5 in the real game: the origin is safe, so the first evolution now includes leaving it.</summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void FirstEvolutionInTheWorldWithin120Seconds(bool novice)
+        {
+            for (ulong seed = 1; seed <= 3; seed++)
+            {
+                Game game = Game.NewWorld(new Tuning(), SimTestHelpers.Catalog(), seed, Skill(novice));
+                int ticks = SimTestHelpers.StepUntil(game, g => g.Events.Count(EventKind.Evolved) > 0, 7200);
+                _out.WriteLine((novice ? "novice" : "perfect") + " seed " + seed + ": first evolution in the world at " + (ticks / 60f).ToString("F1") + " s");
+                Assert.True(ticks >= 0, "seed " + seed + " did not evolve within 120 s in the world");
+            }
+        }
+
+        /// <summary>
+        /// Spec 19 M2: a player gets through the veil by beating the gate's rival. The perfect bot
+        /// must win the first time on every seed (measured 134-140 s, no deaths). The novice (no
+        /// dodging) is a distribution: over 20 seeds 11 won first time and one needed four tries
+        /// (727 s), so the gate asserts the median and that every novice gets through eventually.
+        /// </summary>
+        [Fact]
+        public void ThePerfectBotBeatsTheGateFirstTime()
+        {
+            for (ulong seed = 1; seed <= 5; seed++)
+            {
+                Game game = Game.NewWorld(new Tuning(), SimTestHelpers.Catalog(), seed, Skill(false));
+                int ticks = SimTestHelpers.StepUntil(game, g => g.Meta.BeatenGates.Count > 0, 300 * 60);
+                _out.WriteLine("perfect seed " + seed + ": gate beaten at " + (ticks / 60f).ToString("F1") + " s, deaths " + game.Meta.Deaths);
+                Assert.True(ticks >= 0, "seed " + seed + " did not beat the gate within 300 s");
+                Assert.Equal(0, game.Meta.Deaths);
+                Assert.Contains(new World.SectorCoord(2, 0), game.Meta.Checkpoints);
+            }
+        }
+
+        [Fact]
+        public void EveryNoviceGetsThroughTheGateAndHalfWithinFiveMinutes()
+        {
+            var times = new System.Collections.Generic.List<float>();
+            for (ulong seed = 1; seed <= 20; seed++)
+            {
+                Game game = Game.NewWorld(new Tuning(), SimTestHelpers.Catalog(), seed, Skill(true));
+                int ticks = SimTestHelpers.StepUntil(game, g => g.Meta.BeatenGates.Count > 0, 1200 * 60);
+                _out.WriteLine("novice seed " + seed + ": gate beaten at " + (ticks / 60f).ToString("F1") + " s, deaths " + game.Meta.Deaths);
+                Assert.True(ticks >= 0, "novice seed " + seed + " never got through the gate in 20 minutes");
+                times.Add(ticks / 60f);
+            }
+            times.Sort();
+            float median = (times[9] + times[10]) / 2f;
+            _out.WriteLine("novice gate median " + median.ToString("F1") + " s, max " + times[19].ToString("F1") + " s");
+            Assert.True(median <= 300f, "novice median " + median + " s");
+        }
+
+        /// <summary>
+        /// Spec 7 and 19 M2: "a death costs minutes, not the run". After the gate, the bot is
+        /// killed; the time until it stands in the checkpoint again (regrow to its veil, teleport)
+        /// must be a few minutes. Measured 76-83 s (perfect), 84-92 s (novice).
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void DeathCostsMinutesNotTheRun(bool novice)
+        {
+            var gate = new World.SectorCoord(2, 0);
+            for (ulong seed = 1; seed <= 3; seed++)
+            {
+                Game game = Game.NewWorld(new Tuning(), SimTestHelpers.Catalog(), seed, Skill(novice));
+                Assert.True(SimTestHelpers.StepUntil(game, g => g.Meta.BeatenGates.Count > 0, 1200 * 60) >= 0, "no gate to return to");
+                game.Die();
+                long diedSeq = game.Events.Total;
+                Assert.Equal(0f, game.Run.Energy);
+                Assert.Contains(gate, game.Meta.Checkpoints);
+                Assert.Contains(gate, game.Meta.BeatenGates);
+                int ticks = SimTestHelpers.StepUntil(game, g => g.Run.Sector == gate, 240 * 60);
+                _out.WriteLine((novice ? "novice" : "perfect") + " seed " + seed + ": back at the checkpoint " + (ticks / 60f).ToString("F1") +
+                               " s after the death, energy " + game.Run.Energy.ToString("F0") + ", deaths " + game.Meta.Deaths);
+                Assert.True(ticks >= 0, "seed " + seed + " was not back at the checkpoint within 240 s of dying");
+                // Back by the kept checkpoint and a teleport, into an open gate: not a walk into a fresh lock-in.
+                var since = new System.Collections.Generic.List<GameEvent>();
+                game.Events.Since(diedSeq, since);
+                Assert.Contains(since, e => e.Kind == EventKind.Teleported && (int)e.To.X == gate.X && (int)e.To.Y == gate.Y);
+                Assert.False(game.Run.LockedIn);
+                Assert.Null(game.Arena.Gatekeeper);
+            }
+        }
     }
 }

@@ -17,12 +17,27 @@ namespace Lightship.Core.Sim
         Infected,
         InfectSpread,
         DroneHatched,
+        // World (spec 7). Pos of SectorEntered/Teleported is the arrival point, To the sector (x, y).
+        SectorEntered,
+        CrossBlocked,      // Value = (int)CrossResult, To = the sector that could not be entered
+        GateWarning,       // the player is near an edge into an unbeaten gate; To = the gate
+        GateLocked,
+        GateBeaten,
+        SectorCleared,     // Value = 1 when it newly became player territory
+        Teleported,
+        BorderShifted,     // Pos = the sector (x, y), Element = its new owner
+        // Rivals (spec 8).
+        RivalSpawned,
+        RivalRetreat,
+        RivalAbsorb,
+        AimLine,           // a rival's aim line appeared; Value = ticks until it fires
     }
 
     /// <summary>
     /// Something the view may want to show. Each event keeps the arena tick it
     /// happened on so the view can honour the 0.25 s minimum visible lifetime
-    /// (spec 9), and a sequence number that never restarts (arena ticks do, at death).
+    /// (spec 9), and a sequence number. Arena ticks never restart within a game (a new
+    /// sector or a new life carries the clock on), so ticks from different lives compare.
     /// </summary>
     public struct GameEvent
     {

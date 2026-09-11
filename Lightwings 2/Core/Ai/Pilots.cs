@@ -92,11 +92,30 @@ namespace Lightship.Core.Ai
 
         public BotPilot(ulong seed = 0x1B07) { _rng = new DeterministicRandom(seed); }
 
+        /// <summary>A push back toward the middle, growing from 0 at WallBand units from a wall to 1 at the wall.</summary>
+        public static Vec2 AwayFromWalls(Arena arena, Vec2 p)
+        {
+            const float band = WallBand;
+            float x = 0f, y = 0f;
+            if (p.X < band) x += 1f - p.X / band;
+            if (p.X > arena.Width - band) x -= 1f - (arena.Width - p.X) / band;
+            if (p.Y < band) y += 1f - p.Y / band;
+            if (p.Y > arena.Height - band) y -= 1f - (arena.Height - p.Y) / band;
+            return new Vec2(x, y) * 1.5f;
+        }
+
+        public const float WallBand = 150f;
+
         public PlayerInput Decide(Arena arena, Ship self)
         {
             var input = new PlayerInput { Fire = true, Evolve = Skill.Evolves, EvolveChoice = 0 };
             Ship enemy = arena.NearestHostile(self.Pos, self.Side);
             float magnet = arena.Host.MagnetRadius;
+            // Fight inside the weapon's own reach: a fixed 200 kept the flame forms (180 reach)
+            // just out of range for minutes while a spore enemy chipped at them.
+            Sim.Abilities.Weapon weapon = self.Loadout?.Primary;
+            float fightRange = weapon != null ? MathF.Min(FightRange, weapon.Reach(arena.T) * 0.75f) : FightRange;
+            float shotSpeed = weapon != null ? weapon.Speed : arena.T.PlayerBulletSpeed;
             int pickup = arena.NearestPickup(self.Pos, magnet * 3f);
 
             Vec2 move = Vec2.Zero;
@@ -110,9 +129,12 @@ namespace Lightship.Core.Ai
                 Vec2 to = enemy.Pos - self.Pos;
                 float dist = to.Length();
                 Vec2 dir = dist > 1e-3f ? to / dist : Vec2.Forward;
-                if (dist > FightRange * 1.2f) move = dir;
-                else if (dist < FightRange * 0.7f) move = -dir;
+                if (dist > fightRange * 1.2f) move = dir;
+                else if (dist < fightRange * 0.7f) move = -dir;
                 else move = dir.Perp() * 0.6f;
+                // Never kite into a wall: in the world an edge is a door, and backing through it
+                // mid-fight left the fight (measured: a novice ping-ponged across one edge 6 times).
+                move = move + AwayFromWalls(arena, self.Pos);
             }
             else
             {
@@ -154,7 +176,7 @@ namespace Lightship.Core.Ai
                 int lag = Math.Clamp(Skill.ReactionTicks, 0, _seen.Length - 1);
                 Vec2 seen = _seen[((arena.Tick - lag) % _seen.Length + _seen.Length) % _seen.Length];
                 Vec2 to = seen - self.Pos;
-                float time = to.Length() / arena.T.PlayerBulletSpeed;
+                float time = to.Length() / shotSpeed;
                 Vec2 lead = seen + enemy.Vel * time - self.Pos;
                 Vec2 aim = lead.LengthSquared() > 1e-6f ? lead.Normalized() : self.Facing;
                 if (Skill.AimErrorDeg > 0f)

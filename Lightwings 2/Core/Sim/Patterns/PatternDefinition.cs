@@ -35,6 +35,7 @@ namespace Lightship.Core.Sim.Patterns
         public int Repeat = 1;          // shots before the pause
         public int PauseTicks = 60;     // ticks after the last repeat
         public AimMode Aim = AimMode.AtPlayer;
+        public byte Flags;              // BulletFlags carried by every bullet of this step (corruption spores infect)
     }
 
     public sealed class PatternDefinition

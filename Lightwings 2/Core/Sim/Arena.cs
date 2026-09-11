@@ -22,6 +22,23 @@ namespace Lightship.Core.Sim
     }
 
     /// <summary>
+    /// What a sector puts in its arena (spec 7): its light, the tier of its regular
+    /// enemies and how many are still to come this life. The sandbox is endless.
+    /// </summary>
+    public struct SectorSetup
+    {
+        public Element Light;          // ambient pickups and regular enemies; None = no light (the safe origin)
+        public int EnemyTier;
+        public int EnemyBudget;        // regular enemies still to spawn; -1 = endless (sandbox)
+        public float LightPool;
+        public int AmbientIntervalTicks;   // ticks between ambient pickups; 0 = the tuning default
+        public int AmbientSize;            // ambient pickup size (0 = 1 energy, 1 = 5)
+
+        public static SectorSetup Sandbox(Tuning t) =>
+            new SectorSetup { Light = Element.Fire, EnemyTier = 1, EnemyBudget = -1, LightPool = t.SectorLightPool };
+    }
+
+    /// <summary>
     /// One sector being simulated: ships, bullets, pickups and the collision
     /// passes, stepped at a fixed 60 Hz. Everything here is deterministic given
     /// the seed and the inputs. Hostility is by side (see Sides): one collision
@@ -47,11 +64,20 @@ namespace Lightship.Core.Sim
         public long Tick;
         public int EnemiesKilled;
         public int EnemiesSpawned;
+        /// <summary>Regular enemies destroyed by anyone (a sector counts these to be cleared).</summary>
+        public int RegularsKilled;
         public int EnemyTier = 1;
+        /// <summary>Regular enemies still allowed to spawn; -1 = endless.</summary>
+        public int EnemyBudget = -1;
+        /// <summary>The gate's rival boss, while this arena is a gate being fought.</summary>
+        public Ship Gatekeeper;
         public bool SpawnEnemies = true;
         public bool SpawnAmbientLight = true;
         /// <summary>Bench only: bullets bounce off the arena walls instead of leaving, so the live count holds.</summary>
         public bool BounceBullets;
+        /// <summary>Ticks between ambient pickups here (player territory sheds light faster: it is where a new life regrows).</summary>
+        public int AmbientIntervalTicks;
+        public int AmbientSize;
 
         private long _nextEnemySpawn;
         private int _nextShipId = 1;
@@ -61,17 +87,41 @@ namespace Lightship.Core.Sim
         public float Time => Tick * T.Dt;
         public Vec2 Centre => new Vec2(Width / 2f, Height / 2f);
 
-        public Arena(Tuning t, DeterministicRandom rng, EventLog events, IArenaHost host, ShipCatalog catalog, Element sectorElement)
+        /// <summary>
+        /// A new arena. Within one life the tick and the ship ids carry on from the sector the
+        /// player came from (startTick, firstShipId): every timer in the player's loadout and
+        /// reshape is an absolute tick, and a view keyed by ship id must never see an id reused.
+        /// </summary>
+        public Arena(Tuning t, DeterministicRandom rng, EventLog events, IArenaHost host, ShipCatalog catalog, SectorSetup setup,
+            long startTick = 0, int firstShipId = 1)
         {
             T = t; Rng = rng; Events = events; Host = host; Catalog = catalog;
             Width = t.ArenaWidth; Height = t.ArenaHeight;
-            SectorElement = sectorElement;
-            LightPool = t.SectorLightPool;
+            SectorElement = setup.Light;
+            EnemyTier = Math.Max(1, setup.EnemyTier);
+            EnemyBudget = setup.EnemyBudget;
+            LightPool = setup.LightPool;
+            AmbientIntervalTicks = setup.AmbientIntervalTicks;
+            AmbientSize = setup.AmbientSize;
+            SpawnAmbientLight = setup.Light != Element.None;
+            SpawnEnemies = setup.EnemyBudget != 0;
             Bullets = new BulletPool(t.BulletCapacity);
             Pickups = new PickupPool(t.PickupCapacity);
             Hash = new SpatialHash(Width, Height, t.HashCell, t.BulletCapacity);
-            _nextEnemySpawn = 60;
+            Tick = startTick;
+            _nextShipId = firstShipId;
+            _nextEnemySpawn = startTick + 60;
         }
+
+        /// <summary>The id the next ship will get (a following arena starts here).</summary>
+        public int NextShipId => _nextShipId;
+
+        /// <summary>
+        /// Spec 7: nothing left to fight. Regular enemies all spawned and gone, and no gatekeeper
+        /// standing. Always false in the endless sandbox.
+        /// </summary>
+        public bool Cleared =>
+            EnemyBudget >= 0 && EnemiesSpawned >= EnemyBudget && AliveRegulars() == 0 && (Gatekeeper == null || !Gatekeeper.Alive);
 
         // ---- spawning ----
 
@@ -97,11 +147,38 @@ namespace Lightship.Core.Sim
             return Player;
         }
 
+        /// <summary>The player arriving from another sector: same ship, same HP and loadout, a fresh position.</summary>
+        public void AdoptPlayer(Ship player, Vec2 pos)
+        {
+            Player = player;
+            player.Pos = pos;
+            player.PrevPos = pos;      // no interpolation smear across the cut
+            player.Vel = Vec2.Zero;
+            if (_inStep) _spawnQueue.Add(player); else Ships.Add(player);
+        }
+
+        /// <summary>
+        /// A rival (spec 8): the same tree and loadout as the player, driven by decisions.
+        /// Rival-class HP; regenerates like the player; grabs light.
+        /// </summary>
+        public Ship SpawnRival(ShipDefinition def, Vec2 pos, IPilot pilot)
+        {
+            float hp = Health.MaxHp(def.Tier, T) * T.RivalHpMultiplier;
+            Ship s = SpawnShip(def, Faction.Rival, pos, pilot, hp, T.RivalSpeed);
+            s.Loadout = Loadout.Build(def, T);
+            if (Player != null) s.Facing = (Player.Pos - pos).Normalized();
+            Events.Add(EventKind.RivalSpawned, Tick, pos, def.Element, def.Tier, s.Id);
+            return s;
+        }
+
         public Ship SpawnEnemy(ShipDefinition def, Vec2 pos, PatternDefinition pattern)
         {
             float hp = T.EnemyT1Hp + T.EnemyHpPerTier * (def.Tier - 1);
             Ship s = SpawnShip(def, Faction.Enemy, pos, new EnemyPilot(), hp, T.EnemySpeed);
             s.Pattern = new PatternRunner(pattern, Tick);
+            // Every visible part is an ability (spec 11.7): the pattern is its weapon, and the rest
+            // of its parts (a Flare's vents, a Worm's nucleus) work as they would for anyone.
+            s.Loadout = Loadout.Build(def, T, withWeapon: false);
             if (Player != null) s.Facing = (Player.Pos - pos).Normalized();
             EnemiesSpawned++;
             Events.Add(EventKind.EnemySpawned, Tick, pos, def.Element, def.Tier, s.Id);
@@ -218,9 +295,11 @@ namespace Lightship.Core.Sim
                 Vec2 move = input.Move;
                 if (move.LengthSquared() > 1f) move = move.Normalized();
                 s.PrevPos = s.Pos;
-                s.Vel = move * s.Speed;
-                s.Pos = s.Pos + s.Vel * dt;
+                s.Pos = s.Pos + move * s.Speed * dt;
                 s.Pos = new Vec2(Math.Clamp(s.Pos.X, 0f, Width), Math.Clamp(s.Pos.Y, 0f, Height));
+                // Velocity is what the ship actually did, after the wall: a ship pinned against an
+                // edge is standing still (no burning trail, and nobody leads it into the wall).
+                s.Vel = (s.Pos - s.PrevPos) / dt;
                 if (input.Aim.LengthSquared() > 1e-6f) s.Facing = input.Aim.Normalized();
             }
 
@@ -230,7 +309,7 @@ namespace Lightship.Core.Sim
                 Ship s = Ships[i];
                 if (!s.Alive) continue;
                 if (s.Loadout != null) s.Loadout.Tick(this, s, s.LastInput);
-                else if (s.Pattern != null) s.Pattern.Tick(this, s, s.LastInput.Fire);
+                if (s.Pattern != null) s.Pattern.Tick(this, s, s.LastInput.Fire);
             }
 
             // 3. Bullets move and expire.
@@ -272,8 +351,13 @@ namespace Lightship.Core.Sim
             if (SpawnEnemies) StepEnemySpawns();
             for (int i = 0; i < Ships.Count; i++)
                 if (Ships[i].IsDrone && Ships[i].Alive && Tick >= Ships[i].DespawnTick) Ships[i].Alive = false;
-            if (Player != null && Player.Alive)
-                Player.Hp = Health.Regen(Player.Hp, Player.MaxHp, Tick, Player.LastDamageTick, T);
+            for (int i = 0; i < Ships.Count; i++)
+            {
+                Ship s = Ships[i];
+                // Spec 9 regen for the player; spec 8 rivals "retreat to regenerate" under the same rule.
+                if (s.Alive && (ReferenceEquals(s, Player) || s.IsRival))
+                    s.Hp = Health.Regen(s.Hp, s.MaxHp, Tick, s.LastDamageTick, T);
+            }
 
             // 9. Bury the dead (the player stays: the run reads its death) and admit the newborn.
             _inStep = false;
@@ -303,6 +387,9 @@ namespace Lightship.Core.Sim
                     Bullets.Free(b);
                     if (ReferenceEquals(s, Player) && Host.PlayerInvulnerable) continue;
                     Damage(s, Bullets.Damage[b], Bullets.Side[b], bp, true);
+                    // Corruption spores infect whatever they hit, the player's core included (spec 12).
+                    if (s.Alive && (Bullets.Flags[b] & BulletFlags.Infect) != 0)
+                        Infect(s, Bullets.Side[b], (Bullets.Flags[b] & BulletFlags.Spreads) != 0);
                 }
                 else
                 {
@@ -387,7 +474,7 @@ namespace Lightship.Core.Sim
             for (int i = 0; i < Ships.Count; i++)
             {
                 Ship o = Ships[i];
-                if (!o.Alive || o == s || o.IsDrone || o.CoreOnlyHitbox || o.Infected(Tick)) continue;
+                if (!o.Alive || o == s || o.CoreOnlyHitbox || o.Infected(Tick)) continue;
                 if (!Sides.Hostile(o.Side, s.InfectSide)) continue;
                 float d = Vec2.DistanceSquared(o.Pos, s.Pos);
                 if (d < bestD) { bestD = d; best = o; }
@@ -421,10 +508,12 @@ namespace Lightship.Core.Sim
             s.Hp = 0f;
             s.Alive = false;
             if (s.IsDrone) return;
+            if (s.Faction == Faction.Enemy) RegularsKilled++;
             Events.Add(EventKind.Kill, Tick, s.Pos, s.Element, 0f, s.Id);
             if (attackerSide != Sides.Player) return;
             EnemiesKilled++;
-            float energy = Rewards.DropEnergy(s.Tier) * Rewards.Scale(s.Tier, Host.PlayerTier, T.RewardGapFactor);
+            float energy = Rewards.DropEnergy(s.Tier) * Rewards.Scale(s.Tier, Host.PlayerTier, T.RewardGapFactor)
+                           * (s.Faction == Faction.Rival ? T.RivalDropMultiplier : 1f);
             SpawnDrops(s.Pos, s.Element, energy);
             Host.OnEnemyKilled(s);
         }
@@ -434,7 +523,9 @@ namespace Lightship.Core.Sim
 
         public void DamagePlayer(float amount, Vec2 at)
         {
-            if (Player == null || !Player.Alive) return;
+            // The one choke point for the reshape's invulnerability (spec 5): an infection that was
+            // ticking before the evolve used to keep hurting through it.
+            if (Player == null || !Player.Alive || Host.PlayerInvulnerable) return;
             Player.Hp -= amount;
             Player.LastDamageTick = Tick;
             Events.Add(EventKind.PlayerDamaged, Tick, at, Element.None, amount, Player.Id);
@@ -449,15 +540,21 @@ namespace Lightship.Core.Sim
 
         // ---- pickups and spawns ----
 
+        private readonly List<Ship> _rivals = new List<Ship>();
+
         private void StepPickups(float dt)
         {
             bool playerAlive = Player != null && Player.Alive;
             float magnet = Host.MagnetRadius;
             float absorbR = Host.PlayerCoreRadius + T.AbsorbRadius;
+            _rivals.Clear();
+            for (int i = 0; i < Ships.Count; i++)
+                if (Ships[i].Alive && Ships[i].IsRival) _rivals.Add(Ships[i]);
             for (int i = 0; i < Pickups.High; i++)
             {
                 if (!Pickups.Alive[i]) continue;
                 if (--Pickups.Ttl[i] <= 0) { Pickups.Free(i); continue; }
+                if (_rivals.Count > 0 && RivalGrabs(i)) continue;
                 if (playerAlive)
                 {
                     float dx = Player.Pos.X - Pickups.X[i], dy = Player.Pos.Y - Pickups.Y[i];
@@ -489,18 +586,39 @@ namespace Lightship.Core.Sim
             }
         }
 
+        /// <summary>Spec 8: a rival flying over light takes it (and the player does not get it). It heals the rival.</summary>
+        private bool RivalGrabs(int i)
+        {
+            // Light it just shed from its own hull is not on offer yet: it has to fly back for it.
+            if (Tick - Pickups.Born[i] < T.RivalGrabMinAgeTicks) return false;
+            for (int r = 0; r < _rivals.Count; r++)
+            {
+                Ship s = _rivals[r];
+                float reach = s.Geometry.CoreRadius + T.AbsorbRadius + 6f;
+                float dx = s.Pos.X - Pickups.X[i], dy = s.Pos.Y - Pickups.Y[i];
+                if (dx * dx + dy * dy > reach * reach) continue;
+                s.Hp = MathF.Min(s.MaxHp, s.Hp + Pickups.Value[i] * T.RivalHealPerEnergy);
+                Events.Add(EventKind.RivalAbsorb, Tick, new Vec2(Pickups.X[i], Pickups.Y[i]), (Element)Pickups.Elem[i], Pickups.Value[i], s.Id);
+                Pickups.Free(i);
+                return true;
+            }
+            return false;
+        }
+
         private void StepAmbientLight(float dt)
         {
             LightPool = MathF.Min(T.SectorLightPool, LightPool + T.SectorLightRegenPerSecond * dt);
-            if (Tick % T.AmbientSpawnIntervalTicks != 0) return;
-            if (LightPool < 1f || Pickups.LiveAmbient >= T.AmbientLightCap) return;
+            if (Tick % (AmbientIntervalTicks > 0 ? AmbientIntervalTicks : T.AmbientSpawnIntervalTicks) != 0) return;
+            float value = T.PickupValues[AmbientSize];
+            if (LightPool < value || Pickups.LiveAmbient >= T.AmbientLightCap) return;
             var pos = new Vec2(Rng.Range(40f, Width - 40f), Rng.Range(40f, Height - 40f));
-            if (SpawnPickup(SectorElement, 0, pos, true) >= 0) LightPool -= 1f;
+            if (SpawnPickup(SectorElement, AmbientSize, pos, true) >= 0) LightPool -= value;
         }
 
         private void StepEnemySpawns()
         {
             if (Tick < _nextEnemySpawn) return;
+            if (EnemyBudget >= 0 && EnemiesSpawned >= EnemyBudget) return;
             if (AliveEnemies() >= T.MaxEnemies) { _nextEnemySpawn = Tick + 30; return; }
             _nextEnemySpawn = Tick + T.EnemySpawnIntervalTicks;
             ShipDefinition def = Catalog.Find(SectorElement == Element.None ? Element.Fire : SectorElement, EnemyTier)
@@ -510,6 +628,7 @@ namespace Lightship.Core.Sim
             Vec2 pos = FarFromPlayer(500f);
             int room = T.MaxEnemies - AliveEnemies();
             int n = Math.Min(T.EnemyPackSize, room);
+            if (EnemyBudget >= 0) n = Math.Min(n, EnemyBudget - EnemiesSpawned);
             for (int k = 0; k < n; k++)
             {
                 Vec2 at = pos + Vec2.FromAngle(2f * MathF.PI * k / Math.Max(n, 1)) * (k == 0 ? 0f : T.EnemyPackSpacing);
@@ -554,13 +673,13 @@ namespace Lightship.Core.Sim
 
         public Ship NearestEnemy(Vec2 from) => NearestHostile(from, Sides.Player);
 
-        public int NearestPickup(Vec2 from, float within)
+        public int NearestPickup(Vec2 from, float within, int minAgeTicks = 0)
         {
             int best = -1;
             float bestD = within * within;
             for (int i = 0; i < Pickups.High; i++)
             {
-                if (!Pickups.Alive[i]) continue;
+                if (!Pickups.Alive[i] || Tick - Pickups.Born[i] < minAgeTicks) continue;
                 float dx = Pickups.X[i] - from.X, dy = Pickups.Y[i] - from.Y;
                 float d = dx * dx + dy * dy;
                 if (d < bestD) { bestD = d; best = i; }
@@ -572,6 +691,14 @@ namespace Lightship.Core.Sim
         {
             int n = 0;
             for (int i = 0; i < Ships.Count; i++) if (Ships[i].Alive && Ships[i].Faction != Faction.Player) n++;
+            return n;
+        }
+
+        /// <summary>Living regular enemies (not rivals, not drones).</summary>
+        public int AliveRegulars()
+        {
+            int n = 0;
+            for (int i = 0; i < Ships.Count; i++) if (Ships[i].Alive && Ships[i].Faction == Faction.Enemy && !Ships[i].IsDrone) n++;
             return n;
         }
 

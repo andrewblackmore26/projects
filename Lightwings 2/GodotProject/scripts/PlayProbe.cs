@@ -39,12 +39,19 @@ namespace Lightship.View
             Ship p = arena.Player;
             // The probe needs motion to see a lead: if the player happens to be idle, give the
             // frozen frame a known velocity (the drawn player lerps PrevPos to Pos, the rider matches).
-            if (p.Vel.Length() < 100f)
+            // 200 u/s is a 2.7 px one-tick lead at the tier-3 zoom (0.81), over the 2 px sensitivity floor;
+            // a slower real velocity (measured 130 u/s at 150 s of world play) gave an insensitive probe.
+            if (p.Vel.Length() < 200f)
             {
                 p.Vel = new Vec2(200f, 0f);
                 p.PrevPos = p.Pos - p.Vel * arena.T.Dt;
             }
             _playerSpeed = p.Vel.Length();
+            // Clear of the ship's own parts: Scorch's yellow crown embers sat inside the search
+            // window at a fixed 40-unit offset and pulled the rider's centroid a tick ahead.
+            // Above the player, unless that would leave the arena (a world bot pushing out of a north edge).
+            float side = p.Pos.Y > p.BoundRadius + 60f ? -1f : 1f;
+            _riderOffset = new Vec2(0f, side * (p.BoundRadius + 30f));
             Vec2 at = p.Pos + _riderOffset;
             for (int i = 0; i < arena.Bullets.High; i++)
                 if (arena.Bullets.Alive[i] && Vec2.Distance(new Vec2(arena.Bullets.X[i], arena.Bullets.Y[i]), at) < 30f) arena.Bullets.Free(i);
@@ -54,11 +61,15 @@ namespace Lightship.View
         public string MeasureRider(Frame f, Transform2D canvas, Arena arena, float zoom, float alpha, float dt)
         {
             Ship p = arena.Player;
-            Vector2I expected = ToScreen(canvas, Vec2.Lerp(p.PrevPos, p.Pos, alpha) + _riderOffset);
+            Vec2 drawn = Vec2.Lerp(p.PrevPos, p.Pos, alpha);
+            Vector2I expected = ToScreen(canvas, drawn + _riderOffset);
+            Vector2I ship = ToScreen(canvas, drawn);
+            float shipPx = (p.BoundRadius + 4f) * zoom;
             double sx = 0, sy = 0, n = 0;
             for (int y = expected.Y - 12; y <= expected.Y + 12; y++)
                 for (int x = expected.X - 12; x <= expected.X + 12; x++)
                 {
+                    if ((x - ship.X) * (x - ship.X) + (y - ship.Y) * (y - ship.Y) <= shipPx * shipPx) continue;   // the ship's own pixels
                     f.Hsv(x, y, out float h, out float sat, out float val);
                     if (h < 35f || h > 60f || sat < 0.4f || val < 0.5f) continue;   // lightning yellow
                     sx += x; sy += y; n++;
@@ -97,6 +108,13 @@ namespace Lightship.View
             int pk = arena.SpawnPickup(Element.Fire, 2, _c, false);
             if (pk >= 0) { arena.Pickups.VX[pk] = 0f; arena.Pickups.VY[pk] = 0f; arena.Pickups.DriftX[pk] = 0f; arena.Pickups.DriftY[pk] = 0f; }
             Planted = true;
+        }
+
+        private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            Vector2 ab = b - a;
+            float t = ab.LengthSquared() > 1e-6f ? Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0f, 1f) : 0f;
+            return p.DistanceTo(a + ab * t);
         }
 
         private static Vector2I ToScreen(Transform2D canvas, Vec2 w)
@@ -158,6 +176,18 @@ namespace Lightship.View
             for (int i = 0; i < arena.Bullets.High; i++)
                 if (arena.Bullets.Alive[i] && arena.Bullets.Side[i] == Sides.Player)
                     allowed.Add(ToScreen(canvas, new Vec2(arena.Bullets.X[i] + arena.Bullets.VX[i] * back, arena.Bullets.Y[i] + arena.Bullets.VY[i] * back)));
+            // The world's edge bands into player territory are light blue by design (the player's land):
+            // allowed where the drawing itself puts them (EdgeBarriers.Segment / StyleOf).
+            var bands = new List<(Vector2 a, Vector2 b, float tol)>();
+            if (game.World != null)
+                foreach (Lightship.Core.World.Edge e in Lightship.Core.World.Edges.All)
+                {
+                    var (color, widthPx, _, _) = EdgeBarriers.StyleOf(game.Run, e);
+                    Color pb = Palette.StrokeOf(ColorRole.PlayerBlue);
+                    if (Mathf.Abs(color.R - pb.R) > 0.01f || Mathf.Abs(color.G - pb.G) > 0.01f || Mathf.Abs(color.B - pb.B) > 0.01f) continue;
+                    var (sa, sb) = EdgeBarriers.Segment(arena, e, widthPx / 2f / zoom);
+                    bands.Add((canvas * sa, canvas * sb, widthPx * 1.8f / 2f + 2f));
+                }
             int blueOutside = 0, bluePixels = 0;
             for (int y = 0; y < f.H; y++)
                 for (int x = 0; x < f.W; x++)
@@ -172,6 +202,9 @@ namespace Lightship.View
                     if (!ok)
                         foreach (Vector2I q in allowed)
                             if (Math.Abs(q.X - x) <= 10 && Math.Abs(q.Y - y) <= 10) { ok = true; break; }
+                    if (!ok)
+                        foreach (var (ba, bb, tol) in bands)
+                            if (DistanceToSegment(new Vector2(x, y), ba, bb) <= tol) { ok = true; break; }
                     if (!ok) blueOutside++;
                 }
             lines.Add("measure: play tick=" + arena.Tick + " tier=" + game.Run.Tier + " energy=" + game.Run.Energy.ToString("F0") +

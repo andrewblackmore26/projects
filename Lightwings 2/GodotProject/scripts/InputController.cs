@@ -18,6 +18,12 @@ namespace Lightship.View
         private Vector2 _lastMouse = new Vector2(float.NaN, float.NaN);
         public bool DebugVisible { get; private set; }
         public int SelectedOption { get; private set; }
+        /// <summary>Tab / Back: the HUD opens or closes the full map (polled even while it holds the game).</summary>
+        public System.Action MapPressed;
+        private bool _fireSuppressed;
+
+        /// <summary>The map used this click (a checkpoint jump): the held button must not fire on arrival.</summary>
+        public void SuppressFireUntilRelease() => _fireSuppressed = true;
 
         private static readonly string[] Actions =
         {
@@ -75,6 +81,7 @@ namespace Lightship.View
             if (Input.IsActionJustPressed("quit")) GetTree().Quit(0);
             if (Input.IsActionJustPressed("autofire")) AutoFire = !AutoFire;
             if (Input.IsActionJustPressed("debug")) DebugVisible = !DebugVisible;
+            if (Input.IsActionJustPressed("map")) MapPressed?.Invoke();
 
             Vector2 move = Input.GetVector("move_left", "move_right", "move_up", "move_down");
             input.Move = new Vec2(move.X, move.Y);
@@ -104,7 +111,9 @@ namespace Lightship.View
                 input.Aim = to.LengthSquared() > 1f ? to.Normalized() : player.Facing;
             }
 
-            input.Fire = Input.IsActionPressed("fire") || AutoFire;
+            bool held = Input.IsActionPressed("fire");
+            if (!held) _fireSuppressed = false;
+            input.Fire = (held && !_fireSuppressed) || AutoFire;
             input.Ability1 = Input.IsActionPressed("ability_1");
             input.Ability2 = Input.IsActionPressed("ability_2");
             input.Map = Input.IsActionPressed("map");

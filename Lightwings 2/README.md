@@ -12,7 +12,7 @@ stepped at a fixed 60 Hz by xunit, by a headless CLI and by Godot alike.
 ```
 Core/            Lightship.Core — deterministic simulation, ship data, geometry (no engine refs)
 Core.Tests/      xunit; every spec rule and acceptance number has a test
-Tools/Headless/  lightship-headless: validate | bot | bench | hash | sheet-info
+Tools/Headless/  lightship-headless: validate | bot | world | sweep | bench | hash | sheet-info
 Tools/shoot.ps1  capture + MEASURE a frame (fails loudly on engine errors)
 GodotProject/    presentation: rendering, input, HUD, ship editor, capture instruments
   data/ships/    the ship definitions (JSON), shared by tests, CLI and game
@@ -27,11 +27,14 @@ $env:PATH = "C:\Program Files\dotnet;$env:PATH"   # spawned shells can carry a s
 .\build.ps1 build                                  # whole solution incl. the Godot project
 .\build.ps1 test                                   # fast xunit categories
 .\build.ps1 perf                                   # Release bullet-budget benchmark
-.\build.ps1 bot --seconds 180 --runs 5             # scripted player: first evolution time
+.\build.ps1 bot --seconds 180 --runs 5             # scripted player in the M1 arena: first evolution time
+.\build.ps1 headless world --runs 5 --regrow       # world bot: leave the origin, beat the gate, die, come back
+.\build.ps1 headless sweep --runs 5                # a fresh life in each owner's layer-1 sector
 .\build.ps1 headless validate GodotProject\data\ships
 
 $godot = "C:\Users\admin\godot\Godot_v4.7.1-stable_mono_win64\Godot_v4.7.1-stable_mono_win64_console.exe"
-& $godot --path GodotProject -- --play             # play (WASD, mouse, E evolve, Tab map, F auto-fire)
+& $godot --path GodotProject -- --play             # play the world (WASD, mouse, E evolve, Tab map, F auto-fire)
+& $godot --path GodotProject -- --play --sandbox   # the M1 single arena
 & $godot --path GodotProject -- --editor           # ship editor
 Tools\shoot.ps1 -Out docs\screenshots\sheet.png -Mode sheet   # capture + measure every ship
 ```
@@ -53,7 +56,7 @@ data rides in `CUSTOM0`, never in vertex COLOR. See `tasks/lessons.md`.
 | milestone | state |
 |---|---|
 | M1 prototype | done — 16/16 gates (`Tools\gates.ps1`), adversarially reviewed |
-| M2 world | not started |
+| M2 world | done: 5 x 5 sectors, veil, gate with a rival boss, death reset, checkpoint, maps (gates in `Tools\gates.ps1`) |
 | M3 elements | not started |
 | M4 character | not started |
 | M5 demo | not started |
@@ -65,10 +68,12 @@ Measured numbers live in `tasks/todo.md` under "Review". Everything the harness 
 
     Tools\gates.ps1
 
-runs the unit tests, ship validation, headless bench, bot runs (a perfect and a novice
-profile), every capture instrument (playfield, sheet with and without bloom, play probes,
-interpolation, lock pulse, in-engine bench, editor self-test), the cross-engine hash, and a
-negative control that must fail. Every instrument line ends in `ok=1` or `ok=0`; any `ok=0`
+runs the unit tests, ship validation, headless bench, bot runs in the M1 arena and in the world
+(a perfect and a novice profile: first evolution, the gate, the cost of a death), the layer-1
+sweep, every capture instrument (playfield, sheet with and without bloom, play probes,
+interpolation, lock pulse, in-engine bench, editor self-test, world play, the map, the gate
+approach, the lock-in), the cross-engine hash for the sandbox and the world, and negative
+controls that must fail (no halo, no map padlock, no minimap padlock, no veil label). Every instrument line ends in `ok=1` or `ok=0`; any `ok=0`
 fails the run.
 
 ## House rules

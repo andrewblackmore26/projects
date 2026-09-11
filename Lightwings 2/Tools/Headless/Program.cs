@@ -12,7 +12,9 @@ namespace Lightship.Headless
     ///   lightship-headless validate [dir]              every ship JSON loads; footprints and warnings
     ///   lightship-headless bot --seconds 180 --seed 1 --runs 5
     ///   lightship-headless bench --bullets 2000 --ticks 600
-    ///   lightship-headless hash --ticks 3600 --seed 1
+    ///   lightship-headless hash --ticks 3600 --seed 1 [--world]
+    ///   lightship-headless world --seconds 900 --seed 1 --runs 3 [--regrow] [--novice] [--trace]
+    ///   lightship-headless sweep --runs 5 --layer 1 [--ship id]   a fresh life in each owner's sector
     ///   lightship-headless sheet-info
     ///   --set Field=Value   (repeatable) overrides a Tuning field for the run
     /// </summary>
@@ -46,6 +48,8 @@ namespace Lightship.Headless
                     case "bot": return Commands.Bot(tuning, opts);
                     case "bench": return Commands.Bench(tuning, opts);
                     case "hash": return Commands.Hash(tuning, opts);
+                    case "world": return Commands.World(tuning, opts);
+                    case "sweep": return Commands.Sweep(tuning, opts);
                     case "sheet-info": return Commands.SheetInfo(opts);
                     default: Usage(); return 2;
                 }
@@ -59,7 +63,7 @@ namespace Lightship.Headless
 
         private static void Usage()
         {
-            Console.WriteLine("usage: lightship-headless <validate|bot|bench|hash|sheet-info> [--key value] [--set Field=Value]");
+            Console.WriteLine("usage: lightship-headless <validate|bot|bench|hash|world|sweep|sheet-info> [--key value] [--set Field=Value]");
         }
 
         /// <summary>--key value pairs and --flag switches; "--set" accumulates.</summary>

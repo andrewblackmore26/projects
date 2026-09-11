@@ -10,10 +10,11 @@
 #   Tools\shoot.ps1 -Out docs\screenshots\play.png -Mode play -Bot -Seconds 45
 #   Tools\shoot.ps1 -Out docs\screenshots\bench.png -Mode bench -Bullets 2000
 #   Tools\shoot.ps1 -Out docs\screenshots\scratch\bg.png -Mode bg -Seconds 1
+#   Tools\shoot.ps1 -Out docs\screenshots\map.png -Mode map          (also approach, gate: the M2 probes)
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Seconds = "10",
-    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg", "emitter", "editor", "lock")][string]$Mode = "play",
+    [ValidateSet("play", "world", "sheet", "lightdiff", "bench", "bg", "emitter", "editor", "lock", "map", "approach", "gate")][string]$Mode = "play",
     [int]$Seed = 1,
     [switch]$Bot,
     [string]$Ship = "",
@@ -56,8 +57,9 @@ if (-not $NoBuild) {
 # which never exits.
 $godotArgs = "--path `"$project`" -- `"--screenshot=$($outPath):$Seconds`" --seed=$Seed"
 switch ($Mode) {
+    # play = the M1 sandbox arena with the loop probes; world = the game from the origin.
     "play" {
-        $godotArgs += " --play"
+        $godotArgs += " --play --sandbox"
         if ($Bot) { $godotArgs += " --bot" }
         if ($Ship -ne "") { $godotArgs += " --ship=$Ship" }
     }
@@ -68,6 +70,14 @@ switch ($Mode) {
     "emitter"   { $godotArgs += " --bg --emitter" }
     "editor"    { $godotArgs += " --editor --selftest" }
     "lock"      { $godotArgs += " --play --lockprobe" }
+    "world"     {
+        $godotArgs += " --play"
+        if ($Bot) { $godotArgs += " --bot" }
+        if ($Ship -ne "") { $godotArgs += " --ship=$Ship" }
+    }
+    "map"       { $godotArgs += " --play --worldprobe=map" }
+    "approach"  { $godotArgs += " --play --worldprobe=approach" }
+    "gate"      { $godotArgs += " --play --worldprobe=gate" }
 }
 if ($Emitter) { $godotArgs += " --emitter" }
 if ($Extra -ne "") { $godotArgs += " $Extra" }

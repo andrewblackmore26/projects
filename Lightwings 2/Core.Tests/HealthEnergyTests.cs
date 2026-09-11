@@ -161,6 +161,11 @@ namespace Lightship.Core.Tests
             run.Evolve(0);
             run.OnAbsorb(Element.Corruption, 205f);   // 305
             game.Arena.Player.Hp = 10000f;
+            // During the reshape the ship is invulnerable (spec 5): the hit does nothing at all.
+            game.Arena.DamagePlayer(1000f, game.Arena.Player.Pos);
+            Assert.Equal(10000f, game.Arena.Player.Hp, 3);
+            Assert.Equal(305f, run.Energy, 3);
+            SimTestHelpers.StepN(game, game.T.ReshapeTicks + 1);
             game.Arena.DamagePlayer(1000f, game.Arena.Player.Pos);
             Assert.Equal(100f, run.Energy, 3);
             Assert.Equal(2, run.Tier);

@@ -106,11 +106,19 @@ namespace Lightship.Core.Tests
         }
 
         [Fact]
-        public void AuthoredCatalogOffersCorruptionOnlyInM1()
+        public void AuthoredCatalogOffersBothM2Roots()
         {
-            // Only corruption has a tier 2 authored: the first evolution offers exactly that.
-            EvolveOffer o = Evolution.ComputeOffer(Element.Corruption, 1, Absorbed(fire: 100), new[] { Element.Corruption, Element.Fire }, SimTestHelpers.Catalog());
-            Assert.Equal(new[] { Element.Corruption }, Ids(o));
+            // M2 authors fire T2/T3 beside corruption: feeding on fire light offers the Flare,
+            // and a mixed diet offers both roots, most-absorbed first.
+            var unlocked = new[] { Element.Corruption, Element.Fire };
+            EvolveOffer fire = Evolution.ComputeOffer(Element.Corruption, 1, Absorbed(fire: 100), unlocked, SimTestHelpers.Catalog());
+            Assert.Equal(new[] { Element.Fire }, Ids(fire));
+            Assert.Equal("fire_t2_flare", fire.Options[0].Id);
+            EvolveOffer mixed = Evolution.ComputeOffer(Element.Corruption, 1, Absorbed(fire: 30, corruption: 70), unlocked, SimTestHelpers.Catalog());
+            Assert.Equal(new[] { Element.Corruption, Element.Fire }, Ids(mixed));
+            EvolveOffer t2 = Evolution.ComputeOffer(Element.Fire, 2, Absorbed(corruption: 50, fire: 10), unlocked, SimTestHelpers.Catalog());
+            Assert.Equal(new[] { Element.Corruption, Element.Fire }, Ids(t2));
+            Assert.Equal("fire_t3_scorch", t2.Options[1].Id);
         }
     }
 }

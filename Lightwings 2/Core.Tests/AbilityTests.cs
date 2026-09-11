@@ -188,5 +188,147 @@ namespace Lightship.Core.Tests
             g.Run.Evolve(0);
             Assert.True(g.Arena.Player.Loadout.Has("spread"));
         }
+
+        // ---- M2: fire T2 and T3 (spec 12) ----
+
+        private static int LiveBullets(Game g, Func<int, bool> match)
+        {
+            int n = 0;
+            BulletPool b = g.Arena.Bullets;
+            for (int i = 0; i < b.High; i++) if (b.Alive[i] && match(i)) n++;
+            return n;
+        }
+
+        /// <summary>Flare's tail vents drop burning embers behind it while it moves, and only then; an enemy flying through burns.</summary>
+        [Fact]
+        public void TailVentsLeaveABurningTrailOnlyWhileMoving()
+        {
+            Game g = Quiet("fire_t2_flare");
+            Tuning t = g.T;
+            Ship player = g.Arena.Player;
+            Assert.True(player.Loadout.Has("burning_trail"));
+            SimTestHelpers.StepN(g, 60);
+            Assert.Equal(0, LiveBullets(g, i => g.Arena.Bullets.OwnerId[i] == player.Id));
+
+            PilotOf(g).Input = new PlayerInput { Move = new Vec2(1f, 0f), Aim = new Vec2(1f, 0f) };
+            SimTestHelpers.StepN(g, 30);
+            int embers = LiveBullets(g, i => g.Arena.Bullets.OwnerId[i] == player.Id && g.Arena.Bullets.Damage[i] == t.TrailDamage);
+            // Two vents, one ember each every TrailIntervalTicks.
+            Assert.InRange(embers, 2 * (30 / t.TrailIntervalTicks) - 2, 2 * (30 / t.TrailIntervalTicks) + 2);
+            // They are behind the ship (it flies east, facing east).
+            BulletPool b = g.Arena.Bullets;
+            for (int i = 0; i < b.High; i++)
+                if (b.Alive[i] && b.OwnerId[i] == player.Id) Assert.True(b.X[i] < player.Pos.X, "an ember ahead of the ship");
+
+            // An enemy parked on the path takes the trail's damage.
+            Ship e = Dummy(g, -40f, 0f, 1000f);
+            PilotOf(g).Input = new PlayerInput { Move = new Vec2(-1f, 0f), Aim = new Vec2(-1f, 0f) };
+            SimTestHelpers.StepN(g, 20);
+            PilotOf(g).Input = new PlayerInput { Move = new Vec2(1f, 0f), Aim = new Vec2(1f, 0f) };
+            SimTestHelpers.StepN(g, 60);
+            Assert.True(e.Hp < 1000f, "the trail never burned the enemy on its path");
+        }
+
+        /// <summary>Scorch's crown embers each fire a spray: three overlapping cones, the flanks turned out by WideConeAngleDeg.</summary>
+        [Fact]
+        public void ScorchFiresThreeOverlappingSprays()
+        {
+            Game g = Quiet("fire_t3_scorch");
+            Tuning t = g.T;
+            Ship player = g.Arena.Player;
+            Weapon w = player.Loadout.Primary;
+            Assert.Equal(3, w.Barrels.Count);
+            Assert.Equal(0f, w.Barrels[0].AngleDeg);
+            Assert.Contains(w.Barrels, b => b.AngleDeg == -t.WideConeAngleDeg && b.Mount.X < 0f);
+            Assert.Contains(w.Barrels, b => b.AngleDeg == t.WideConeAngleDeg && b.Mount.X > 0f);
+
+            PilotOf(g).Input = new PlayerInput { Fire = true, Aim = new Vec2(0f, -1f) };
+            g.Step(default);
+            BulletPool bp = g.Arena.Bullets;
+            float minDeg = 999f, maxDeg = -999f;
+            int shots = 0;
+            for (int i = 0; i < bp.High; i++)
+            {
+                if (!bp.Alive[i] || bp.OwnerId[i] != player.Id || bp.Damage[i] == t.TrailDamage) continue;
+                shots++;
+                float deg = MathF.Atan2(bp.VX[i], -bp.VY[i]) * 180f / MathF.PI;   // 0 = straight ahead (up)
+                minDeg = MathF.Min(minDeg, deg);
+                maxDeg = MathF.Max(maxDeg, deg);
+            }
+            Assert.Equal(3 * w.Count, shots);
+            // Centre spray covers +-15; the flanks reach 20 + 15 either side.
+            Assert.Equal(-(t.WideConeAngleDeg + w.SpreadDeg / 2f), minDeg, 2);
+            Assert.Equal(t.WideConeAngleDeg + w.SpreadDeg / 2f, maxDeg, 2);
+
+            // Differential: the Flare (no wide_cone) fires one spray.
+            Game f = Quiet("fire_t2_flare");
+            PilotOf(f).Input = new PlayerInput { Fire = true, Aim = new Vec2(0f, -1f) };
+            f.Step(default);
+            Assert.Equal(f.Arena.Player.Loadout.Primary.Count,
+                LiveBullets(f, i => f.Arena.Bullets.OwnerId[i] == f.Arena.Player.Id && f.Arena.Bullets.Damage[i] != t.TrailDamage));
+        }
+
+        /// <summary>
+        /// Spec 11.7 for enemies too: a regular enemy's pattern is its weapon, and its other parts
+        /// work. A Flare enemy's vents leave a trail as it closes in; a Worm enemy's nucleus makes
+        /// its spores spread; a Glitch enemy (no nucleus) does not.
+        /// </summary>
+        [Fact]
+        public void RegularEnemiesUseTheirOtherPartsToo()
+        {
+            Game g = Quiet("corruption_t1_glitch");
+            ShipCatalog cat = SimTestHelpers.Catalog();
+            Tuning t = g.T;
+            Vec2 p = g.Arena.Player.Pos;
+            Ship flare = g.Arena.SpawnEnemy(cat.Get("fire_t2_flare"), p + new Vec2(600f, 0f), Sim.Patterns.PatternLibrary.FlameSpray(2));
+            Ship worm = g.Arena.SpawnEnemy(cat.Get("corruption_t2_worm"), p + new Vec2(-500f, 0f), Sim.Patterns.PatternLibrary.SporeBurst(2));
+            Ship glitch = g.Arena.SpawnEnemy(cat.Get("corruption_t1_glitch"), p + new Vec2(0f, 400f), Sim.Patterns.PatternLibrary.SporeBurst(1));
+            g.Arena.Player.MaxHp = g.Arena.Player.Hp = 1e6f;
+            int trail = 0;
+            byte wormFlags = 0, glitchFlags = 0;
+            for (int i = 0; i < 60 * 6; i++)
+            {
+                g.Step(default);
+                BulletPool b = g.Arena.Bullets;
+                for (int k = 0; k < b.High; k++)
+                {
+                    if (!b.Alive[k] || b.Born[k] != g.Arena.Tick) continue;
+                    if (b.OwnerId[k] == flare.Id && b.Damage[k] == t.TrailDamage) trail++;
+                    if (b.OwnerId[k] == worm.Id) wormFlags |= b.Flags[k];
+                    if (b.OwnerId[k] == glitch.Id) glitchFlags |= b.Flags[k];
+                }
+            }
+            Assert.True(trail >= 6, "the Flare enemy's vents left " + trail + " embers");
+            Assert.True((wormFlags & BulletFlags.Spreads) != 0 && (wormFlags & BulletFlags.Infect) != 0, "worm spores flags " + wormFlags);
+            Assert.True((glitchFlags & BulletFlags.Infect) != 0 && (glitchFlags & BulletFlags.Spreads) == 0, "glitch spores flags " + glitchFlags);
+        }
+
+        /// <summary>A ship pinned against a wall is standing still: its velocity is its real motion, so no trail.</summary>
+        [Fact]
+        public void APinnedShipLeavesNoTrail()
+        {
+            Game g = Quiet("fire_t2_flare");
+            Ship player = g.Arena.Player;
+            player.Pos = player.PrevPos = new Vec2(g.Arena.Width, 600f);
+            PilotOf(g).Input = new PlayerInput { Move = new Vec2(1f, 0f), Aim = new Vec2(1f, 0f) };
+            SimTestHelpers.StepN(g, 60);
+            Assert.Equal(0f, player.Vel.Length(), 3);
+            Assert.Equal(0, LiveBullets(g, i => g.Arena.Bullets.OwnerId[i] == player.Id));
+        }
+
+        /// <summary>Corruption enemies (spec 8: "spreading infection") shoot spores that infect even the player's core.</summary>
+        [Fact]
+        public void CorruptionEnemySporesInfectThePlayersCore()
+        {
+            Game g = Quiet("fire_t1_ember");
+            Ship player = g.Arena.Player;
+            Vec2 from = player.Pos + new Vec2(0f, -60f);
+            g.Arena.SpawnBullet(Sides.Of(Faction.Enemy, Element.Corruption), Element.Corruption, from, new Vec2(0f, 170f), 3.5f, 4f, 90, BulletFlags.Infect);
+            SimTestHelpers.StepUntil(g, gg => gg.Arena.Player.Infected(gg.Arena.Tick), 60);
+            Assert.True(player.Infected(g.Arena.Tick), "the spore hit but did not infect");
+            float hp = player.Hp;
+            SimTestHelpers.StepN(g, 60);
+            Assert.True(player.Hp < hp - 4f, "no damage over time on the player: " + hp + " -> " + player.Hp);
+        }
     }
 }

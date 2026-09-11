@@ -57,7 +57,14 @@ namespace Lightship.Core.Sim
         public bool InfectSpreads;
         public long NextSpreadTick;
 
+        // Rivals (spec 8): visible intent for the view.
+        /// <summary>The aim line is drawn while the arena tick is before this (a burst follows it).</summary>
+        public long AimLineUntil = long.MinValue / 2;
+        public bool Retreating;
+
         public float BoundRadius => Geometry.BoundRadius;
+        /// <summary>A rival itself, not one of its drones (drones do not grab light or regenerate).</summary>
+        public bool IsRival => Faction == Faction.Rival && !IsDrone;
         public bool Infected(long tick) => tick < InfectedUntil;
 
         /// <summary>Node rotation in radians: local forward (0,-1) turned onto Facing.</summary>
@@ -76,7 +83,7 @@ namespace Lightship.Core.Sim
             Geometry = ShipGeometry.Build(ResolvedShip.From(def));
             Element = def.Element;
             Tier = def.Tier;
-            if (Loadout != null) Loadout = Loadout.Build(def, Loadout.Tuning);
+            if (Loadout != null) Loadout = Loadout.Build(def, Loadout.Tuning, Loadout.Primary != null || Pattern == null);
         }
     }
 }

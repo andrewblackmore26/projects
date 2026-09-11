@@ -74,7 +74,7 @@ namespace Lightship.Core.Sim.Patterns
                         Fire(arena, self, origin, aim.Rotated(2f * MathF.PI * k / step.Count), step);
                     break;
                 case StepKind.Mine:
-                    arena.SpawnBullet(self.Side, self.Element, self.Pos, Vec2.Zero, step.Radius, step.Damage, step.TtlTicks, 0, self.Id);
+                    arena.SpawnBullet(self.Side, self.Element, self.Pos, Vec2.Zero, step.Radius, step.Damage, step.TtlTicks, (byte)(step.Flags | (self.Loadout?.BulletFlags ?? 0)), self.Id);
                     break;
                 default:   // Bolt and the M3 kinds fire a single bullet for now
                     Fire(arena, self, origin, aim, step);
@@ -84,7 +84,7 @@ namespace Lightship.Core.Sim.Patterns
 
         private static void Fire(Arena arena, Ship self, Vec2 origin, Vec2 dir, PatternStep step)
         {
-            arena.SpawnBullet(self.Side, self.Element, origin, dir * step.Speed, step.Radius, step.Damage, step.TtlTicks, 0, self.Id);
+            arena.SpawnBullet(self.Side, self.Element, origin, dir * step.Speed, step.Radius, step.Damage, step.TtlTicks, (byte)(step.Flags | (self.Loadout?.BulletFlags ?? 0)), self.Id);
         }
 
         private static Vec2 AimDirection(Arena arena, Ship self, PatternStep step)

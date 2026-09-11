@@ -15,11 +15,13 @@ namespace Lightship.View
     /// built from code, driven by ship data.
     ///
     /// Modes (arguments after a bare "--"):
-    ///   --play [--seed=N] [--bot] [--ship=id]          the game (default)
+    ///   --play [--seed=N] [--bot] [--ship=id]          the game (default): the world, from the origin
+    ///   --sandbox                                       the M1 single arena instead (loop probes, bench)
+    ///   --worldprobe=map|approach|gate                  M2 capture instruments (with --screenshot)
     ///   --editor [--ship=id]                            ship editor (dev)
     ///   --sheet [--lightdiff] [--no-bloom]              every authored ship laid out in a grid
     ///   --bench=N [--frames=F]                          N bullets alive, one tick per frame, timings
-    ///   --hash --ticks=N --seed=S                       fingerprint (headless-safe), must equal the CLI
+    ///   --hash --ticks=N --seed=S [--world]             fingerprint (headless-safe), must equal the CLI
     ///   --bg [--emitter]                                playfield only / the bloom instrument
     ///   --screenshot=PATH:SECONDS                       deterministic capture + measure lines
     ///   --max-seconds=N                                 auto-quit
@@ -44,6 +46,8 @@ namespace Lightship.View
         private InputController _input;
         private Hud _hud;
         private PlayProbe _probe;
+        private WorldProbe _worldProbe;
+        private int _worldStage;
         // editor
         private Node _editor;
 
@@ -149,7 +153,10 @@ namespace Lightship.View
         {
             ulong seed = ulong.Parse(Arg("seed", "1"));
             bool bot = Has("bot") || _mode == "bench" || Has("lockprobe");
-            _gc = new GameController(_tuning, _catalog, seed, Arg("ship", null), bot);
+            // The world is the game. The sandbox keeps the M1 arena for the loop probes and the bench.
+            bool sandbox = Has("sandbox") || _mode == "bench" || Has("lockprobe");
+            _gc = new GameController(_tuning, _catalog, seed, Arg("ship", null), bot, sandbox ? GameMode.Sandbox : GameMode.World);
+            if (Arg("worldprobe", null) is string wp) _worldProbe = new WorldProbe(wp);
             // The lock-pulse capture holds the bot at its threshold instead of evolving.
             if (Has("lockprobe") && _gc.Game.Arena.Player.Pilot is BotPilot bp) bp.Skill.Evolves = false;
 
@@ -168,6 +175,9 @@ namespace Lightship.View
             _hud = new Hud();
             AddChild(_hud);
             _hud.Setup(_gc, _input);
+            _input.MapPressed = () => _hud.SetFullMap(!_hud.FullMapOpen);
+            if (Has("map-noglyph")) _hud.FullMap.HideGateGlyph = _hud.Minimap.HideGateGlyph = true;
+            if (Has("map-nolabel")) _hud.FullMap.HideVeilLabel = true;
 
             if (_mode == "bench")
             {
@@ -198,7 +208,9 @@ namespace Lightship.View
         {
             ulong seed = ulong.Parse(Arg("seed", "1"));
             long ticks = long.Parse(Arg("ticks", "3600"));
-            var game = new Game(_tuning, _catalog, seed, Game.DefaultSeedShip, new BotPilot());
+            Game game = Has("world")
+                ? Game.NewWorld(_tuning, _catalog, seed, BotSkill.Perfect())
+                : new Game(_tuning, _catalog, seed, Game.DefaultSeedShip, new BotPilot());
             while (game.Tick < ticks) game.Step(default);
             GD.Print("tick=" + game.Tick + " energy=" + game.Run.Energy.ToString("F1", CultureInfo.InvariantCulture) +
                      " tier=" + game.Run.Tier + " hash=" + StateHash.Compute(game).ToString("x16"));
@@ -225,7 +237,8 @@ namespace Lightship.View
             // Bench runs its own frame loop and saves its last frame; everything else
             // jumps to the capture tick deterministically.
             _captureArmed = _mode != "bench";
-            if (_hud != null && _captureArmed) _hud.Visible = false;   // the capture measures the arena, not the HUD
+            // The loop captures measure the arena, not the HUD; the world probes measure the HUD too.
+            if (_hud != null && _captureArmed && _worldProbe == null) _hud.Visible = false;
         }
 
         private void SetupEnvironment()
@@ -298,7 +311,8 @@ namespace Lightship.View
             if (_gc != null)
             {
                 PlayerInput input = _input.Poll();
-                _gc.Advance(delta, input);
+                // The full map holds the game (spec 17: map on Tab); only the views keep drawing.
+                if (!_hud.FullMapOpen) _gc.Advance(delta, input);
                 SyncViews();
             }
 
@@ -316,7 +330,12 @@ namespace Lightship.View
             // Deterministic: jump an exact number of ticks, then let a few frames draw.
             if (_framesSinceTarget == 0)
             {
-                if (_gc != null)
+                if (_worldProbe != null)
+                {
+                    _worldProbe.Stage(_worldStage, _gc, _hud);
+                    SyncViews();
+                }
+                else if (_gc != null)
                 {
                     _gc.AdvanceTicks((long)Math.Round(_shotSeconds * _tuning.TickRate));
                     _probe = new PlayProbe();
@@ -379,6 +398,11 @@ namespace Lightship.View
 
         private void CaptureFirst()
         {
+            if (_worldProbe != null)
+            {
+                CaptureWorld();
+                return;
+            }
             Frame frame = Frame.Grab(GetViewport());
             if (!Save(frame, _shotPath)) return;
             GD.Print("lightship: screenshot " + _shotPath + " mode=" + _mode);
@@ -404,6 +428,26 @@ namespace Lightship.View
                 SyncViews();
                 _lockPhase = 1;
                 _framesSinceTarget = 1;
+                return;
+            }
+            _captureArmed = false;
+            GetTree().Quit(0);
+        }
+
+        /// <summary>One frame per world-probe stage; stage k > 0 is saved beside the first as _b, _c...</summary>
+        private void CaptureWorld()
+        {
+            Frame frame = Frame.Grab(GetViewport());
+            string path = _worldStage == 0 ? _shotPath : System.IO.Path.ChangeExtension(_shotPath, null) + "_" + (char)('a' + _worldStage) + ".png";
+            if (!Save(frame, path)) return;
+            GD.Print("lightship: screenshot " + path + " mode=worldprobe:" + _worldProbe.Scenario + " stage=" + _worldStage);
+            if (_worldStage == 0) GD.Print(frame.BasicMeasureLine());
+            foreach (string line in _worldProbe.Measure(_worldStage, frame, GetViewport().GetCanvasTransform(), _gc, _hud, _arenaView))
+                GD.Print(line);
+            _worldStage++;
+            if (_worldStage < _worldProbe.Stages)
+            {
+                _framesSinceTarget = 0;
                 return;
             }
             _captureArmed = false;

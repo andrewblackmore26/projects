@@ -1,0 +1,18 @@
+{
+  "id": "fire_t2_flare",
+  "name": "Flare",
+  "element": "fire",
+  "tier": 2,
+  "chassis_color": "fire_red",
+  "core": { "color": "fire_red", "radius": 3 },
+  "breathes": false,
+  "abilities": ["flame_spray", "burning_trail"],
+  "parts": [
+    { "id": "vent_l", "shape": "triangle", "base": 7, "height": 11, "pos": [-5, 19], "rot": 180, "color": "fire_red", "layer": "outer", "component": "burning_trail" },
+    { "id": "vent_r", "shape": "triangle", "base": 7, "height": 11, "pos": [5, 19], "rot": 180, "color": "fire_red", "layer": "outer", "component": "burning_trail" },
+    { "id": "wing_l", "shape": "triangle", "base": 13, "height": 18, "pos": [-10, 6], "color": "fire_red", "layer": "outer" },
+    { "id": "wing_r", "shape": "triangle", "base": 13, "height": 18, "pos": [10, 6], "color": "fire_red", "layer": "outer" },
+    { "id": "body", "shape": "triangle", "base": 15, "height": 24, "pos": [0, 1], "color": "fire_red", "layer": "body" },
+    { "id": "ember_c", "shape": "circle", "radius": 3.6, "pos": [0, -15], "color": "lightning_yellow", "light_period": 1.6, "component": "flame_spray" }
+  ]
+}

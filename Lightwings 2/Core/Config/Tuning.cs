@@ -38,6 +38,10 @@ namespace Lightship.Core.Config
         public float SectorLightRegenPerSecond = 0.2f;    // energy per second the pool regenerates
         public int AmbientLightCap = 12;                  // max ambient pickups alive at once
         public int AmbientSpawnIntervalTicks = 90;        // ticks between ambient pickup spawns
+        public int TerritoryAmbientIntervalTicks = 30;    // ticks between ambient spawns in player territory, quiet land where a
+                                                          // new life regrows (grazing is flight-limited to ~1 pickup per 1.5 s)
+        public int TerritoryAmbientSize = 1;              // pickup size there (1 = 5 energy): ~3 energy/s grazed, from a pool of
+                                                          // SectorLightPool per sector per life, so it cannot be farmed forever
         public int HitShedCooldownTicks = 6;              // ticks between lights shed by one enemy being hit
         public float DamageShedsLightFraction = 0f;       // fraction of damage taken by the PLAYER shed as light (open decision 1; 0 = HP only)
 
@@ -74,6 +78,42 @@ namespace Lightship.Core.Config
         public float EnemyHpPerTier = 30f;                // HP added per enemy tier
         public float EnemySpeed = 140f;                   // world units per second
         public float EnemyPreferredRange = 220f;          // world units an enemy tries to hold from the player
+
+        // ---- fire abilities (spec 12) ----
+        public int TrailIntervalTicks = 5;                // ticks between burning-trail embers per vent while moving
+        public float TrailDamage = 3f;                    // HP per trail ember
+        public float TrailRadius = 4f;                    // world units
+        public int TrailTtlTicks = 50;                    // ticks a trail ember burns
+        public float TrailMinSpeed = 60f;                 // world units per second the ship must be moving to leave a trail
+        public float WideConeAngleDeg = 20f;              // degrees each flank spray is turned out from the centre spray
+
+        // ---- world (spec 7) ----
+        public float[] VeilThresholds = { 0f, 300f };     // energy to cross outward from layer n to n+1 (index n); 0 = no veil
+        public int SectorEnemyBase = 4;                   // regular enemies in a layer-0 sector's budget (layer 0 itself is safe)
+        public int SectorEnemyPerLayer = 2;               // regular enemies added per layer
+        public float SectorEntryInset = 48f;              // world units inside the opposite edge where a crossing player appears
+        public int BorderFlipsPerDeath = 2;               // rival border sectors that may change hands between lives
+        public float GateWarnDistance = 420f;             // world units from an edge into an unbeaten gate at which the HUD warns
+        public int CrossBlockedCooldownTicks = 45;        // ticks between repeated "cannot cross" events while pushing an edge
+        public int CrossDwellTicks = 12;                  // ticks (0.2 s) of pushing into an edge before it crosses (a brush does not)
+
+        // ---- rivals (spec 8) ----
+        public float RivalHpMultiplier = 2.5f;            // rival HP = player HP at its tier x this
+        public float RivalSpeed = 210f;                   // world units per second (the player is faster: it can chase a retreat)
+        public float RivalDropMultiplier = 4f;            // "rival bosses shed a lot": kill drop x this
+        public int RivalDelayMinTicks = 9;                // perception delay, ticks (150 ms)
+        public int RivalDelayMaxTicks = 18;               // perception delay, ticks (300 ms)
+        public float RivalAimErrorMinDeg = 2f;            // aim error magnitude per burst, degrees
+        public float RivalAimErrorMaxDeg = 5f;
+        public int RivalAimLineTicks = 30;                // ticks (0.5 s) the aim line shows before a burst: spec 9's
+                                                          // minimum warning for a cone that cannot be dodged on reaction up close
+        public int RivalBurstTicks = 48;                  // ticks a burst holds the trigger
+        public int RivalPauseTicks = 30;                  // ticks between bursts
+        public float RivalRetreatBelow = 0.35f;           // HP fraction at which a rival retreats to regenerate
+        public float RivalRecoverAbove = 0.70f;           // HP fraction at which it comes back
+        public float RivalHealPerEnergy = 2f;             // HP a rival regains per energy of light it grabs
+        public float RivalPerception = 900f;
+        public int RivalGrabMinAgeTicks = 30;             // ticks a pickup must exist before a rival can take it (not its own fresh shed light)              // world units within which a rival picks targets
 
         // ---- visual system (spec 11, Appendix B) ----
         public float LightFraction = 0.13f;               // fraction of a part's perimeter that is lit

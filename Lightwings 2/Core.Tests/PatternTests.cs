@@ -66,7 +66,12 @@ namespace Lightship.Core.Tests
         [Fact]
         public void EveryPatternCanReachItsPreferredRange()
         {
-            foreach (PatternDefinition p in new[] { PatternLibrary.FlameSpray() })
+            // Every element the library knows, at every tier (bigger tiers must not outgrow their reach).
+            var all = new System.Collections.Generic.List<PatternDefinition>();
+            foreach (Element e in new[] { Element.Fire, Element.Corruption })
+                for (int tier = 1; tier <= 5; tier++) all.Add(PatternLibrary.ForEnemy(e, tier));
+            Assert.Contains(all, p => p.Element == Element.Corruption && (p.Steps[0].Flags & BulletFlags.Infect) != 0);
+            foreach (PatternDefinition p in all)
             {
                 Assert.True(p.PreferredRange < p.Reach, p.Id + ": holds " + p.PreferredRange + " but reaches " + p.Reach);
                 Assert.True(p.Range <= p.Reach + 20f, p.Id + ": fires from " + p.Range + " but reaches " + p.Reach);

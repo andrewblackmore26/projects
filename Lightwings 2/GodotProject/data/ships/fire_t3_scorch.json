@@ -1,0 +1,23 @@
+{
+  "id": "fire_t3_scorch",
+  "name": "Scorch",
+  "element": "fire",
+  "tier": 3,
+  "chassis_color": "fire_red",
+  "core": { "color": "fire_red", "radius": 3 },
+  "breathes": false,
+  "abilities": ["flame_spray", "burning_trail", "wide_cone"],
+  "parts": [
+    { "id": "vent_l", "shape": "triangle", "base": 8, "height": 12, "pos": [-6, 24], "rot": 180, "color": "fire_red", "layer": "outer", "component": "burning_trail" },
+    { "id": "vent_r", "shape": "triangle", "base": 8, "height": 12, "pos": [6, 24], "rot": 180, "color": "fire_red", "layer": "outer", "component": "burning_trail" },
+    { "id": "wing_l", "shape": "triangle", "base": 14, "height": 20, "pos": [-15, 9], "color": "fire_red", "layer": "outer" },
+    { "id": "wing_r", "shape": "triangle", "base": 14, "height": 20, "pos": [15, 9], "color": "fire_red", "layer": "outer" },
+    { "id": "crown_l", "shape": "triangle", "base": 7, "height": 14, "pos": [-9, -13], "rot": -20, "color": "fire_red", "layer": "outer" },
+    { "id": "crown_r", "shape": "triangle", "base": 7, "height": 14, "pos": [9, -13], "rot": 20, "color": "fire_red", "layer": "outer" },
+    { "id": "crown_c", "shape": "triangle", "base": 8, "height": 17, "pos": [0, -16], "color": "fire_red", "layer": "outer" },
+    { "id": "hex_body", "shape": "hexagon", "radius": 13, "pos": [0, 3], "color": "fire_red", "layer": "body", "replaces": "body" },
+    { "id": "ember_c", "shape": "circle", "radius": 3.4, "pos": [0, -27], "color": "lightning_yellow", "light_period": 1.6, "component": "flame_spray" },
+    { "id": "ember_l", "shape": "circle", "radius": 2.8, "pos": [-12, -21], "color": "lightning_yellow", "component": "wide_cone" },
+    { "id": "ember_r", "shape": "circle", "radius": 2.8, "pos": [12, -21], "color": "lightning_yellow", "component": "wide_cone" }
+  ]
+}

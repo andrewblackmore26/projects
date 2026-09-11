@@ -35,6 +35,8 @@ namespace Lightship.View
         public BulletLayer EnemyBullets { get; private set; }
         public PickupLayer Pickups { get; private set; }
         public FxLayer Fx { get; private set; }
+        public EdgeBarriers Barriers { get; private set; }
+        public AimLines Aims { get; private set; }
         public float Zoom { get; private set; } = 1f;
         /// <summary>1 while the player's ship is in the bright half of its lock pulse.</summary>
         public float PlayerPulse { get; private set; }
@@ -60,6 +62,10 @@ namespace Lightship.View
             AddChild(EnemyBullets);
             Fx = new FxLayer { ZIndex = ZFx };
             AddChild(Fx);
+            Barriers = new EdgeBarriers { ZIndex = ZPickups };
+            AddChild(Barriers);
+            Aims = new AimLines { ZIndex = ZFx };
+            AddChild(Aims);
         }
 
         public ShipView PlayerView =>
@@ -77,7 +83,7 @@ namespace Lightship.View
 
             if (!ReferenceEquals(arena, _arena))
             {
-                // A death replaced the run: ship ids restart, so every view and effect goes.
+                // A new sector or a new life replaced the arena: every view and effect of the old one goes.
                 foreach (ShipView v in _views.Values) v.QueueFree();
                 _views.Clear();
                 _viewDefs.Clear();
@@ -150,6 +156,8 @@ namespace Lightship.View
             PlayerBullets.Sync(arena.Bullets, alpha, dt);
             EnemyBullets.Sync(arena.Bullets, alpha, dt);
             Fx.Sync(game, zoom, _gc.Alpha);
+            Barriers.Sync(game, zoom, _gc.Alpha);
+            Aims.Sync(game, zoom, _gc.Alpha);
         }
     }
 

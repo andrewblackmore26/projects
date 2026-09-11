@@ -2,6 +2,7 @@ using Lightship.Core.Ai;
 using Lightship.Core.Config;
 using Lightship.Core.Ships;
 using Lightship.Core.Sim;
+using Lightship.Core.World;
 
 namespace Lightship.View
 {
@@ -23,11 +24,20 @@ namespace Lightship.View
         private double _accumulator;
         private bool _evolveLatched;
         private int _evolveChoice;
+        private bool _teleportLatched;
+        private SectorCoord _teleportTarget;
 
-        public GameController(Tuning tuning, ShipCatalog catalog, ulong seed, string seedShip, bool bot)
+        /// <summary>
+        /// The world is the game; the sandbox (the M1 arena) serves the loop probes and the
+        /// bench. Both are built by the same Core calls the CLI and the tests use.
+        /// </summary>
+        public GameController(Tuning tuning, ShipCatalog catalog, ulong seed, string seedShip, bool bot, GameMode mode = GameMode.World)
         {
             Tuning = tuning;
-            Game = new Game(tuning, catalog, seed, seedShip ?? Game.DefaultSeedShip, bot ? new BotPilot() : null);
+            string ship = seedShip ?? Game.DefaultSeedShip;
+            Game = mode == GameMode.World
+                ? Game.NewWorld(tuning, catalog, seed, bot ? BotSkill.Perfect() : null, ship)
+                : new Game(tuning, catalog, seed, ship, bot ? new BotPilot() : null);
         }
 
         public float SimTime => Game.Arena.Time + Alpha * Tuning.Dt;
@@ -36,6 +46,13 @@ namespace Lightship.View
         {
             _evolveLatched = true;
             _evolveChoice = choice;
+        }
+
+        /// <summary>Spec 7: a jump chosen on the map, applied by the next tick (the run checks the rules).</summary>
+        public void RequestTeleport(SectorCoord to)
+        {
+            _teleportLatched = true;
+            _teleportTarget = to;
         }
 
         /// <summary>Advance by wall-clock time (play mode).</summary>
@@ -64,6 +81,12 @@ namespace Lightship.View
                 input.Evolve = true;
                 input.EvolveChoice = _evolveChoice;
                 _evolveLatched = false;   // one press, one attempt (ignored below the threshold)
+            }
+            if (_teleportLatched)
+            {
+                input.Teleport = true;
+                input.TeleportTarget = _teleportTarget;
+                _teleportLatched = false;
             }
             Game.Step(input);
         }

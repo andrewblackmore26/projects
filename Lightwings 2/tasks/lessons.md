@@ -142,9 +142,9 @@ project. Gridlock-domain rules (wires, contests, Unity) were left behind.
   lands (the bot took 0 hits). PatternDefinition carries both and a test asserts reach > range.
 - Read intents from what the PILOT decided (Ship.LastInput), not from the input argument:
   the argument only feeds the human pilot, so every bot's evolve request was silently dropped.
-- Event ticks are ARENA ticks, which restart at every death. Anything measured "since game
-  start" samples game.Tick itself; effects use a monotonic sequence number and skip events from
-  a previous arena.
+- Event ticks are ARENA ticks. In M1 they restarted at every death, so anything measured "since
+  game start" sampled game.Tick and effects used the monotonic sequence number. (Superseded in M2:
+  arena ticks no longer restart, see below; effects still reset on an arena change.)
 - Sharp corners (triangle tips, prongs): a mitre pulls the ribbon's inner vertex several px along
   the bisector, bending the U interpolation so the drawn light runs ahead of its arc-length
   position (and on prongs crosses the opposite edge). Ribbon bevels past MitreLimit 2.0.
@@ -155,3 +155,46 @@ project. Gridlock-domain rules (wires, contests, Unity) were left behind.
 - Fill sampling by distance to outline VERTICES missed that a triangle's edge was 1.85 px away;
   use DistanceToOutline (segments) and choose the max-clearance point, and never let "no sample"
   silently shrink the denominator (it read 6/6 for a 7-ship sheet).
+
+### M2 (world, rivals, map)
+- A clock that restarts under a timer that does not: arena ticks restarted at every death while the
+  bot's aim re-roll kept an absolute tick from the life before, so its aim error froze for a whole
+  life (a novice fired for 15 s at an ember 140 units away and never hit; six deaths in a row).
+  Make the invariant true: arena ticks and ship ids never restart within a game (a new sector or a
+  new life carries both on), instead of resetting each timer that happens to be found.
+- A bot's fighting distance is a property of its weapon, not a constant: a fixed 200 units kept the
+  flame forms (reach 180) just out of range for 200 s while a spore enemy chipped at them.
+- In a world, an arena edge is a door. A bot kiting backwards left fights through it (a novice
+  ping-ponged six times across one edge). Crossing needs a 0.2 s push (a brush does not cross) and
+  the fighting bot steers off walls; the trace (`world --trace`) found both in minutes.
+- A probe must not see its own subject: the interpolation rider looked for lightning-yellow pixels
+  40 units above the player, and Scorch's yellow crown embers sat in that window (3.88 px "lead",
+  a false fail). Place probes clear of the ship's bound radius and exclude the ship's pixels.
+- A correct fix (spore range 280 -> 260, caught by a widened test) flipped a 3-seed novice gate
+  test from pass to fail: the novice outcome is a distribution (20 seeds: 11 first-try wins, one
+  needing four tries). Assert distributions (median, max) over many seeds, never three picked ones.
+- To prove a refactor changed no behaviour while content also changed, hash with the OLD content:
+  with only the M1 ships the sandbox hash stayed 9b7797f863b9da8f / 796d1e90a60e06f2 after the
+  world refactor; the new hash came purely from the bot evolving into the new fire Flare.
+- A test premise can be wrong about the world: a single bullet fired at where a moving rival stood
+  simply misses, so "never dodged" meant "no need to dodge". Threaten the predicted path, and give
+  the test a control (zero delay) that behaves differently.
+- Re-hit: Python strings inside a bash command mangle backslashes ("\s", "\b") in PowerShell
+  paths; the assert caught it before any write. Anything with backslashes goes through Edit.
+- Adversarial review of M2 (30 upheld of 37): the pattern was instruments that measured something
+  near the claim. The minimap padlock count included the "+2" drawn over it; the veil-label count
+  included the ring and the cell strokes under the label box; the aim-line test counted volleys as
+  bursts. Every instrument LINE gets its own negative control (hide exactly that element, the line
+  must read 0 and fail); one negative per scenario proved only the first line could fail.
+- A state the map shows must change what the simulation does. "Player territory" was a light-blue
+  flag while the next life met the rival's full garrison there. Decide what a state means in Core,
+  then draw it.
+- A design decision has a far end; measure there. Quiet territory made regrowth depend on grazing,
+  and once all of layer 1 was territory a novice needed 528 s to regrow. Grazing is flight-limited
+  (a pickup every ~1.5 s across a 2400 x 1350 sector), not spawn-limited: raising the spawn rate did
+  nothing, a 5-energy pickup did (84-114 s).
+- A single choke point beats N guards: the reshape's invulnerability was checked on three collision
+  paths and the (new) infection damage walked around all of them. The check now lives in
+  DamagePlayer. Likewise one teleport rule (Run.CanTeleportTo) for the run, the caption and the click.
+- A ship's velocity is what it did, not what it asked for: a ship pinned on a wall kept a 260 u/s
+  velocity, left a "moving" burning trail and was led into the wall by rivals.
