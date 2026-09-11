@@ -64,6 +64,19 @@ namespace Lightship.View
             new Color("ffffff"), // White
         };
 
+        /// <summary>Spec 6: a pickup's (and a bullet's) colour means exactly its element. The player's light is blue.</summary>
+        public static ColorRole RoleOf(Element e)
+        {
+            switch (e)
+            {
+                case Element.Fire: return ColorRole.FireRed;
+                case Element.Lightning: return ColorRole.LightningYellow;
+                case Element.Void: return ColorRole.VoidSilver;
+                case Element.Corruption: return ColorRole.CorruptionGreen;
+                default: return ColorRole.PlayerBlue;
+            }
+        }
+
         public static Color StrokeOf(ColorRole role) => Stroke[(int)role];
         public static Color FillOf(ColorRole role) => Fill[(int)role];
         public static Color LightOf(ColorRole role) => Light[(int)role];

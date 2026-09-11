@@ -13,7 +13,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [string]$Seconds = "10",
-    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg", "emitter")][string]$Mode = "play",
+    [ValidateSet("play", "sheet", "lightdiff", "bench", "bg", "emitter", "editor")][string]$Mode = "play",
     [int]$Seed = 1,
     [switch]$Bot,
     [string]$Ship = "",
@@ -65,7 +65,8 @@ switch ($Mode) {
     "lightdiff" { $godotArgs += " --sheet --lightdiff" }
     "bench"     { $godotArgs += " --bench=$Bullets --frames=$Frames --bot" }
     "bg"        { $godotArgs += " --bg" }
-    "emitter"   { $godotArgs += " --emitter" }
+    "emitter"   { $godotArgs += " --bg --emitter" }
+    "editor"    { $godotArgs += " --editor --selftest" }
 }
 if ($Emitter) { $godotArgs += " --emitter" }
 if ($Extra -ne "") { $godotArgs += " $Extra" }
