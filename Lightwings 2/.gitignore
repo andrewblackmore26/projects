@@ -1,0 +1,22 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.csproj.user
+.vs/
+TestResults/
+
+# Godot caches and generated solution
+GodotProject/.godot/
+GodotProject/bin/
+GodotProject/obj/
+GodotProject/*.sln
+GodotProject/.mono/
+GodotProject/data_*/
+
+# Scratch captures (reference frames in docs/screenshots/ are committed)
+docs/screenshots/scratch/
+
+Thumbs.db
+desktop.ini
+.DS_Store

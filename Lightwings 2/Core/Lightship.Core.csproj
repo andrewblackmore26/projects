@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Lightship.Core</RootNamespace>
+    <AssemblyName>Lightship.Core</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Engine-free on purpose: this assembly is stepped by xunit, by the
+         headless CLI and by Godot, and must never reference any of them. -->
+  </PropertyGroup>
+
+</Project>
