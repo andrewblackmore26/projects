@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_4gbcv"]
+
+[resource]
+script = ExtResource("1_4gbcv")
+id = "mine_layer"
+display_name = "Mine Layer"
+description = "Mine Layer"
+trigger = "secondary"
+cooldown = 2.0
+damage = 45.0
+range_pixels = 65.0
+slot_kind = "secondary"
+minimum_tier = 2
+duration = 12.0

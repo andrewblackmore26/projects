@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_15d8c"]
+
+[resource]
+script = ExtResource("1_15d8c")
+id = "forcefield"
+display_name = "Forcefield"
+description = "Forcefield"
+cooldown = 0.0
+damage = 18.0
+range_pixels = 45.0
+slot_kind = "passive"
+minimum_tier = 4

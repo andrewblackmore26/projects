@@ -1,0 +1,176 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_d8fak"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_la63p"]
+
+[sub_resource type="Resource" id="Resource_xne33"]
+script = ExtResource("1_d8fak")
+id = "body"
+size = Vector2(24, 24)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_jp1vh"]
+script = ExtResource("1_d8fak")
+id = "lobe_0_l"
+position = Vector2(-33, -7.5)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_4b8ln"]
+script = ExtResource("1_d8fak")
+id = "lobe_0_r"
+position = Vector2(33, -7.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_kh1s1"]
+script = ExtResource("1_d8fak")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_2gd5u"]
+script = ExtResource("1_d8fak")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_5qgup"]
+script = ExtResource("1_d8fak")
+id = "lobe_1_l"
+position = Vector2(-44, 7.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_1_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_qby0f"]
+script = ExtResource("1_d8fak")
+id = "lobe_1_r"
+position = Vector2(44, 7.5)
+layer = 2
+mirror_id = "lobe_1_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_3bsyp"]
+script = ExtResource("1_d8fak")
+id = "link_1_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_1_l"
+mirror_id = "link_1_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_w7bgh"]
+script = ExtResource("1_d8fak")
+id = "link_1_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_1_r"
+mirror_id = "link_1_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_cb8gr"]
+script = ExtResource("1_d8fak")
+id = "primary"
+position = Vector2(0, -8.4)
+size = Vector2(7, 7)
+color_role = "violet"
+layer = 4
+ability_id = "bolt"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_h754q"]
+script = ExtResource("1_d8fak")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_d3iir"]
+script = ExtResource("1_d8fak")
+id = "secondary_0"
+position = Vector2(0, 19)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "laser_prong"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_v41hb"]
+script = ExtResource("1_d8fak")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_la63p")
+id = "player_lightning_t3_compact"
+display_name = "Fork Compact"
+element = "lightning"
+tier = 3
+is_player = true
+parts = Array[ExtResource("1_d8fak")]([SubResource("Resource_xne33"), SubResource("Resource_jp1vh"), SubResource("Resource_4b8ln"), SubResource("Resource_kh1s1"), SubResource("Resource_2gd5u"), SubResource("Resource_5qgup"), SubResource("Resource_qby0f"), SubResource("Resource_3bsyp"), SubResource("Resource_w7bgh"), SubResource("Resource_cb8gr"), SubResource("Resource_h754q"), SubResource("Resource_d3iir"), SubResource("Resource_v41hb")])
+abilities = Array[String](["bolt", "laser_prong"])
+role = "compact"
+family = "compact"
+footprint = 99.26926
+magnet_radius = 98.0
+speed = 285.0
+turn_rate = 12.5
+hp_buffer = 0.8
+motion_signature = "snap"
+primary = "bolt"
+secondaries = Array[String](["laser_prong"])
+tp_used = 7.5
+tp_max = 15.0

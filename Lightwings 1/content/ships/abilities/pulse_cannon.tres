@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_733rf"]
+
+[resource]
+script = ExtResource("1_733rf")
+id = "pulse_cannon"
+display_name = "Pulse Cannon"
+description = "Pulse Cannon"
+trigger = "primary"
+cooldown = 0.2
+damage = 13.0
+range_pixels = 0.0
+tp_cost = 1.0

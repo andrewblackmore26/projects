@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_3dfeo"]
+
+[resource]
+script = ExtResource("1_3dfeo")
+id = "laser_prong"
+display_name = "Laser Prong"
+description = "Laser Prong"
+trigger = "secondary"
+cooldown = 1.55
+damage = 31.0
+range_pixels = 0.0
+slot_kind = "secondary"
+minimum_tier = 2
+duration = 0.25

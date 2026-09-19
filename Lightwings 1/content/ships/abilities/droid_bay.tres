@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_iqoek"]
+
+[resource]
+script = ExtResource("1_iqoek")
+id = "droid_bay"
+display_name = "Droid Bay"
+description = "Droid Bay"
+trigger = "enemy"
+cooldown = 6.0
+damage = 24.0
+range_pixels = 0.0
+slot_kind = "enemy"
+visual_color = "green"
+allowed_factions = Array[String](["enemy", "elite", "rival"])

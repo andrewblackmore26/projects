@@ -1,0 +1,253 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_nvnpt"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_1n7cj"]
+
+[sub_resource type="Resource" id="Resource_gxuso"]
+script = ExtResource("1_nvnpt")
+id = "body"
+size = Vector2(100.8, 100.8)
+stat_id = "speed"
+tp_cost = 2.5
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_mgd6e"]
+script = ExtResource("1_nvnpt")
+id = "lobe_0_l"
+position = Vector2(-76.4, -7.5)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_sw7x5"]
+script = ExtResource("1_nvnpt")
+id = "lobe_0_r"
+position = Vector2(76.4, -7.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_7w0mj"]
+script = ExtResource("1_nvnpt")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ttsbf"]
+script = ExtResource("1_nvnpt")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_rrer3"]
+script = ExtResource("1_nvnpt")
+id = "lobe_1_l"
+position = Vector2(-87.4, 7.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_1_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_cfmg2"]
+script = ExtResource("1_nvnpt")
+id = "lobe_1_r"
+position = Vector2(87.4, 7.5)
+layer = 2
+mirror_id = "lobe_1_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_y05mn"]
+script = ExtResource("1_nvnpt")
+id = "link_1_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_1_l"
+mirror_id = "link_1_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_h2nmj"]
+script = ExtResource("1_nvnpt")
+id = "link_1_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_1_r"
+mirror_id = "link_1_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_yd2fy"]
+script = ExtResource("1_nvnpt")
+id = "primary"
+position = Vector2(0, -35.28)
+size = Vector2(22, 22)
+color_role = "violet"
+layer = 4
+ability_id = "bolt"
+mount_id = "primary"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_imdhu"]
+script = ExtResource("1_nvnpt")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_jtwu0"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_0"
+position = Vector2(80.64001, 0)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "laser_prong"
+mount_id = "elite_weapon_0"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_okkeb"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "elite_weapon_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_il005"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_1"
+position = Vector2(24.91913, 76.6932)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_phase = -0.7
+ability_id = "egg"
+mount_id = "elite_weapon_1"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_sw0b0"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_1_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "elite_weapon_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_2kwn5"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_2"
+position = Vector2(-65.239136, 47.399)
+size = Vector2(22, 22)
+color_role = "green"
+layer = 4
+light_period = 1.6
+ability_id = "droid_bay"
+mount_id = "elite_weapon_2"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_sme6b"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_2_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "elite_weapon_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ko8ui"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_3"
+position = Vector2(-65.23913, -47.399014)
+size = Vector2(22, 22)
+color_role = "yellow"
+layer = 4
+light_phase = -1.3
+ability_id = "deployment_ramp"
+mount_id = "elite_weapon_3"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_x0rg2"]
+script = ExtResource("1_nvnpt")
+id = "elite_weapon_3_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "elite_weapon_3"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_1n7cj")
+id = "elite_lightning_t3"
+display_name = "Fork Heavy"
+element = "lightning"
+tier = 3
+parts = Array[ExtResource("1_nvnpt")]([SubResource("Resource_gxuso"), SubResource("Resource_mgd6e"), SubResource("Resource_sw7x5"), SubResource("Resource_7w0mj"), SubResource("Resource_ttsbf"), SubResource("Resource_rrer3"), SubResource("Resource_cfmg2"), SubResource("Resource_y05mn"), SubResource("Resource_h2nmj"), SubResource("Resource_yd2fy"), SubResource("Resource_imdhu"), SubResource("Resource_jtwu0"), SubResource("Resource_okkeb"), SubResource("Resource_il005"), SubResource("Resource_sw0b0"), SubResource("Resource_2kwn5"), SubResource("Resource_sme6b"), SubResource("Resource_ko8ui"), SubResource("Resource_x0rg2")])
+abilities = Array[String](["bolt"])
+faction = "elite"
+role = "heavy"
+family = "heavy"
+footprint = 185.44241
+magnet_radius = 98.0
+speed = 193.79999999999998
+turn_rate = 8.0
+hp_buffer = 1.3
+damage_multiplier = 1.15
+motion_signature = "snap"
+primary = "bolt"
+tp_used = 15.75
+tp_max = 37.5

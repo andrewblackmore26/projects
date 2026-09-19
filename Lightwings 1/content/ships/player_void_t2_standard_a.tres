@@ -1,0 +1,150 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_gblxj"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_sdhjs"]
+
+[sub_resource type="Resource" id="Resource_fyit2"]
+script = ExtResource("1_gblxj")
+id = "body"
+size = Vector2(50, 50)
+stat_id = "speed"
+tp_cost = 1.5
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_mxmf4"]
+script = ExtResource("1_gblxj")
+id = "reach"
+shape = "ring"
+size = Vector2(68, 68)
+layer = 0
+light_phase = -0.7
+stat_id = "magnet_radius"
+tp_cost = 0.25
+dashed = true
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_kmcx8"]
+script = ExtResource("1_gblxj")
+id = "maw"
+shape = "crescent"
+position = Vector2(0, -4.5)
+size = Vector2(21, 21)
+light_phase = -1.3
+stat_id = "turn_rate"
+tp_cost = 0.5
+stat_value = 0.25
+
+[sub_resource type="Resource" id="Resource_h23na"]
+script = ExtResource("1_gblxj")
+id = "lobe_0_l"
+position = Vector2(-8.25, 0)
+layer = 2
+light_period = 1.6
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_h1q1c"]
+script = ExtResource("1_gblxj")
+id = "lobe_0_r"
+position = Vector2(8.25, 0)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_0lueq"]
+script = ExtResource("1_gblxj")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_bp1au"]
+script = ExtResource("1_gblxj")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_42y1o"]
+script = ExtResource("1_gblxj")
+id = "primary"
+position = Vector2(0, -10.5)
+size = Vector2(7, 7)
+color_role = "violet"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "homing_beam"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_c64r0"]
+script = ExtResource("1_gblxj")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_taj36"]
+script = ExtResource("1_gblxj")
+id = "secondary_0"
+position = Vector2(0, 22)
+size = Vector2(7, 7)
+color_role = "yellow"
+layer = 4
+ability_id = "orbital_blockers"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_gf4e3"]
+script = ExtResource("1_gblxj")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_sdhjs")
+id = "player_void_t2_standard_a"
+display_name = "Eclipse Standard A"
+element = "void"
+tier = 2
+is_player = true
+hull_radius = 25.0
+parts = Array[ExtResource("1_gblxj")]([SubResource("Resource_fyit2"), SubResource("Resource_mxmf4"), SubResource("Resource_kmcx8"), SubResource("Resource_h23na"), SubResource("Resource_h1q1c"), SubResource("Resource_0lueq"), SubResource("Resource_bp1au"), SubResource("Resource_42y1o"), SubResource("Resource_c64r0"), SubResource("Resource_taj36"), SubResource("Resource_gf4e3")])
+abilities = Array[String](["homing_beam", "orbital_blockers"])
+footprint = 51.0
+magnet_radius = 94.0
+speed = 228.0
+turn_rate = 10.25
+motion_signature = "inward"
+primary = "homing_beam"
+secondaries = Array[String](["orbital_blockers"])
+tp_used = 7.75
+tp_max = 10.0

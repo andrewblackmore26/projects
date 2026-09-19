@@ -1,0 +1,67 @@
+"Action Manifest"
+{
+	"configurations" {}
+	"actions"
+	{
+		"Gameplay"
+		{
+			"title" "#Set_Gameplay"
+			"StickPadGyro"
+			{
+				"Move" { "title" "#Action_Move" "input_mode" "joystick_move" }
+				"Aim" { "title" "#Action_Aim" "input_mode" "joystick_move" }
+			}
+			"Button"
+			{
+				"Fire" "#Action_Fire"
+				"ComponentPrimary" "#Action_Primary"
+				"ComponentSecondary" "#Action_Secondary"
+				"ComponentTertiary" "#Action_Tertiary"
+				"Evolve" "#Action_Evolve"
+				"Map" "#Action_Map"
+				"Pause" "#Action_Pause"
+			}
+		}
+		"Menu"
+		{
+			"title" "#Set_Menu"
+			"StickPadGyro"
+			{
+				"MenuNavigate" { "title" "#Action_Navigate" "input_mode" "joystick_move" }
+			}
+			"Button"
+			{
+				"MenuConfirm" "#Action_Confirm"
+				"MenuBack" "#Action_Back"
+				"MenuUp" "#Action_Up"
+				"MenuDown" "#Action_Down"
+				"MenuLeft" "#Action_Left"
+				"MenuRight" "#Action_Right"
+			}
+		}
+	}
+	"localization"
+	{
+		"english"
+		{
+			"Set_Gameplay" "Fly the lightship"
+			"Set_Menu" "Menus and map"
+			"Action_Move" "Move"
+			"Action_Aim" "Aim direction"
+			"Action_Fire" "Fire"
+			"Action_Primary" "Secondary weapon 1"
+			"Action_Secondary" "Secondary weapon 2"
+			"Action_Tertiary" "Secondary weapon 3"
+			"Action_Evolve" "Evolve"
+			"Action_Map" "Sector map"
+			"Action_Pause" "Pause"
+			"Action_Navigate" "Navigate menus"
+			"Action_Confirm" "Confirm / teleport"
+			"Action_Back" "Back"
+			"Action_Up" "Menu up"
+			"Action_Down" "Menu down"
+			"Action_Left" "Menu left"
+			"Action_Right" "Menu right"
+		}
+	}
+}

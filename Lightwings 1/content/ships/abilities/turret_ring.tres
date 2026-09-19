@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_52b65"]
+
+[resource]
+script = ExtResource("1_52b65")
+id = "turret_ring"
+display_name = "Turret Ring"
+description = "Turret Ring"
+trigger = "enemy"
+cooldown = 1.4
+range_pixels = 80.0
+slot_kind = "enemy"
+allowed_factions = Array[String](["enemy", "elite", "rival"])

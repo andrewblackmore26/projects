@@ -1,0 +1,73 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_prjyu"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_rj5kl"]
+
+[sub_resource type="Resource" id="Resource_t87up"]
+script = ExtResource("1_prjyu")
+id = "body"
+size = Vector2(32, 32)
+stat_id = "speed"
+tp_cost = 1.25
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_7fkfm"]
+script = ExtResource("1_prjyu")
+id = "reach"
+shape = "ring"
+size = Vector2(50, 50)
+layer = 0
+light_phase = -0.7
+stat_id = "void_pull"
+tp_cost = 2.5
+dashed = true
+stat_value = 180.0
+
+[sub_resource type="Resource" id="Resource_8nvcb"]
+script = ExtResource("1_prjyu")
+id = "maw"
+shape = "crescent"
+position = Vector2(0, -3.3)
+size = Vector2(15.4, 15.4)
+light_phase = -1.3
+stat_id = "bullet_eater"
+tp_cost = 0.5
+stat_value = 9.0
+
+[sub_resource type="Resource" id="Resource_dilgb"]
+script = ExtResource("1_prjyu")
+id = "primary"
+position = Vector2(0, -7.7)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_period = 1.6
+ability_id = "pulse_cannon"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_3vynq"]
+script = ExtResource("1_prjyu")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_rj5kl")
+id = "enemy_void_t1"
+display_name = "Null Standard A"
+element = "void"
+hull_radius = 16.0
+parts = Array[ExtResource("1_prjyu")]([SubResource("Resource_t87up"), SubResource("Resource_7fkfm"), SubResource("Resource_8nvcb"), SubResource("Resource_dilgb"), SubResource("Resource_3vynq")])
+abilities = Array[String](["pulse_cannon"])
+faction = "enemy"
+footprint = 32.0
+magnet_radius = 90.0
+motion_signature = "inward"
+tp_used = 5.5

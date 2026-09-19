@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_c8u54"]
+
+[resource]
+script = ExtResource("1_c8u54")
+id = "ricochet"
+display_name = "Ricochet"
+description = "Ricochet"
+trigger = "primary"
+cooldown = 0.26
+damage = 18.0
+range_pixels = 0.0
+minimum_tier = 2
+visual_color = "yellow"

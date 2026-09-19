@@ -1,0 +1,324 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_mka7u"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_htcpd"]
+
+[sub_resource type="Resource" id="Resource_y05r8"]
+script = ExtResource("1_mka7u")
+id = "body"
+size = Vector2(30, 30)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_5fuys"]
+script = ExtResource("1_mka7u")
+id = "lobe_0_l"
+position = Vector2(-21, -31.5)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_fvsta"]
+script = ExtResource("1_mka7u")
+id = "lobe_0_r"
+position = Vector2(21, -31.5)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_4gfpb"]
+script = ExtResource("1_mka7u")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_er80k"]
+script = ExtResource("1_mka7u")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_myuc7"]
+script = ExtResource("1_mka7u")
+id = "lobe_1_l"
+position = Vector2(-28, -16.5)
+size = Vector2(16, 16)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_1_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_xc21j"]
+script = ExtResource("1_mka7u")
+id = "lobe_1_r"
+position = Vector2(28, -16.5)
+size = Vector2(16, 16)
+layer = 2
+mirror_id = "lobe_1_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_egcoi"]
+script = ExtResource("1_mka7u")
+id = "link_1_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_1_l"
+mirror_id = "link_1_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_lh776"]
+script = ExtResource("1_mka7u")
+id = "link_1_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_1_r"
+mirror_id = "link_1_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_hibkr"]
+script = ExtResource("1_mka7u")
+id = "lobe_2_l"
+position = Vector2(-21, -1.5)
+size = Vector2(14, 14)
+layer = 2
+mirror_id = "lobe_2_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_y0nir"]
+script = ExtResource("1_mka7u")
+id = "lobe_2_r"
+position = Vector2(21, -1.5)
+size = Vector2(14, 14)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_2_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_hg7g2"]
+script = ExtResource("1_mka7u")
+id = "link_2_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_2_l"
+mirror_id = "link_2_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_mr6g4"]
+script = ExtResource("1_mka7u")
+id = "link_2_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "lobe_2_r"
+mirror_id = "link_2_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_fah8x"]
+script = ExtResource("1_mka7u")
+id = "lobe_3_l"
+position = Vector2(-28, 13.5)
+size = Vector2(12, 12)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_3_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_t3icr"]
+script = ExtResource("1_mka7u")
+id = "lobe_3_r"
+position = Vector2(28, 13.5)
+size = Vector2(12, 12)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_3_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_ixply"]
+script = ExtResource("1_mka7u")
+id = "link_3_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_3_l"
+mirror_id = "link_3_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_y6edh"]
+script = ExtResource("1_mka7u")
+id = "link_3_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_3_r"
+mirror_id = "link_3_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_pbvsu"]
+script = ExtResource("1_mka7u")
+id = "primary"
+position = Vector2(0, -10.5)
+size = Vector2(7, 7)
+color_role = "yellow"
+layer = 4
+light_phase = -1.3
+ability_id = "flame_cone"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_yw627"]
+script = ExtResource("1_mka7u")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_rejmn"]
+script = ExtResource("1_mka7u")
+id = "secondary_0"
+position = Vector2(0, 22)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "mine_layer"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_2oqgi"]
+script = ExtResource("1_mka7u")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_mvh6e"]
+script = ExtResource("1_mka7u")
+id = "secondary_1"
+position = Vector2(0, 31)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+ability_id = "explosives"
+mount_id = "secondary_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_8f2vd"]
+script = ExtResource("1_mka7u")
+id = "secondary_1_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "secondary_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_i8wa7"]
+script = ExtResource("1_mka7u")
+id = "passive_0"
+position = Vector2(0, -23)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "forcefield"
+mount_id = "passive_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_gi8pb"]
+script = ExtResource("1_mka7u")
+id = "passive_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "passive_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_htcpd")
+id = "enemy_fire_t5"
+display_name = "Sunburst Standard A"
+element = "fire"
+tier = 5
+parts = Array[ExtResource("1_mka7u")]([SubResource("Resource_y05r8"), SubResource("Resource_5fuys"), SubResource("Resource_fvsta"), SubResource("Resource_4gfpb"), SubResource("Resource_er80k"), SubResource("Resource_myuc7"), SubResource("Resource_xc21j"), SubResource("Resource_egcoi"), SubResource("Resource_lh776"), SubResource("Resource_hibkr"), SubResource("Resource_y0nir"), SubResource("Resource_hg7g2"), SubResource("Resource_mr6g4"), SubResource("Resource_fah8x"), SubResource("Resource_t3icr"), SubResource("Resource_ixply"), SubResource("Resource_y6edh"), SubResource("Resource_pbvsu"), SubResource("Resource_yw627"), SubResource("Resource_rejmn"), SubResource("Resource_2oqgi"), SubResource("Resource_mvh6e"), SubResource("Resource_8f2vd"), SubResource("Resource_i8wa7"), SubResource("Resource_gi8pb")])
+abilities = Array[String](["flame_cone", "mine_layer", "explosives", "forcefield"])
+faction = "enemy"
+footprint = 93.716576
+magnet_radius = 106.0
+speed = 236.0
+motion_signature = "flicker"
+primary = "flame_cone"
+secondaries = Array[String](["mine_layer", "explosives"])
+passives = Array[String](["forcefield"])
+tp_used = 14.5
+tp_max = 28.0

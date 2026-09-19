@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_o66ol"]
+
+[resource]
+script = ExtResource("1_o66ol")
+id = "seeker_missiles"
+display_name = "Seeker Missiles"
+description = "Seeker Missiles"
+trigger = "secondary"
+cooldown = 3.0
+damage = 22.0
+range_pixels = 0.0
+slot_kind = "secondary"
+minimum_tier = 2

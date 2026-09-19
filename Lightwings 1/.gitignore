@@ -1,0 +1,12 @@
+.godot/
+.tools/
+builds/
+artifacts/
+*.tmp
+*.log
+.DS_Store
+steam_appid.txt
+
+tests/*.pck
+tests/*.png
+tests/*.png.import

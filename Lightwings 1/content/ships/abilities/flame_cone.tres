@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_o7ygp"]
+
+[resource]
+script = ExtResource("1_o7ygp")
+id = "flame_cone"
+display_name = "Flame Cone"
+description = "Flame Cone"
+trigger = "primary"
+cooldown = 0.16
+damage = 5.0
+range_pixels = 220.0
+minimum_tier = 2
+visual_color = "yellow"

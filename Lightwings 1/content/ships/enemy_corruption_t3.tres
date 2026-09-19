@@ -1,0 +1,180 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_smhin"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_x6lpv"]
+
+[sub_resource type="Resource" id="Resource_uaypq"]
+script = ExtResource("1_smhin")
+id = "body"
+shape = "ellipse"
+size = Vector2(30, 27)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_8qsbd"]
+script = ExtResource("1_smhin")
+id = "lobe_0_l"
+shape = "ellipse"
+position = Vector2(-26, -7.5)
+size = Vector2(18, 13.5)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_jpd5y"]
+script = ExtResource("1_smhin")
+id = "lobe_0_r"
+shape = "ellipse"
+position = Vector2(26, -7.5)
+size = Vector2(18, 13.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_b8n0u"]
+script = ExtResource("1_smhin")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_tcg56"]
+script = ExtResource("1_smhin")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_d60e0"]
+script = ExtResource("1_smhin")
+id = "lobe_1_l"
+shape = "ellipse"
+position = Vector2(-33, 7.5)
+size = Vector2(16, 12)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_1_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_x1q3m"]
+script = ExtResource("1_smhin")
+id = "lobe_1_r"
+shape = "ellipse"
+position = Vector2(33, 7.5)
+size = Vector2(16, 12)
+layer = 2
+mirror_id = "lobe_1_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_i25e6"]
+script = ExtResource("1_smhin")
+id = "link_1_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_1_l"
+mirror_id = "link_1_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ug6xe"]
+script = ExtResource("1_smhin")
+id = "link_1_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_1_r"
+mirror_id = "link_1_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_c3cl2"]
+script = ExtResource("1_smhin")
+id = "primary"
+position = Vector2(0, -10.5)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+ability_id = "pulse_cannon"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_5c5bv"]
+script = ExtResource("1_smhin")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_8l6pq"]
+script = ExtResource("1_smhin")
+id = "secondary_0"
+position = Vector2(0, 22)
+size = Vector2(7, 7)
+color_role = "green"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "droid_bay"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_fnbus"]
+script = ExtResource("1_smhin")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_x6lpv")
+id = "enemy_corruption_t3"
+display_name = "Trojan Standard A"
+tier = 3
+breathes = true
+parts = Array[ExtResource("1_smhin")]([SubResource("Resource_uaypq"), SubResource("Resource_8qsbd"), SubResource("Resource_jpd5y"), SubResource("Resource_b8n0u"), SubResource("Resource_tcg56"), SubResource("Resource_d60e0"), SubResource("Resource_x1q3m"), SubResource("Resource_i25e6"), SubResource("Resource_ug6xe"), SubResource("Resource_c3cl2"), SubResource("Resource_5c5bv"), SubResource("Resource_8l6pq"), SubResource("Resource_fnbus")])
+abilities = Array[String](["pulse_cannon", "droid_bay"])
+faction = "enemy"
+footprint = 83.68308
+magnet_radius = 98.0
+speed = 228.0
+motion_signature = "breathe"
+secondaries = Array[String](["droid_bay"])
+tp_used = 6.5
+tp_max = 15.0

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_r0qa0"]
+
+[resource]
+script = ExtResource("1_r0qa0")
+id = "rocket_launcher"
+display_name = "Rocket Launcher"
+description = "Rocket Launcher"
+trigger = "secondary"
+cooldown = 4.0
+damage = 30.0
+range_pixels = 0.0
+slot_kind = "secondary"
+minimum_tier = 2

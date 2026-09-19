@@ -1,0 +1,180 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_j6o1s"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_untc3"]
+
+[sub_resource type="Resource" id="Resource_k2pa3"]
+script = ExtResource("1_j6o1s")
+id = "body"
+size = Vector2(24, 24)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_b00ab"]
+script = ExtResource("1_j6o1s")
+id = "lobe_0_l"
+position = Vector2(-16, -16.5)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_v8rwt"]
+script = ExtResource("1_j6o1s")
+id = "lobe_0_r"
+position = Vector2(16, -16.5)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_t8l1n"]
+script = ExtResource("1_j6o1s")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_n7sw4"]
+script = ExtResource("1_j6o1s")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_8auti"]
+script = ExtResource("1_j6o1s")
+id = "lobe_1_l"
+position = Vector2(-23, -1.5)
+size = Vector2(16, 16)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_1_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_4skir"]
+script = ExtResource("1_j6o1s")
+id = "lobe_1_r"
+position = Vector2(23, -1.5)
+size = Vector2(16, 16)
+layer = 2
+mirror_id = "lobe_1_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_reh64"]
+script = ExtResource("1_j6o1s")
+id = "link_1_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_1_l"
+mirror_id = "link_1_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_s5uqo"]
+script = ExtResource("1_j6o1s")
+id = "link_1_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_1_r"
+mirror_id = "link_1_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_g7yoq"]
+script = ExtResource("1_j6o1s")
+id = "primary"
+position = Vector2(0, -8.4)
+size = Vector2(7, 7)
+color_role = "yellow"
+layer = 4
+ability_id = "flame_cone"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_x1prw"]
+script = ExtResource("1_j6o1s")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_j5av2"]
+script = ExtResource("1_j6o1s")
+id = "secondary_0"
+position = Vector2(0, 19)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "mine_layer"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_j8841"]
+script = ExtResource("1_j6o1s")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_untc3")
+id = "player_fire_t3_compact"
+display_name = "Stoker Compact"
+element = "fire"
+tier = 3
+is_player = true
+parts = Array[ExtResource("1_j6o1s")]([SubResource("Resource_k2pa3"), SubResource("Resource_b00ab"), SubResource("Resource_v8rwt"), SubResource("Resource_t8l1n"), SubResource("Resource_n7sw4"), SubResource("Resource_8auti"), SubResource("Resource_4skir"), SubResource("Resource_reh64"), SubResource("Resource_s5uqo"), SubResource("Resource_g7yoq"), SubResource("Resource_x1prw"), SubResource("Resource_j5av2"), SubResource("Resource_j8841")])
+abilities = Array[String](["flame_cone", "mine_layer"])
+role = "compact"
+family = "compact"
+footprint = 63.96738
+magnet_radius = 98.0
+speed = 285.0
+turn_rate = 12.5
+hp_buffer = 0.8
+motion_signature = "flicker"
+primary = "flame_cone"
+secondaries = Array[String](["mine_layer"])
+tp_used = 8.0
+tp_max = 15.0

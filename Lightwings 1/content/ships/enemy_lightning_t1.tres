@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_m0wd5"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_xftol"]
+
+[sub_resource type="Resource" id="Resource_ttyj4"]
+script = ExtResource("1_m0wd5")
+id = "body"
+size = Vector2(22, 22)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_kxnk3"]
+script = ExtResource("1_m0wd5")
+id = "primary"
+position = Vector2(0, -7.7)
+size = Vector2(7, 7)
+color_role = "violet"
+layer = 4
+light_phase = -0.7
+ability_id = "bolt"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_q06mr"]
+script = ExtResource("1_m0wd5")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_xftol")
+id = "enemy_lightning_t1"
+display_name = "Spark Standard A"
+element = "lightning"
+parts = Array[ExtResource("1_m0wd5")]([SubResource("Resource_ttyj4"), SubResource("Resource_kxnk3"), SubResource("Resource_q06mr")])
+abilities = Array[String](["bolt"])
+faction = "enemy"
+footprint = 22.4
+magnet_radius = 90.0
+motion_signature = "snap"
+primary = "bolt"
+tp_used = 3.25

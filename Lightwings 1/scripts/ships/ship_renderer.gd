@@ -1,0 +1,319 @@
+class_name ShipRenderer
+extends Node2D
+## Shared game/editor renderer. One cached mesh draws every fill, perimeter
+## running light and core. CPU contours are used only during 0.8-second reshapes.
+## Native HDR post-processing supplies bloom; no gameplay logic runs here.
+
+var definition: ShipDefinition
+var animation_time: float = 0.0
+var reshape_remaining: float = 0.0
+var visual_scale: float = 1.0
+var draw_hull: bool = true
+var hull_only: bool = false
+var show_core: bool = true
+var evolution_ready: bool = false
+var part_position_overrides: Dictionary = {}
+var hidden_part_ids: PackedStringArray = []
+var _source: ShipDefinition
+var _contours: Dictionary = {}
+var _draw_cache: Dictionary = {}
+var _display_parts: Array[PartDefinition] = []
+var _phase: float = 0.0
+var _old_hull: float = 0.0
+var _mesh_instance: MeshInstance2D
+var _mesh_material: ShaderMaterial
+var _mesh_builder: ShipMesh
+var _mesh_offsets: PackedVector4Array = []
+var _override_hash: int = -1
+var _hidden_hash: int = -1
+var _last_factor: float = -1.0
+var _last_canvas_scale: float = -1.0
+var _last_hull_only: bool = false
+var _last_draw_hull: bool = true
+var _last_show_core: bool = true
+var _last_evolution_ready: bool = false
+var last_draw_usec: int = 0
+static var frame_draw_usec: int = 0
+static var frame_draw_calls: int = 0
+static var _measured_frame: int = -1
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_phase = float(get_instance_id() % 1000) / 170.0
+
+func set_ship(ship: ShipDefinition, animate: bool = false) -> void:
+	_source = definition
+	_old_hull = definition.hull_radius if definition != null else 0.0
+	definition = ship
+	reshape_remaining = 0.8 if animate and _source != null else 0.0
+	_contours.clear()
+	_draw_cache.clear()
+	_display_parts.clear()
+	if definition != null:
+		for part: PartDefinition in definition.parts:
+			_display_parts.append(part)
+	if reshape_remaining > 0:
+		for old: PartDefinition in _source.parts:
+			if _find(definition, old.id) == null:
+				_display_parts.append(old)
+	_display_parts.sort_custom(func(a: PartDefinition, b: PartDefinition) -> bool: return a.layer < b.layer)
+	_build_mesh()
+	queue_redraw()
+
+func _process(delta: float) -> void:
+	animation_time += delta
+	var frame: int = Engine.get_frames_drawn()
+	if _measured_frame != frame:
+		_measured_frame = frame
+		frame_draw_usec = 0
+		frame_draw_calls = 0
+	if reshape_remaining > 0:
+		reshape_remaining = maxf(0, reshape_remaining - delta)
+		if reshape_remaining == 0 and definition != null:
+			_display_parts.assign(definition.parts)
+			_display_parts.sort_custom(func(a: PartDefinition, b: PartDefinition) -> bool: return a.layer < b.layer)
+			_contours.clear()
+			_draw_cache.clear()
+		queue_redraw()
+	if not is_visible_in_tree() or definition == null: return
+	var canvas_scale: float = maxf(0.01, get_global_transform_with_canvas().get_scale().abs().x)
+	var factor: float = _body_scale()
+	if _last_factor != factor or _last_canvas_scale != canvas_scale or _last_hull_only != hull_only or _last_draw_hull != draw_hull:
+		if (definition.hull_radius > 0 and draw_hull) or _last_draw_hull != draw_hull or _last_hull_only != hull_only: queue_redraw()
+		if _mesh_material != null:
+			_mesh_material.set_shader_parameter("body_scale", factor)
+			_mesh_material.set_shader_parameter("canvas_scale", canvas_scale)
+		_last_factor = factor
+		_last_canvas_scale = canvas_scale
+		_last_hull_only = hull_only
+		_last_draw_hull = draw_hull
+	if _mesh_instance != null:
+		_mesh_instance.visible = not hull_only and reshape_remaining <= 0
+		if _mesh_instance.visible:
+			_mesh_material.set_shader_parameter("visual_time", animation_time)
+			if _last_show_core != show_core:
+				_mesh_material.set_shader_parameter("show_core", show_core)
+				_last_show_core = show_core
+			if _last_evolution_ready != evolution_ready:
+				_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)
+				_last_evolution_ready = evolution_ready
+			_sync_part_offsets()
+
+func _body_scale() -> float:
+	return visual_scale * (1.025 - 0.025 * cos((animation_time + _phase) * PI) if definition != null and definition.breathes else 1.0)
+
+func _build_mesh() -> void:
+	if definition == null or hull_only:
+		if _mesh_instance != null: _mesh_instance.visible = false
+		return
+	if _mesh_instance == null:
+		_mesh_instance = MeshInstance2D.new()
+		_mesh_instance.name = "ShipSurface"
+		_mesh_material = ShaderMaterial.new()
+		_mesh_material.shader = preload("res://shaders/ship_outline.gdshader")
+		_mesh_instance.material = _mesh_material
+		add_child(_mesh_instance)
+	_mesh_builder = ShipMesh.new()
+	_mesh_instance.mesh = _mesh_builder.build(definition)
+	_mesh_instance.visible = reshape_remaining <= 0
+	_mesh_material.set_shader_parameter("light_parameters", _mesh_builder.parameters)
+	_mesh_material.set_shader_parameter("part_centers", _mesh_builder.centers)
+	_mesh_material.set_shader_parameter("part_geometry", _mesh_builder.geometries)
+	_mesh_material.set_shader_parameter("motion_signature", ["smooth", "flicker", "snap", "inward", "breathe", "counter_rotate"].find(definition.motion_signature))
+	_mesh_material.set_shader_parameter("core_color", Color.WHITE if definition.is_player else ShipCatalog.get_color(definition.element))
+	_mesh_material.set_shader_parameter("core_radius", definition.core_radius)
+	_mesh_material.set_shader_parameter("show_core", show_core)
+	_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)
+	_last_factor = _body_scale()
+	_last_canvas_scale = maxf(0.01, get_global_transform_with_canvas().get_scale().abs().x) if is_inside_tree() else 1.0
+	_mesh_material.set_shader_parameter("body_scale", _last_factor)
+	_mesh_material.set_shader_parameter("canvas_scale", _last_canvas_scale)
+	_mesh_material.set_shader_parameter("visual_time", animation_time)
+	_override_hash = -1
+	_hidden_hash = -1
+	_sync_part_offsets()
+
+func _sync_part_offsets() -> void:
+	var overrides: int = hash(part_position_overrides)
+	var hidden: int = hash(hidden_part_ids)
+	if overrides == _override_hash and hidden == _hidden_hash: return
+	_override_hash = overrides
+	_hidden_hash = hidden
+	_mesh_offsets.resize(ShipMesh.MAX_PARTS)
+	_mesh_offsets.fill(Vector4(0, 0, 1, 0))
+	for id: String in part_position_overrides:
+		if _mesh_builder.part_indices.has(id):
+			var index: int = _mesh_builder.part_indices[id]
+			var offset: Vector2 = Vector2(part_position_overrides[id]) - _mesh_builder.centers[index]
+			_mesh_offsets[index] = Vector4(offset.x, offset.y, 1, 0)
+	for id: String in hidden_part_ids:
+		if _mesh_builder.part_indices.has(id):
+			var index: int = _mesh_builder.part_indices[id]
+			_mesh_offsets[index].z = 0
+	_mesh_material.set_shader_parameter("part_offsets", _mesh_offsets)
+
+func _find(ship: ShipDefinition, id: String) -> PartDefinition:
+	if ship != null:
+		for part: PartDefinition in ship.parts:
+			if part.id == id:
+				return part
+	return null
+
+func _morph(part: PartDefinition) -> Dictionary:
+	var pos: Vector2 = part.position
+	if part_position_overrides.has(part.id): pos = part_position_overrides[part.id]
+	var size: Vector2 = part.size
+	var angle: float = part.rotation
+	if reshape_remaining > 0:
+		var amount: float = smoothstep(0.0, 1.0, 1.0 - reshape_remaining / 0.8)
+		var before: PartDefinition = _find(_source, part.id)
+		var after: PartDefinition = _find(definition, part.id)
+		if before != null and after != null:
+			pos = before.position.lerp(after.position, amount)
+			size = before.size.lerp(after.size, amount)
+			angle = lerp_angle(before.rotation, after.rotation, amount)
+		elif after != null:
+			pos *= amount
+			size *= maxf(0.001, amount)
+		else:
+			pos *= 1.0 - amount
+			size *= maxf(0.001, 1.0 - amount)
+	return {"position": pos, "size": size, "rotation": angle}
+
+func _draw() -> void:
+	var started: int = Time.get_ticks_usec()
+	if definition == null:
+		return
+	var canvas_scale: float = maxf(0.01, get_global_transform_with_canvas().get_scale().abs().x)
+	var factor: float = _body_scale()
+	var hull: float = definition.hull_radius
+	if reshape_remaining > 0:
+		hull = lerpf(_old_hull, hull, smoothstep(0, 1, 1.0 - reshape_remaining / 0.8))
+	if draw_hull and hull > 0:
+		draw_circle(Vector2.ZERO, hull * factor, Color.BLACK, true, -1, true)
+	if hull_only:
+		_record_draw(started)
+		return
+	if reshape_remaining <= 0:
+		_record_draw(started)
+		return
+	for part: PartDefinition in _display_parts:
+		if part.id in hidden_part_ids: continue
+		_draw_part(part, factor, canvas_scale)
+	if show_core:
+		var core: Color = Color.WHITE if definition.is_player else ShipCatalog.get_color(definition.element)
+		var boost: float = 1.8 * (1.0 + 0.1 * (0.5 - 0.5 * cos(animation_time * PI)) if evolution_ready else 1.0)
+		core = _emission(core, boost)
+		draw_circle(Vector2.ZERO, definition.core_radius / canvas_scale, core, true, -1, true)
+	_record_draw(started)
+
+func _record_draw(started: int) -> void:
+	last_draw_usec = Time.get_ticks_usec() - started
+	var frame: int = Engine.get_frames_drawn()
+	if _measured_frame != frame:
+		_measured_frame = frame
+		frame_draw_usec = 0
+		frame_draw_calls = 0
+	frame_draw_usec += last_draw_usec
+	frame_draw_calls += 1
+
+func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> void:
+	var points: PackedVector2Array
+	var distances: PackedFloat32Array
+	var stable: bool = reshape_remaining <= 0 and part.shape != "tether" and not part_position_overrides.has(part.id)
+	var cached: Dictionary = _draw_cache.get(part.id, {}) if stable else {}
+	if not cached.is_empty() and is_equal_approx(float(cached.factor), factor):
+		points = cached.points
+		distances = cached.distances
+	elif part.shape == "tether":
+		var from: PartDefinition = _find(definition, part.from_id)
+		var to: PartDefinition = _find(definition, part.to_id)
+		if from == null: from = _find(_source, part.from_id)
+		if to == null: to = _find(_source, part.to_id)
+		if from == null or to == null: return
+		var from_data: Dictionary = _morph(from)
+		var to_data: Dictionary = _morph(to)
+		if definition.motion_signature == "inward":
+			from_data.position *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
+			to_data.position *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
+		points = ShipGeometry.clipped_tether(from_data, to_data)
+		for index: int in range(points.size()): points[index] *= factor
+	else:
+		var size: Vector2 = part.size
+		var pos: Vector2 = part_position_overrides.get(part.id, part.position)
+		var angle: float = part.rotation
+		if reshape_remaining > 0:
+			var data: Dictionary = _morph(part)
+			size = data["size"]
+			pos = data["position"]
+			angle = data["rotation"]
+		var key: String = part.id
+		if reshape_remaining <= 0 and _contours.has(key):
+			points = _contours[key]
+		else:
+			points = ShipGeometry.outline(part.shape, size)
+			if reshape_remaining <= 0: _contours[key] = points
+		if definition.motion_signature == "inward": pos *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
+		var transformed: PackedVector2Array = []
+		for point: Vector2 in points:
+			transformed.append((point.rotated(angle) + pos) * factor)
+		points = transformed
+	if points.size() < 2:
+		return
+	if distances.is_empty():
+		distances = ShipGeometry.lengths(points)
+		if stable: _draw_cache[part.id] = {"factor": factor, "points": points, "distances": distances}
+	var role: String = part.color_role
+	if role == "chassis": role = "player" if definition.is_player else definition.element
+	var stroke: Color = ShipCatalog.get_color(role)
+	var fill: Color = ShipCatalog.FILLS.get(role, Color("062a12"))
+	if definition.element == "void": fill = Color.BLACK
+	if part.layer != 0 and part.shape not in ["tether", "ring", "arc"]:
+		var polygon: PackedVector2Array = points.duplicate()
+		if polygon.size() > 2 and polygon[0].is_equal_approx(polygon[-1]): polygon.remove_at(polygon.size() - 1)
+		if polygon.size() >= 3:
+			draw_colored_polygon(polygon, fill)
+	var width: float = (2.0 if part.shape == "tether" else 1.5) / canvas_scale
+	if part.dashed or part.layer == 0:
+		var total: float = distances[-1]
+		var cursor: float = 0.0
+		while cursor < total:
+			var dash: PackedVector2Array = ShipGeometry.section(points, distances, cursor, minf(total, cursor + 2.0 / canvas_scale))
+			if dash.size() >= 2: draw_polyline(dash, Color(stroke, 0.5), 1.0 / canvas_scale, true)
+			cursor += 6.0 / canvas_scale
+	else:
+		draw_polyline(points, stroke * 0.96, width, true)
+	var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
+	light = _emission(light, 1.8)
+	var perimeter: float = distances[-1]
+	if perimeter < 0.001:
+		return
+	var start: float = running_phase(part) * perimeter
+	var finish: float = start + perimeter * 0.13
+	_draw_segment(points, distances, start, minf(finish, perimeter), light, 2.6 / canvas_scale)
+	if finish > perimeter:
+		_draw_segment(points, distances, 0.0, finish - perimeter, light, 2.6 / canvas_scale)
+
+func _emission(tint: Color, boost: float) -> Color:
+	# Immediate canvas colors are sRGB; the mesh shader emits linear HDR values.
+	# Match the two paths so changing to/from reshape cannot flash brighter.
+	var emitted: Color = (tint.srgb_to_linear() * boost).linear_to_srgb()
+	emitted.a = 1.0
+	return emitted
+
+func _draw_segment(points: PackedVector2Array, distances: PackedFloat32Array, start: float, finish: float, color: Color, width: float) -> void:
+	var segment: PackedVector2Array = ShipGeometry.section(points, distances, start, finish)
+	if segment.size() < 2: return
+	draw_polyline(segment, color, width, true)
+	draw_circle(segment[0], width * 0.5, color, true, -1, true)
+	draw_circle(segment[-1], width * 0.5, color, true, -1, true)
+
+func running_phase(part: PartDefinition) -> float:
+	var cycles: float = (animation_time + part.light_phase) / maxf(0.05, part.light_period)
+	match definition.motion_signature:
+		"flicker": cycles += 0.025 * sin(cycles * TAU * 5.0)
+		"snap": cycles = floorf(cycles * 12.0) / 12.0
+		"counter_rotate":
+			if part.shape in ["ring", "arc"] and int(part.light_phase * 10) % 2 != 0: cycles *= -1
+	return fposmod(cycles, 1.0)
+

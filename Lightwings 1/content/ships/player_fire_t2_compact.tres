@@ -1,0 +1,131 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_vut2v"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_hagdx"]
+
+[sub_resource type="Resource" id="Resource_bwhyc"]
+script = ExtResource("1_vut2v")
+id = "body"
+size = Vector2(24, 24)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_85kg3"]
+script = ExtResource("1_vut2v")
+id = "lobe_0_l"
+position = Vector2(-16, -9)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_vx8jg"]
+script = ExtResource("1_vut2v")
+id = "lobe_0_r"
+position = Vector2(16, -9)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_3e7it"]
+script = ExtResource("1_vut2v")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_oer6f"]
+script = ExtResource("1_vut2v")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_lc5le"]
+script = ExtResource("1_vut2v")
+id = "primary"
+position = Vector2(0, -8.4)
+size = Vector2(7, 7)
+color_role = "yellow"
+layer = 4
+light_phase = -1.3
+ability_id = "flame_cone"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_ft1tm"]
+script = ExtResource("1_vut2v")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_d2k4o"]
+script = ExtResource("1_vut2v")
+id = "secondary_0"
+position = Vector2(0, 19)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "mine_layer"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_34ovm"]
+script = ExtResource("1_vut2v")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_hagdx")
+id = "player_fire_t2_compact"
+display_name = "Flare Compact"
+element = "fire"
+tier = 2
+is_player = true
+parts = Array[ExtResource("1_vut2v")]([SubResource("Resource_bwhyc"), SubResource("Resource_85kg3"), SubResource("Resource_vx8jg"), SubResource("Resource_3e7it"), SubResource("Resource_oer6f"), SubResource("Resource_lc5le"), SubResource("Resource_ft1tm"), SubResource("Resource_d2k4o"), SubResource("Resource_34ovm")])
+abilities = Array[String](["flame_cone", "mine_layer"])
+role = "compact"
+family = "compact"
+footprint = 54.71512
+magnet_radius = 90.0
+speed = 285.0
+turn_rate = 12.5
+hp_buffer = 0.8
+motion_signature = "flicker"
+primary = "flame_cone"
+secondaries = Array[String](["mine_layer"])
+tp_used = 7.0
+tp_max = 10.0

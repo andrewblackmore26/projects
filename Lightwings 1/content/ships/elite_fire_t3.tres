@@ -1,0 +1,257 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_f0psg"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_3ig1j"]
+
+[sub_resource type="Resource" id="Resource_lvwnf"]
+script = ExtResource("1_f0psg")
+id = "body"
+size = Vector2(100.8, 100.8)
+stat_id = "speed"
+tp_cost = 2.5
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_a38tg"]
+script = ExtResource("1_f0psg")
+id = "lobe_0_l"
+position = Vector2(-59.4, -16.5)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_j462f"]
+script = ExtResource("1_f0psg")
+id = "lobe_0_r"
+position = Vector2(59.4, -16.5)
+size = Vector2(18, 18)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_ld5w6"]
+script = ExtResource("1_f0psg")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_e4oem"]
+script = ExtResource("1_f0psg")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_8o3ih"]
+script = ExtResource("1_f0psg")
+id = "lobe_1_l"
+position = Vector2(-66.4, -1.5)
+size = Vector2(16, 16)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_1_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_os1ln"]
+script = ExtResource("1_f0psg")
+id = "lobe_1_r"
+position = Vector2(66.4, -1.5)
+size = Vector2(16, 16)
+layer = 2
+mirror_id = "lobe_1_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_lq14x"]
+script = ExtResource("1_f0psg")
+id = "link_1_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_1_l"
+mirror_id = "link_1_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_lwmoj"]
+script = ExtResource("1_f0psg")
+id = "link_1_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "lobe_1_r"
+mirror_id = "link_1_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_3x4og"]
+script = ExtResource("1_f0psg")
+id = "primary"
+position = Vector2(0, -35.28)
+size = Vector2(22, 22)
+color_role = "yellow"
+layer = 4
+ability_id = "flame_cone"
+mount_id = "primary"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_0pr8q"]
+script = ExtResource("1_f0psg")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_2ddgg"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_0"
+position = Vector2(80.64001, 0)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "laser_prong"
+mount_id = "elite_weapon_0"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_rnrlc"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "elite_weapon_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_vlrr5"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_1"
+position = Vector2(24.91913, 76.6932)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_phase = -0.7
+ability_id = "egg"
+mount_id = "elite_weapon_1"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_u84mx"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_1_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "elite_weapon_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_b0kla"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_2"
+position = Vector2(-65.239136, 47.399)
+size = Vector2(22, 22)
+color_role = "green"
+layer = 4
+light_period = 1.6
+ability_id = "droid_bay"
+mount_id = "elite_weapon_2"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_y5knj"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_2_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "elite_weapon_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_s8w15"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_3"
+position = Vector2(-65.23913, -47.399014)
+size = Vector2(22, 22)
+color_role = "yellow"
+layer = 4
+light_phase = -1.3
+ability_id = "deployment_ramp"
+mount_id = "elite_weapon_3"
+tp_cost = 0.0
+weapon_hp = 69.0
+
+[sub_resource type="Resource" id="Resource_m4k2w"]
+script = ExtResource("1_f0psg")
+id = "elite_weapon_3_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "elite_weapon_3"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_3ig1j")
+id = "elite_fire_t3"
+display_name = "Stoker Heavy"
+element = "fire"
+tier = 3
+parts = Array[ExtResource("1_f0psg")]([SubResource("Resource_lvwnf"), SubResource("Resource_a38tg"), SubResource("Resource_j462f"), SubResource("Resource_ld5w6"), SubResource("Resource_e4oem"), SubResource("Resource_8o3ih"), SubResource("Resource_os1ln"), SubResource("Resource_lq14x"), SubResource("Resource_lwmoj"), SubResource("Resource_3x4og"), SubResource("Resource_0pr8q"), SubResource("Resource_2ddgg"), SubResource("Resource_rnrlc"), SubResource("Resource_vlrr5"), SubResource("Resource_u84mx"), SubResource("Resource_b0kla"), SubResource("Resource_y5knj"), SubResource("Resource_s8w15"), SubResource("Resource_m4k2w")])
+abilities = Array[String](["flame_cone"])
+faction = "elite"
+role = "heavy"
+family = "heavy"
+footprint = 183.28001
+magnet_radius = 98.0
+speed = 193.79999999999998
+turn_rate = 8.0
+hp_buffer = 1.3
+damage_multiplier = 1.15
+motion_signature = "flicker"
+primary = "flame_cone"
+tp_used = 16.25
+tp_max = 37.5

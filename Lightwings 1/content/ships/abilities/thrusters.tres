@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_blnnb"]
+
+[resource]
+script = ExtResource("1_blnnb")
+id = "thrusters"
+display_name = "Thrusters"
+description = "Thrusters"
+cooldown = 0.0
+damage = 0.0
+range_pixels = 1.2
+slot_kind = "passive"
+minimum_tier = 4
+tp_cost = 1.0
+visual_color = "yellow"

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ability_definition.gd" id="1_k4xii"]
+
+[resource]
+script = ExtResource("1_k4xii")
+id = "orbital_seekers"
+display_name = "Orbital Seekers"
+description = "Orbital Seekers"
+cooldown = 3.0
+damage = 22.0
+range_pixels = 320.0
+slot_kind = "passive"
+minimum_tier = 4

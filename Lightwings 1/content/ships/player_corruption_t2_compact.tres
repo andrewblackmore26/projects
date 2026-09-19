@@ -1,0 +1,133 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_1yw8o"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_psqgk"]
+
+[sub_resource type="Resource" id="Resource_cty4j"]
+script = ExtResource("1_1yw8o")
+id = "body"
+shape = "ellipse"
+size = Vector2(24, 21.6)
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_7ea3m"]
+script = ExtResource("1_1yw8o")
+id = "lobe_0_l"
+shape = "ellipse"
+position = Vector2(-21, 0)
+size = Vector2(18, 13.5)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_wc47b"]
+script = ExtResource("1_1yw8o")
+id = "lobe_0_r"
+shape = "ellipse"
+position = Vector2(21, 0)
+size = Vector2(18, 13.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_sgq5q"]
+script = ExtResource("1_1yw8o")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_4qfjn"]
+script = ExtResource("1_1yw8o")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_gfkdi"]
+script = ExtResource("1_1yw8o")
+id = "primary"
+position = Vector2(0, -8.4)
+size = Vector2(7, 7)
+color_role = "red"
+layer = 4
+light_phase = -1.3
+ability_id = "pulse_cannon"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_pj1fy"]
+script = ExtResource("1_1yw8o")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_3iwl0"]
+script = ExtResource("1_1yw8o")
+id = "secondary_0"
+position = Vector2(0, 19)
+size = Vector2(7, 7)
+color_role = "green"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "virus"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_4p062"]
+script = ExtResource("1_1yw8o")
+id = "secondary_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_psqgk")
+id = "player_corruption_t2_compact"
+display_name = "Worm Compact"
+tier = 2
+is_player = true
+breathes = true
+parts = Array[ExtResource("1_1yw8o")]([SubResource("Resource_cty4j"), SubResource("Resource_7ea3m"), SubResource("Resource_wc47b"), SubResource("Resource_sgq5q"), SubResource("Resource_4qfjn"), SubResource("Resource_gfkdi"), SubResource("Resource_pj1fy"), SubResource("Resource_3iwl0"), SubResource("Resource_4p062")])
+abilities = Array[String](["pulse_cannon", "virus"])
+role = "compact"
+family = "compact"
+footprint = 60.0
+magnet_radius = 90.0
+speed = 285.0
+turn_rate = 12.5
+hp_buffer = 0.8
+motion_signature = "breathe"
+secondaries = Array[String](["virus"])
+tp_used = 5.5
+tp_max = 10.0

@@ -1,0 +1,101 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_qse88"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_vsvvx"]
+
+[sub_resource type="Resource" id="Resource_vpp12"]
+script = ExtResource("1_qse88")
+id = "body"
+size = Vector2(61.6, 61.6)
+stat_id = "speed"
+tp_cost = 1.75
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_brr2v"]
+script = ExtResource("1_qse88")
+id = "primary"
+position = Vector2(0, -21.56)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_phase = -0.7
+ability_id = "pulse_cannon"
+mount_id = "primary"
+tp_cost = 0.0
+weapon_hp = 39.0
+
+[sub_resource type="Resource" id="Resource_qanf1"]
+script = ExtResource("1_qse88")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ubw3q"]
+script = ExtResource("1_qse88")
+id = "elite_weapon_0"
+position = Vector2(49.28, 0)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_period = 1.6
+ability_id = "laser_prong"
+mount_id = "elite_weapon_0"
+tp_cost = 0.0
+weapon_hp = 39.0
+
+[sub_resource type="Resource" id="Resource_n8vbc"]
+script = ExtResource("1_qse88")
+id = "elite_weapon_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "elite_weapon_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_0ndqt"]
+script = ExtResource("1_qse88")
+id = "elite_weapon_1"
+position = Vector2(-24.640003, 42.67773)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_phase = -1.3
+ability_id = "egg"
+mount_id = "elite_weapon_1"
+tp_cost = 0.0
+weapon_hp = 39.0
+
+[sub_resource type="Resource" id="Resource_1wyod"]
+script = ExtResource("1_qse88")
+id = "elite_weapon_1_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "elite_weapon_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_vsvvx")
+id = "elite_corruption_t1"
+display_name = "Glitch Heavy"
+breathes = true
+parts = Array[ExtResource("1_qse88")]([SubResource("Resource_vpp12"), SubResource("Resource_brr2v"), SubResource("Resource_qanf1"), SubResource("Resource_ubw3q"), SubResource("Resource_n8vbc"), SubResource("Resource_0ndqt"), SubResource("Resource_1wyod")])
+abilities = Array[String](["pulse_cannon"])
+faction = "elite"
+family = "heavy"
+footprint = 120.560005
+magnet_radius = 90.0
+motion_signature = "breathe"
+tp_used = 7.5
+tp_max = 15.0

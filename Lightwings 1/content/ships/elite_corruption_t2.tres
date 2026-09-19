@@ -1,0 +1,185 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_8f8va"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_m5vxi"]
+
+[sub_resource type="Resource" id="Resource_pnuo6"]
+script = ExtResource("1_8f8va")
+id = "body"
+shape = "ellipse"
+size = Vector2(100.8, 90.72)
+stat_id = "speed"
+tp_cost = 2.5
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_lp1sw"]
+script = ExtResource("1_8f8va")
+id = "lobe_0_l"
+shape = "ellipse"
+position = Vector2(-64.4, 0)
+size = Vector2(18, 13.5)
+layer = 2
+light_phase = -0.7
+mirror_id = "lobe_0_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_f0nsw"]
+script = ExtResource("1_8f8va")
+id = "lobe_0_r"
+shape = "ellipse"
+position = Vector2(64.4, 0)
+size = Vector2(18, 13.5)
+layer = 2
+light_phase = -1.3
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_rygvk"]
+script = ExtResource("1_8f8va")
+id = "link_0_l"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_period = 1.6
+from_id = "body"
+to_id = "lobe_0_l"
+mirror_id = "link_0_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_j08yh"]
+script = ExtResource("1_8f8va")
+id = "link_0_r"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "lobe_0_r"
+mirror_id = "link_0_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_e7dgg"]
+script = ExtResource("1_8f8va")
+id = "primary"
+position = Vector2(0, -35.28)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_phase = -1.3
+ability_id = "pulse_cannon"
+mount_id = "primary"
+tp_cost = 0.0
+weapon_hp = 54.0
+
+[sub_resource type="Resource" id="Resource_qgp5i"]
+script = ExtResource("1_8f8va")
+id = "primary_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_aejm3"]
+script = ExtResource("1_8f8va")
+id = "elite_weapon_0"
+position = Vector2(80.64001, 0)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "laser_prong"
+mount_id = "elite_weapon_0"
+tp_cost = 0.0
+weapon_hp = 54.0
+
+[sub_resource type="Resource" id="Resource_sbhi8"]
+script = ExtResource("1_8f8va")
+id = "elite_weapon_0_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -1.3
+from_id = "body"
+to_id = "elite_weapon_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_n6qgx"]
+script = ExtResource("1_8f8va")
+id = "elite_weapon_1"
+position = Vector2(-3.5248866e-06, 80.64001)
+size = Vector2(22, 22)
+color_role = "red"
+layer = 4
+ability_id = "egg"
+mount_id = "elite_weapon_1"
+tp_cost = 0.0
+weapon_hp = 54.0
+
+[sub_resource type="Resource" id="Resource_sigft"]
+script = ExtResource("1_8f8va")
+id = "elite_weapon_1_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+light_phase = -0.7
+from_id = "body"
+to_id = "elite_weapon_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_nceck"]
+script = ExtResource("1_8f8va")
+id = "elite_weapon_2"
+position = Vector2(-80.64001, -7.049773e-06)
+size = Vector2(22, 22)
+color_role = "green"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "droid_bay"
+mount_id = "elite_weapon_2"
+tp_cost = 0.0
+weapon_hp = 54.0
+
+[sub_resource type="Resource" id="Resource_cbdft"]
+script = ExtResource("1_8f8va")
+id = "elite_weapon_2_link"
+shape = "tether"
+size = Vector2(1, 1)
+layer = 1
+from_id = "body"
+to_id = "elite_weapon_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("2_m5vxi")
+id = "elite_corruption_t2"
+display_name = "Worm Heavy"
+tier = 2
+breathes = true
+parts = Array[ExtResource("1_8f8va")]([SubResource("Resource_pnuo6"), SubResource("Resource_lp1sw"), SubResource("Resource_f0nsw"), SubResource("Resource_rygvk"), SubResource("Resource_j08yh"), SubResource("Resource_e7dgg"), SubResource("Resource_qgp5i"), SubResource("Resource_aejm3"), SubResource("Resource_sbhi8"), SubResource("Resource_n6qgx"), SubResource("Resource_sigft"), SubResource("Resource_nceck"), SubResource("Resource_cbdft")])
+abilities = Array[String](["pulse_cannon"])
+faction = "elite"
+role = "heavy"
+family = "heavy"
+footprint = 183.28001
+magnet_radius = 90.0
+speed = 193.79999999999998
+turn_rate = 8.0
+hp_buffer = 1.3
+damage_multiplier = 1.15
+motion_signature = "breathe"
+tp_used = 11.5
+tp_max = 25.0
