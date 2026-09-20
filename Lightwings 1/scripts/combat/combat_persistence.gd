@@ -117,7 +117,7 @@ static func restore_encounter(world: Node, data: Dictionary) -> void:
 static func snapshot(world: Node) -> Dictionary:
  world._flush_debris() # light must not ride along as an object reference; pay it out first (spec item 3)
  var result: Dictionary=encounter_snapshot(world)
- result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier})
+ result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_commit_speed":world.warp_commit_speed,"warp_reduced":world.warp_reduced})
  return result
 static func restore(world: Node, data: Dictionary) -> void:
  # P4a bumped the schema to 3 (per-circle allow-listed state). An older
@@ -159,6 +159,20 @@ static func restore(world: Node, data: Dictionary) -> void:
  world._rng.state=int(str(data.get("rng_state","1")))
  world.active=bool(data.get("active",true)) and world.light_total>0.0
  world.benchmark_mode=false
+ # Warp state (spec P6 item 6: saving must be safe DURING the locked phase).
+ # Sub-phase timers are not carried across a save/restore boundary - a
+ # restore mid-warp resumes the same phase from its start rather than the
+ # exact millisecond, which is a deliberate simplification (a save only
+ # happens at commit, not on every tick of the lock).
+ world.warp_phase=int(data.get("warp_phase",world.WARP_NONE))
+ var wd: Array=data.get("warp_direction",[0,0])
+ world.warp_direction=Vector2i(int(wd[0]),int(wd[1]))
+ world.warp_commit_speed=float(data.get("warp_commit_speed",0.0))
+ world.warp_reduced=bool(data.get("warp_reduced",false))
+ world._warp_timer=0.0
+ world._warp_locked_accum=0.0
+ world._warp_push_depth=0.0
+ world._warp_swap_done=world.warp_phase==world.WARP_NONE or world.warp_phase==world.WARP_PUSH
 static func json_value(value: Variant) -> Variant:
  if value is Vector2: return {"$v2":[value.x,value.y]}
  if value is Vector2i: return {"$v2i":[value.x,value.y]}

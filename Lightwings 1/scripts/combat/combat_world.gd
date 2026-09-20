@@ -12,9 +12,20 @@ signal event_message(text: String)
 signal attack_performed(element: String, ability: String)
 signal shot_fired(position: Vector2, element: String, ability: String)
 signal boundary_contact(position: Vector2)
+## Spec §12: fired the instant push depth crosses the threshold (control
+## locks, projectiles discarded, player invulnerable). The listener (today
+## `main.gd`, eventually `run_controller.gd`) is expected to swap the sector
+## SYNCHRONOUSLY inside its handler (call `start_sector` then
+## `confirm_warp_swap()`) - GDScript signal emission is synchronous, so this
+## happens before `_warp_commit` returns. If nothing calls
+## `confirm_warp_swap()` by the end of the travel phase, the warp springs
+## back instead of deadlocking (see `_update_warp`).
+signal warp_committed(direction: Vector2i)
+signal warp_arrived
 const Pool = preload("res://scripts/combat/bullet_pool.gd")
 const CombatAI = preload("res://scripts/combat/combat_ai.gd")
 const BulletCanvas = preload("res://scripts/combat/combat_canvas.gd")
+const TrailCanvas = preload("res://scripts/combat/trail_canvas.gd")
 const Arena = preload("res://scripts/combat/circular_arena.gd")
 const ELEMENTS: Array[String] = ["fire","lightning","void","corruption","plasma"]
 const COLORS: Array[Color] = [Color("ff5436"),Color("ffd23f"),Color("9aa3b3"),Color("45e06a"),Color("a97dff")]
@@ -86,6 +97,8 @@ var encounter_epoch: int = -1
 var debris: Array = [] # P4a detachment: each entry is one destroyed circle's subtree, see `_destroy_part`
 var _ability_cache: Dictionary = {}
 var _bullet_canvas: Node2D
+var trail_pool: TrailPool = TrailPool.new()
+var _trail_canvas: Node2D
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Test-only negative controls for the human-like AI limits (spec §14) - never
 ## toggled by gameplay code. `enemy_ai_test.gd` flips these to prove the
@@ -101,6 +114,37 @@ var ai_firing_disabled: bool = false
 var _pickup_collectors: Array = []
 var _shot_source: Dictionary={"id":-1,"faction":-1,"element":"fire"}
 var _last_dt: float = 1.0/60.0
+## --- Dash (spec §13/§26, plan P6 item 2) ------------------------------
+const DASH_BURST_SECONDS: float = 0.18
+const DASH_COOLDOWN_SECONDS: float = 1.2
+const DASH_SPEED_MULT: float = 3.0
+## --- The warp (spec §12, plan P6 item 5) -------------------------------
+## Phases in order; WARP_FADE replaces ZOOM_IN..ZOOM_OUT wholesale when the
+## accessibility "reduced warp" option is on (0.25 s fade, no zoom, no streaks).
+enum {WARP_NONE=0, WARP_PUSH=1, WARP_ZOOM_IN=2, WARP_TRAVEL=3, WARP_ARRIVAL=4, WARP_ZOOM_OUT=5, WARP_FADE=6}
+const WARP_PUSH_SECONDS: float = 0.30
+const WARP_ZOOM_IN_SECONDS: float = 0.12
+const WARP_TRAVEL_SECONDS: float = 0.55
+const WARP_ARRIVAL_SECONDS: float = 0.15
+const WARP_ZOOM_OUT_SECONDS: float = 0.20
+const WARP_REDUCED_SECONDS: float = 0.25
+const WARP_PUSH_SPEED_SCALE: float = 0.4
+const WARP_PUSH_RELEASE_RATE: float = 2.0 # spring-back drains twice as fast as push fills
+var warp_phase: int = WARP_NONE
+var warp_progress: float = 0.0
+var warp_direction: Vector2i = Vector2i.ZERO
+## Accessibility option (spec §12): settable externally (main.gd options).
+var warp_reduced: bool = false
+var warp_commit_speed: float = 0.0
+var warp_entry_speed: float = 0.0
+## Seconds the most recently completed warp actually held control locked for
+## (zoom-in..zoom-out or the reduced fade) - read by `tests/warp_test.gd`
+## instead of asserting the constants sum to what the spec says.
+var warp_locked_measured: float = 0.0
+var _warp_push_depth: float = 0.0
+var _warp_timer: float = 0.0
+var _warp_locked_accum: float = 0.0
+var _warp_swap_done: bool = false
 
 func _ready() -> void:
  _rng.seed=734927
@@ -113,6 +157,11 @@ func _ensure_canvas() -> void:
  _bullet_canvas.world=self
  _bullet_canvas.z_index=40
  add_child(_bullet_canvas)
+ _trail_canvas=TrailCanvas.new()
+ _trail_canvas.world=self
+ _trail_canvas.pool=trail_pool
+ _trail_canvas.z_index=5
+ add_child(_trail_canvas)
 func setup_player(element: String, tier: int, energy: float, _stolen: Array, position: Vector2 = Vector2(896,560)) -> void:
  if not player.is_empty():
   _remove_visual(player)
@@ -226,6 +275,8 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
  actor.definition=definition
  actor.speed=definition.speed
  actor.turn_rate=definition.turn_rate
+ actor.accel=definition.accel
+ actor.drag=definition.drag
  actor.footprint=definition.footprint
  actor.hp_buffer=definition.hp_buffer
  actor.damage_multiplier=definition.damage_multiplier
@@ -516,6 +567,7 @@ func _physics_process(delta: float) -> void:
   section_start=Time.get_ticks_usec()
  _update_effects(dt)
  _update_debris(dt)
+ _update_trails(dt)
  _sync_visuals()
  player_position=player.pos
  player.hp=light_total
@@ -528,30 +580,251 @@ func _physics_process(delta: float) -> void:
  if is_instance_valid(_bullet_canvas):
   _bullet_canvas.sync_pool(bullets)
   _bullet_canvas.queue_redraw()
+ if is_instance_valid(_trail_canvas): _trail_canvas.queue_redraw()
  simulation_ms=(Time.get_ticks_usec()-began)/1000.0
  if profile_sections:
   section_ms.upload=(Time.get_ticks_usec()-section_start)/1000.0
   section_ms.total=simulation_ms
 func _update_player(dt: float) -> void:
  _tick_cooldowns(player,dt)
- var speed: float=float(player.speed)*(1.2 if _has_ability(player,"thrusters") else 1.0)
- var movement: Vector2=command.movement.limit_length(1.0)*speed*_slow_multiplier(player)
- player.vel=movement
- var desired: Vector2=Vector2(player.pos)+movement*dt
- if arena.in_opening(desired): player.pos=desired
+ _update_warp(dt) # phase machine first: settles warp_phase/warp_direction/warp_commit_speed for this tick
+ var locked: bool=warp_locked()
+ if locked:
+  # Control locked (spec §12 commit..zoom-out): momentum carries straight
+  # through in the travel direction at the speed measured at commit. Position
+  # during the locked phases is owned entirely by `_update_warp` (it must
+  # keep moving through the node swap, at a speed `_update_player`'s own
+  # arena-relative clamp cannot reason about mid-swap), so nothing else here
+  # touches position, aim or firing.
+  player.vel=Vector2(warp_direction).normalized()*warp_commit_speed
+  return
+ var thrusters: float=1.2 if _has_ability(player,"thrusters") else 1.0
+ var input_dir: Vector2=command.movement.limit_length(1.0)
+ var warp_scale: float=WARP_PUSH_SPEED_SCALE if warp_phase==WARP_PUSH else 1.0
+ var top_speed: float=float(player.speed)*thrusters*warp_scale
+ var accel: float=float(player.get("accel",1200.0))*thrusters
+ var drag: float=float(player.get("drag",5.0))
+ var slow: float=_slow_multiplier(player)
+ var vel: Vector2=Vector2(player.vel)
+ vel+=(accel*input_dir*slow-drag*vel)*dt
+ if vel.length()>top_speed*slow: vel=vel.limit_length(maxf(0.001,top_speed*slow))
+ vel=_update_dash(dt,input_dir,vel,float(player.speed)*thrusters)
+ player.vel=vel
+ var desired: Vector2=Vector2(player.pos)+vel*dt
+ # While pushing into a membrane (spec §12: "the rim arc deforms outward at
+ # the contact point"), the rim is soft, not a wall - skip the sealed-wall
+ # clamp/friction entirely rather than fighting the 40% speed scale with a
+ # second, contradictory resistance. Bounded on its own: PUSH lasts <=0.30s
+ # at <=40% top speed, so the overshoot (well under 40px for every current
+ # role) stays inside the 80px dead-space margin outside the rim.
+ if arena.contains(desired,3.0) or warp_phase==WARP_PUSH:
+  player.pos=desired
  else:
   var clamped: Vector2=arena.clamp_point(desired,3.0)
   if clamped.distance_squared_to(desired)>0.01:
    boundary_contact.emit(clamped)
    _add_effect("wall",clamped,PLAYER_COLOR,0.2,18.0)
+   # Rim contact (spec §13/plan item 1): remove the velocity component INTO
+   # the wall and scale the tangential component, instead of only clamping
+   # position - so a fast rim graze keeps most of its speed along the wall.
+   var normal: Vector2=arena.normal_at(clamped)
+   var into_wall: float=vel.dot(normal)
+   if into_wall>0.0:
+    vel=(vel-normal*into_wall)*0.9
+    player.vel=vel
   player.pos=clamped
  if command.aim.length_squared()>0.01:
-  var speed_turn: float=float(player.turn_rate)*(1.2 if _has_ability(player,"thrusters") else 1.0)
+  var speed_turn: float=float(player.turn_rate)*thrusters
   player.aim=Vector2.from_angle(rotate_toward(Vector2(player.aim).angle(),command.aim.angle(),speed_turn*dt))
  if command.fire: _fire_primary(player,dt)
  for index: int in range(mini(command.secondaries.size(),player.secondaries.size())):
   if command.secondaries[index]: _use_secondary(player,index)
  _passives(player,dt)
+## Dash (spec §13/§26): 0.18 s burst at 3x top speed along the input
+## direction (falling back to aim, then facing, if there is no input),
+## exits at top speed (so it blends back into the accel/drag model rather
+## than snapping), 1.2 s cooldown measured from the START of the dash.
+## Deliberately touches nothing about `player_invulnerable` - "Not
+## invulnerable" (spec §13) is a property of what this function does NOT do,
+## not a flag it clears; `tests/handling_test.gd` proves a bullet on the
+## core mid-dash still damages, with a forced-invulnerable negative control.
+func _update_dash(dt: float, input_dir: Vector2, vel: Vector2, top_speed: float) -> Vector2:
+ player.dash_cooldown=maxf(0.0,float(player.get("dash_cooldown",0.0))-dt)
+ var timer: float=float(player.get("dash_timer",0.0))
+ if timer>0.0:
+  timer=maxf(0.0,timer-dt)
+  player.dash_timer=timer
+  var dash_dir: Vector2=player.get("dash_dir",Vector2.DOWN)
+  return dash_dir*top_speed if timer<=0.0 else dash_dir*top_speed*DASH_SPEED_MULT
+ if bool(command.dash) and float(player.get("dash_cooldown",0.0))<=0.0:
+  var dir: Vector2=input_dir
+  if dir.length_squared()<=0.0001: dir=command.aim
+  if dir.length_squared()<=0.0001: dir=Vector2(player.aim)
+  dir=dir.normalized()
+  player.dash_dir=dir
+  player.dash_timer=DASH_BURST_SECONDS
+  player.dash_cooldown=DASH_COOLDOWN_SECONDS
+  _add_effect("dash_ring",player.pos,PLAYER_COLOR,0.2,20.0)
+  _trail_kink(0)
+  return dir*top_speed*DASH_SPEED_MULT
+ return vel
+## --- The warp (spec §12) ------------------------------------------------
+func warp_locked() -> bool: return warp_phase!=WARP_NONE and warp_phase!=WARP_PUSH
+## Called once per tick from `_update_player`, before the locked check, so
+## `warp_phase`/`warp_direction`/`warp_commit_speed` are settled before the
+## rest of the tick reads them. Owns every phase transition.
+func _update_warp(dt: float) -> void:
+ if warp_phase==WARP_NONE or warp_phase==WARP_PUSH:
+  _update_warp_push(dt)
+  return
+ _warp_timer+=dt
+ _warp_locked_accum+=dt
+ var direction: Vector2=Vector2(warp_direction).normalized()
+ match warp_phase:
+  WARP_ZOOM_IN:
+   warp_progress=clampf(_warp_timer/WARP_ZOOM_IN_SECONDS,0.0,1.0)
+   if _warp_timer>=WARP_ZOOM_IN_SECONDS:
+    warp_phase=WARP_TRAVEL
+    _warp_timer=0.0
+  WARP_TRAVEL:
+   warp_progress=clampf(_warp_timer/WARP_TRAVEL_SECONDS,0.0,1.0)
+   player.pos=Vector2(player.pos)+direction*warp_commit_speed*dt
+   if _warp_timer>=WARP_TRAVEL_SECONDS:
+    if not _warp_swap_done:
+     _warp_spring_back()
+     return
+    warp_phase=WARP_ARRIVAL
+    _warp_timer=0.0
+    _warp_arrive()
+  WARP_ARRIVAL:
+   warp_progress=clampf(_warp_timer/WARP_ARRIVAL_SECONDS,0.0,1.0)
+   player.pos=Vector2(player.pos)+direction*warp_commit_speed*dt
+   if _warp_timer>=WARP_ARRIVAL_SECONDS:
+    warp_phase=WARP_ZOOM_OUT
+    _warp_timer=0.0
+  WARP_ZOOM_OUT:
+   warp_progress=clampf(_warp_timer/WARP_ZOOM_OUT_SECONDS,0.0,1.0)
+   player.pos=Vector2(player.pos)+direction*warp_commit_speed*dt
+   if _warp_timer>=WARP_ZOOM_OUT_SECONDS: _warp_finish()
+  WARP_FADE:
+   warp_progress=clampf(_warp_timer/WARP_REDUCED_SECONDS,0.0,1.0)
+   if _warp_timer>=WARP_REDUCED_SECONDS:
+    if not _warp_swap_done:
+     _warp_spring_back()
+     return
+    _warp_arrive()
+    _warp_finish()
+## Places the player just inside the OPPOSITE membrane at entry speed (spec
+## §12: "moving at entry speed, so momentum carries through") - the same
+## `entry_position` the pre-P6 instant cut used, just timed to the end of the
+## travel phase instead of the whole transition.
+func _warp_arrive() -> void:
+ warp_entry_speed=warp_commit_speed
+ player.pos=arena.entry_position(warp_direction)
+ player.vel=Vector2(warp_direction).normalized()*warp_commit_speed
+ warp_arrived.emit()
+## Push accumulation while the player presses into an open membrane arc
+## (spec §12 Push: 0.30 s, resists, ~40% speed, releasing before the
+## threshold springs back). Reads the CURRENT position/input directly so it
+## has no ordering dependency on the accel/drag movement computed afterward.
+func _update_warp_push(dt: float) -> void:
+ var dir: Vector2i=_warp_engage_direction()
+ if warp_phase==WARP_NONE:
+  if dir==Vector2i.ZERO: return
+  warp_phase=WARP_PUSH
+  warp_direction=dir
+  _warp_push_depth=0.0
+ if dir==warp_direction and dir!=Vector2i.ZERO:
+  _warp_push_depth=minf(WARP_PUSH_SECONDS,_warp_push_depth+dt)
+ else:
+  _warp_push_depth=maxf(0.0,_warp_push_depth-dt*WARP_PUSH_RELEASE_RATE)
+ warp_progress=_warp_push_depth/WARP_PUSH_SECONDS
+ if _warp_push_depth<=0.0:
+  warp_phase=WARP_NONE
+  warp_direction=Vector2i.ZERO
+  warp_progress=0.0
+  return
+ if _warp_push_depth>=WARP_PUSH_SECONDS: _warp_commit()
+func _warp_engage_direction() -> Vector2i:
+ var pos: Vector2=Vector2(player.pos)
+ var offset: Vector2=pos-arena.center
+ var dist: float=offset.length()
+ if dist<arena.radius-60.0: return Vector2i.ZERO
+ var dir: Vector2i=arena.membrane_at(pos)
+ if dir==Vector2i.ZERO: return Vector2i.ZERO
+ var outward: Vector2=offset.normalized() if dist>0.001 else Vector2(dir)
+ if command.movement.limit_length(1.0).dot(outward)<=0.2: return Vector2i.ZERO
+ return dir
+## Commit (spec §12): control locks, player becomes invulnerable for exactly
+## the locked window's length (so the EXISTING `player_invulnerable` decay in
+## `_physics_process` is what ends the lock - no second timer), and every
+## enemy projectile in the old node is discarded.
+func _warp_commit() -> void:
+ var reduced: bool=warp_reduced
+ warp_phase=WARP_FADE if reduced else WARP_ZOOM_IN
+ warp_progress=0.0
+ _warp_timer=0.0
+ _warp_locked_accum=0.0
+ _warp_swap_done=false
+ warp_commit_speed=Vector2(player.vel).length()
+ var locked_total: float=WARP_REDUCED_SECONDS if reduced else (WARP_ZOOM_IN_SECONDS+WARP_TRAVEL_SECONDS+WARP_ARRIVAL_SECONDS+WARP_ZOOM_OUT_SECONDS)
+ player_invulnerable=maxf(player_invulnerable,locked_total)
+ _discard_enemy_projectiles()
+ warp_committed.emit(warp_direction)
+## Enemy-only discard (spec §12: "all enemy projectiles in the old node are
+## discarded" - the player's own shots are not enemy projectiles). Returns
+## the count discarded so callers/tests can measure it directly.
+func _discard_enemy_projectiles() -> int:
+ var discarded: int=0
+ for slot: int in range(bullets.active_indices.size()-1,-1,-1):
+  var index: int=bullets.active_indices[slot]
+  if bullets.factions[index]!=0:
+   bullets.remove_at(slot)
+   discarded+=1
+ bullet_count=bullets.count()
+ return discarded
+## Called by the node-swap listener (spec P6 item 5, main.gd/run_controller)
+## once the sector has actually been swapped. If this never arrives before
+## the travel phase ends, `_update_warp` springs back instead of deadlocking.
+func confirm_warp_swap() -> void: _warp_swap_done=true
+func _warp_spring_back() -> void:
+ warp_phase=WARP_NONE
+ warp_progress=0.0
+ warp_direction=Vector2i.ZERO
+ _warp_push_depth=0.0
+ _warp_timer=0.0
+ _warp_swap_done=false
+ player_invulnerable=0.0
+ warp_commit_speed=0.0
+func _warp_finish() -> void:
+ warp_locked_measured=_warp_locked_accum
+ warp_phase=WARP_NONE
+ warp_progress=0.0
+ warp_direction=Vector2i.ZERO
+ _warp_push_depth=0.0
+ _warp_timer=0.0
+ _warp_swap_done=false
+ warp_commit_speed=0.0
+## Trails (spec §13/§19/§23): the player always leaves one, longer at higher
+## speed (see trail_pool.gd's sampling rule); enemies leave shorter ones and
+## compete for the 40-trail budget by priority (nearest to the player
+## survives a crowded fight; the player is never dropped).
+func _update_trails(dt: float) -> void:
+ if not visuals_enabled: return
+ var ribbon: bool=warp_phase==WARP_TRAVEL or warp_phase==WARP_ZOOM_IN
+ var player_speed: float=Vector2(player.vel).length()
+ var player_width: float=2.6*clampf(player_speed/float(maxf(1.0,player.speed)),0.35,1.0)
+ if ribbon: player_width*=1.8
+ trail_pool.request(0,player.pos,1.0e9,player_width,PLAYER_COLOR,TrailPool.PLAYER_MAX_POINTS*(3 if ribbon else 1))
+ for actor: Dictionary in enemies:
+  if bool(actor.dead): continue
+  var speed: float=Vector2(actor.vel).length()
+  if speed<1.0: continue
+  var width: float=1.6*clampf(speed/float(maxf(1.0,actor.speed)),0.3,1.0)
+  var priority: float=(500.0 if bool(actor.get("elite",false)) or bool(actor.get("rival",false)) else 100.0)-Vector2(actor.pos).distance_to(player.pos)*0.05
+  trail_pool.request(int(actor.id),actor.pos,priority,width,_actor_color(actor),TrailPool.ENEMY_MAX_POINTS)
+ trail_pool.update(dt)
+func _trail_kink(owner_id: int) -> void: trail_pool.kink(owner_id)
 func _tick_cooldowns(actor: Dictionary, dt: float) -> void:
  actor.fire_cd=maxf(0.0,float(actor.fire_cd)-dt)
  for id: String in actor.cooldowns: actor.cooldowns[id]=maxf(0.0,float(actor.cooldowns[id])-dt)
@@ -1240,7 +1513,7 @@ func remaining_enemies() -> int:
   if not bool(actor.dead): count+=1
  return count
 func combat_status() -> Dictionary:
- return {"enemies":remaining_enemies(),"bullets":bullet_count,"pickups":pickups.size(),"primary_cooldown":float(player.get("fire_cd",0.0)),"secondary_cooldown":float(player.get("secondary_cd",0.0)),"cooldowns":player.get("cooldowns",{}),"simulation_ms":simulation_ms,"projectile_upload_ms":float(_bullet_canvas.get("upload_ms")) if is_instance_valid(_bullet_canvas) else 0.0,"pool_capacity":Pool.CAPACITY,"pool_rejected":bullets.rejected,"resource_remaining":sector_energy_remaining,"resource_paid":sector_energy_paid,"stored_bullets":0,"charge":0.0}
+ return {"enemies":remaining_enemies(),"bullets":bullet_count,"pickups":pickups.size(),"primary_cooldown":float(player.get("fire_cd",0.0)),"secondary_cooldown":float(player.get("secondary_cd",0.0)),"cooldowns":player.get("cooldowns",{}),"simulation_ms":simulation_ms,"projectile_upload_ms":float(_bullet_canvas.get("upload_ms")) if is_instance_valid(_bullet_canvas) else 0.0,"pool_capacity":Pool.CAPACITY,"pool_rejected":bullets.rejected,"resource_remaining":sector_energy_remaining,"resource_paid":sector_energy_paid,"stored_bullets":0,"charge":0.0,"dash_cooldown":float(player.get("dash_cooldown",0.0)),"trail_count":trail_pool.live_count(),"trail_dropped":trail_pool.dropped_count,"warp_phase":warp_phase,"warp_progress":warp_progress}
 func _clamp_point(point: Vector2, margin: float = 0.0) -> Vector2: return arena.clamp_point(point,-margin)
 
 func _remove_visual(actor: Dictionary) -> void:
@@ -1286,6 +1559,7 @@ func _clear_encounter() -> void:
  debris.clear()
  _broadphase.clear()
  contact_timer=0.0
+ trail_pool.clear()
 func _exit_tree() -> void:
  _flush_debris()
  for actor: Dictionary in actors_by_id.values(): _break_actor_cycles(actor)

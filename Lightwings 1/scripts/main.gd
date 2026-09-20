@@ -58,7 +58,7 @@ var slot_overlay: Control
 var slot: String = "campaign"
 var line_queue: Array[Dictionary] = []
 var seen_lines: Dictionary = {}
-var settings: Dictionary = {"volume":0.7,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false}
+var settings: Dictionary = {"volume":0.7,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false,"reduced_warp":false}
 var elapsed_ui: float = 0.0
 var toast_remaining: float = 0.0
 var dialogue_remaining: float = 0.0
@@ -83,6 +83,7 @@ var cloud_sync_ready: bool = false
 var compositor: CombatCompositor
 var mode_config: ModeConfig = ModeConfig.from_demo(false)
 var dev_console: DevConsole
+var _debug_show_warp: bool = false # --show-warp capture aid only, see _process
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -151,6 +152,15 @@ func _ready() -> void:
 			combat.setup_player("fire",1,400,[],Vector2(896,900))
 			combat.start_sector({"id":"p4b_boss","kind":"boss","element":"fire","tier":1,"resource_budget":200,"enemy_hulls":[],"boss_hull":"boss_fire"})
 			settings.auto_fire = true
+			line_queue.clear()
+		elif arg == "--show-warp" and OS.has_feature("editor"):
+			# Debug-only capture aid (plan P6 "LOOK at it"): pins the sim in
+			# WARP_TRAVEL every frame (see `_process`'s `_debug_show_warp`
+			# branch) instead of setting it once, since the state machine
+			# would otherwise spring back a few ticks later with no listener
+			# ever confirming the (nonexistent, in this debug capture) swap.
+			_new_game(false)
+			_debug_show_warp = true
 			line_queue.clear()
 
 func _verify_package() -> void:
@@ -261,6 +271,21 @@ func _draw_slot_icons() -> void:
 		slot_overlay.draw_arc(at,17,-PI/2,-PI/2+TAU*maxf(fill,0.005),32,Color(ink,0.6),1.0,true)
 		var text: String = "LMB" if index==0 else (["SPACE","SHIFT","Q"][index-1] if index<=ship.secondaries.size() else "PASSIVE")
 		slot_overlay.draw_string(ThemeDB.fallback_font,at+Vector2(-22,35),text,HORIZONTAL_ALIGNMENT_CENTER,44,9,Color("9099a8"))
+	_draw_dash_icon()
+
+## Dash cooldown icon (spec §26/plan P6): next to the existing slot icons,
+## one fixed slot to their left rather than indexed with `components` (the
+## dash is not an ability mount).
+func _draw_dash_icon() -> void:
+	var at: Vector2 = Vector2(867-68,752)
+	var cooldown: float = float(combat.player.get("dash_cooldown",0.0))
+	var fill: float = 1.0-clampf(cooldown/CombatWorld.DASH_COOLDOWN_SECONDS,0,1)
+	var ready: bool = cooldown<=0.0
+	var ink: Color = BLUE if ready else MUTED
+	slot_overlay.draw_circle(at,13,Color(ink.r*0.1,ink.g*0.1,ink.b*0.1))
+	slot_overlay.draw_arc(at,13,0,TAU,28,ink,1.5,true)
+	slot_overlay.draw_arc(at,17,-PI/2,-PI/2+TAU*maxf(fill,0.005),32,Color(ink,0.6),1.0,true)
+	slot_overlay.draw_string(ThemeDB.fallback_font,at+Vector2(-22,35),"RMB",HORIZONTAL_ALIGNMENT_CENTER,44,9,Color("9099a8"))
 
 func _draw_radar() -> void:
 	if not is_instance_valid(combat) or not combat.has_passive("radar"): return
@@ -453,6 +478,8 @@ func _start_game_view() -> void:
 	combat.sector_cleared.connect(_on_sector_clear)
 	combat.boss_defeated.connect(_on_boss_defeated)
 	combat.event_message.connect(_toast)
+	combat.warp_committed.connect(_on_warp_committed)
+	combat.warp_reduced = bool(settings.get("reduced_warp",false))
 	compositor = CombatCompositor.new()
 	add_child(compositor)
 	compositor.attach(combat)
@@ -494,6 +521,12 @@ func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> 
 	_save_game()
 
 func _process(delta: float) -> void:
+	if _debug_show_warp and is_instance_valid(combat):
+		combat.warp_direction = Vector2i.RIGHT
+		combat.warp_phase = CombatWorld.WARP_TRAVEL
+		combat.warp_progress = 0.5
+		combat.warp_commit_speed = 260.0
+		combat.player.vel = Vector2.RIGHT*260.0
 	elapsed_ui += delta
 	if platform != null:
 		platform.set_input_context(mode != "play" or get_tree().paused)
@@ -508,8 +541,6 @@ func _process(delta: float) -> void:
 			if combat.player_hp < last_hp:
 				sound.play("hurt")
 			last_hp = combat.player_hp
-			if overlay_kind.is_empty() and not benchmark_mode:
-				_attempt_exit()
 			if combat.remaining_enemies() == 0:
 				_update_dialogue(delta)
 	if benchmark_mode and is_instance_valid(combat) and not get_tree().paused:
@@ -549,6 +580,7 @@ func _physics_process(_delta: float) -> void:
 		last_aim = (compositor.screen_to_world(ui.get_global_mouse_position())-combat.player_position).normalized()
 	command.aim = last_aim
 	command.fire = Input.is_action_pressed("fire") or bool(settings.auto_fire)
+	command.dash = Input.is_action_pressed("dash")
 	command.ability_primary = Input.is_action_just_pressed("ability_primary")
 	command.ability_secondary = Input.is_action_just_pressed("ability_secondary")
 	command.secondary_held = Input.is_action_pressed("ability_secondary")
@@ -590,11 +622,37 @@ func _unhandled_input(event: InputEvent) -> void:
 		_show_evolution()
 		get_viewport().set_input_as_handled()
 
-func _attempt_exit() -> void:
-	var direction: Vector2i = combat.arena.exit_direction(combat.player_position)
-	if direction == Vector2i.ZERO: return
+## Node-to-node transition is now the warp (spec §12/plan P6), not an instant
+## cut: `combat` runs the push/commit/travel state machine itself and fires
+## `warp_committed` the instant control locks. This handler does the sector
+## swap SYNCHRONOUSLY (GDScript signal emission is synchronous), so it is
+## done well before the travel phase ends and `confirm_warp_swap()` is
+## always called in time - the "missing node swap springs back" case is a
+## test-only scenario (nothing connects this signal), not something that can
+## happen in play.
+func _on_warp_committed(direction: Vector2i) -> void:
+	if not is_instance_valid(combat) or campaign == null: return
+	campaign.record_node_left(campaign.current_sector,combat.elapsed,float(combat.sector_energy_remaining))
 	var destination: Vector2i = campaign.current_sector+direction
-	_enter_sector(destination,combat.arena.entry_position(direction))
+	campaign.on_enter(destination)
+	var sector: Dictionary = campaign.sector_at(destination,combat.elapsed)
+	combat.start_sector(sector)
+	combat.confirm_warp_swap()
+	dialogue.visible = false
+	dialogue_remaining = 0.0
+	if str(sector.get("kind","")) == "boss" and not bool(sector.get("boss_down",false)):
+		_queue_line(str(sector.element),"A rival signal",_entry_line(str(sector.element)),"boss_intro_"+str(sector.element))
+	if destination != Vector2i.ZERO:
+		_queue_line("companion","Direction and distance","Direction decides the light you find. Distance decides the danger. Every opening stays open; you can always retreat.","map_tutorial_v2")
+	for actor: Dictionary in combat.enemies:
+		if bool(actor.get("elite",false)):
+			_queue_line("companion","A machine with many hands","That large ship carries several weapons, each with its own rhythm. Watch how its silhouette changes under fire.","first_elite_v2")
+			break
+	# Saves moved off the per-node-entry critical path (plan P6 item 6): this
+	# fires once, here, inside the warp's own locked window - never on the
+	# old instant-cut hot path.
+	_save_game()
+	_refresh_hud()
 
 func _refresh_hud() -> void:
 	if not is_instance_valid(combat) or campaign == null: return
@@ -715,6 +773,7 @@ func _show_level_complete(result: Dictionary) -> void:
 func _on_sector_clear() -> void:
 	sound.play("clear")
 	_toast("NODE CLEAR · "+CampaignState.coord_key(campaign.current_sector))
+	_save_game() # calm moment (plan P6 item 6): once per node, not per tick
 	_save_game()
 
 func _show_evolution() -> void:
@@ -893,11 +952,11 @@ func _show_options() -> void:
 	label(overlay,"OPTIONS & CONTROLS",Vector2(80,55),Vector2(1100,52),34,WHITE)
 	label(overlay,"Set a binding with a key, mouse button, or controller input. Escape cancels capture.",Vector2(82,112),Vector2(1100,28),14,MUTED)
 	var y: float = 170
-	for property: String in ["auto_fire","music","glow","show_elements","fullscreen"]:
+	for property: String in ["auto_fire","music","glow","show_elements","fullscreen","reduced_warp"]:
 		var check := CheckButton.new()
 		check.position = Vector2(85,y)
 		check.size = Vector2(365,40)
-		check.text = {"auto_fire":"Auto-fire","music":"Ambient music","glow":"HDR glow","show_elements":"Element names & pattern labels","fullscreen":"Fullscreen"}[property]
+		check.text = {"auto_fire":"Auto-fire","music":"Ambient music","glow":"HDR glow","show_elements":"Element names & pattern labels","fullscreen":"Fullscreen","reduced_warp":"Reduced warp effect (accessibility)"}[property]
 		check.button_pressed = bool(settings[property])
 		overlay.add_child(check)
 		check.toggled.connect(func(value: bool) -> void: settings[property]=value; apply_settings(); save_settings())
@@ -914,12 +973,22 @@ func _show_options() -> void:
 	slider.value_changed.connect(func(value: float) -> void: settings.volume=value; apply_settings(); save_settings())
 	if platform.online:
 		button(overlay,"STEAM CONTROLLER LAYOUT",Rect2(90,619,350,42),func() -> void: platform.show_input_bindings())
-	y = 150
+	# Two columns (plan P6: ACTIONS grew to 16 with "dash" - a single column
+	# laid out by index at 35px/row reaches y=150+15*35=675 and its ~33px row
+	# collides with DONE at y=711; reflowed into two 8-row columns instead of
+	# shrinking the row height, so bindings stay readable).
+	var half: int = ceili(float(InputBindings.ACTIONS.size())/2.0)
+	var index: int = 0
 	for action: String in InputBindings.ACTIONS:
-		label(overlay,str(InputBindings.ACTIONS[action]),Vector2(520,y+8),Vector2(220,25),14,WHITE)
-		var bind_button: Button = button(overlay,InputBindings.describe(action),Rect2(745,y,445,33),_capture_binding.bind(action))
-		bind_button.add_theme_font_size_override("font_size",12)
-		y += 35
+		var column: int = index/half
+		var row: int = index%half
+		var label_x: float = 520.0 if column==0 else 850.0
+		var button_x: float = 625.0 if column==0 else 955.0
+		var row_y: float = 150.0+float(row)*35.0
+		label(overlay,str(InputBindings.ACTIONS[action]),Vector2(label_x,row_y+8),Vector2(100,25),13,WHITE)
+		var bind_button: Button = button(overlay,InputBindings.describe(action),Rect2(button_x,row_y,200,33),_capture_binding.bind(action))
+		bind_button.add_theme_font_size_override("font_size",11)
+		index += 1
 	button(overlay,"DONE",Rect2(870,711,320,48),_close_overlay).grab_focus()
 
 func _capture_binding(action: String) -> void:
@@ -934,7 +1003,9 @@ func apply_settings() -> void:
 	for preview: Node in get_tree().get_nodes_in_group("ship_previews"):
 		if preview.environment != null: preview.environment.glow_enabled = bool(settings.glow)
 	if environment != null: environment.glow_enabled = bool(settings.glow)
-	if is_instance_valid(combat): combat.show_element_labels = bool(settings.show_elements)
+	if is_instance_valid(combat):
+		combat.show_element_labels = bool(settings.show_elements)
+		combat.warp_reduced = bool(settings.get("reduced_warp",false))
 	if sound != null:
 		sound.volume = float(settings.volume)
 		sound.music_enabled = bool(settings.music)
@@ -980,14 +1051,33 @@ func _show_ending(is_demo: bool) -> void:
 	button(overlay,"KEEP EXPLORING",Rect2(440,545,400,55),_close_overlay).grab_focus()
 	button(overlay,"SAVE & MAIN MENU",Rect2(440,619,400,48),func() -> void: _save_game(); _show_menu())
 
+## Instrumented (plan P6 item 6): `save_timings_ms` is a rolling window a bot
+## run / test can read p95/max off of. Saving itself only happens at calm
+## moments now - warp commit (`_on_warp_committed`), node clear
+## (`_on_sector_clear`), level complete/boss defeat (`_on_boss_defeated`),
+## and pause/menu/quit - never on the old per-node-entry hot path.
+const SAVE_TIMING_WINDOW: int = 500
+var save_timings_ms: Array[float] = []
 func _save_game() -> void:
 	if mode != "play" or campaign == null or not is_instance_valid(combat) or benchmark_mode or testing: return
+	var began: int = Time.get_ticks_usec()
 	var run: Dictionary = {"combat":combat.snapshot(),"pending_offers":pending_offers,"previous_offers":previous_offers,"offer_serial":offer_serial,"seen_lines":seen_lines,"line_queue":line_queue}
 	if combat.light_total <= 0.0: run = {"seen_lines":seen_lines,"previous_offers":previous_offers,"offer_serial":offer_serial}
 	var error: Error = SaveService.save_snapshot(campaign.to_dict(),run,slot)
+	save_timings_ms.append(float(Time.get_ticks_usec()-began)/1000.0)
+	if save_timings_ms.size() > SAVE_TIMING_WINDOW: save_timings_ms.remove_at(0)
 	if error != OK: _toast("Save failed: "+error_string(error))
 	elif platform.online and cloud_sync_ready and mode_config.cloud_enabled():
 		platform.save_cloud(SaveService.encode_snapshot({"profile":campaign.to_dict(),"run":run}),slot)
+
+## p95/max over the rolling timing window (plan P6 item 6's own reporting
+## requirement) - a bot run or test calls this after driving many warps.
+func save_timing_stats() -> Dictionary:
+	if save_timings_ms.is_empty(): return {"count":0,"p95":0.0,"max":0.0}
+	var sorted: Array[float] = save_timings_ms.duplicate()
+	sorted.sort()
+	var p95_index: int = clampi(ceili(0.95*sorted.size())-1,0,sorted.size()-1)
+	return {"count":sorted.size(),"p95":sorted[p95_index],"max":sorted[sorted.size()-1]}
 
 func _show_cloud_review() -> void:
 	_open_overlay("cloud")

@@ -187,10 +187,20 @@ static func _protect_bias(actor: Dictionary) -> float:
 	if total <= 0: return 0.0
 	return clampf(float(right - left) / float(total), -1.0, 1.0) * PROTECT_BIAS_MAX_RAD
 
+## Momentum for enemies (spec v0.3 §13 plan item 1: "Enemies should ease
+## toward their desired velocity rather than teleporting to it"): the same
+## accel/drag model the player uses, just driven by the archetype's
+## `desired` unit vector instead of a live command. `move_toward` on the
+## velocity with an `accel*dt` budget is a cheap, allocation-free ease that
+## reaches the same terminal speed the player's exact accel/drag integral
+## does, without needing a second physics model.
 static func _steer(world, actor: Dictionary, dt: float, base_speed_fraction: float) -> void:
 	var thrusters: float = 1.2 if world._has_ability(actor, "thrusters") else 1.0
 	var desired_aim: Vector2 = actor.get("desired_aim", actor.aim)
 	actor.aim = Vector2.from_angle(rotate_toward(Vector2(actor.aim).angle(), desired_aim.angle(), float(actor.turn_rate) * thrusters * dt))
-	var speed: float = float(actor.speed) * thrusters * base_speed_fraction
-	actor.vel = Vector2(actor.get("desired", Vector2.ZERO)) * speed * world._slow_multiplier(actor)
-	actor.pos = world.arena.clamp_point(Vector2(actor.pos) + Vector2(actor.vel) * dt, 18.0)
+	var top_speed: float = float(actor.speed) * thrusters * base_speed_fraction
+	var accel: float = float(actor.get("accel", 1200.0)) * thrusters
+	var target_vel: Vector2 = Vector2(actor.get("desired", Vector2.ZERO)) * top_speed * world._slow_multiplier(actor)
+	var vel: Vector2 = Vector2(actor.get("vel", Vector2.ZERO)).move_toward(target_vel, accel * dt)
+	actor.vel = vel
+	actor.pos = world.arena.clamp_point(Vector2(actor.pos) + vel * dt, 18.0)

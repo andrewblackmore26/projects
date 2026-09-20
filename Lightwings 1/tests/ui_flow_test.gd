@@ -67,9 +67,19 @@ func _run() -> void:
 	app._enter_sector(destination,app.combat.arena.entry_position(Vector2i.RIGHT),false)
 	check(app.campaign.current_sector == destination and app._sector_known(destination),"Physical transition records discovery")
 	var node: Dictionary = app.campaign.sector_at(destination)
-	app.combat.player_position = Vector2(app.combat.bounds.end.x+3,app.combat.bounds.get_center().y)
-	app._attempt_exit()
-	check(app.campaign.current_sector == Vector2i(2,0),"Uncleared encounter never locks exit")
+	# Transition is now the warp (spec §12/plan P6), not an instant cut on
+	# crossing the rim: press into the RIGHT membrane and hold long enough to
+	# push past the 0.30s threshold and ride out the ~1.0s locked window.
+	# `app.benchmark_mode` (main.gd's own guard) stops `_physics_process` from
+	# overwriting `combat.command` every frame with live (empty) Input state,
+	# while `combat` keeps ticking normally - it is not `combat.benchmark_mode`.
+	app.combat.player_position = Vector2(app.combat.arena.center.x+app.combat.arena.radius-8.0,app.combat.arena.center.y)
+	app.combat.command.movement = Vector2.RIGHT
+	app.benchmark_mode = true
+	await create_timer(1.4,true).timeout
+	app.benchmark_mode = false
+	app.combat.command.movement = Vector2.ZERO
+	check(app.campaign.current_sector == Vector2i(2,0),"Uncleared encounter never locks exit (push-and-commit warp completes the transition)")
 	app.compositor._update_camera()
 	check(app.compositor.screen_to_world(Vector2(640,400)).is_equal_approx(app.combat.player_position),"Mouse aim and camera share world transform")
 	check(app.compositor.background_viewport.canvas_transform.origin == app.compositor.foreground.position,"HDR and foreground camera transforms match")

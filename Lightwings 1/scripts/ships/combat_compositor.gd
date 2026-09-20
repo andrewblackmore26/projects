@@ -14,6 +14,13 @@ var _detaching: bool = false
 var foreground: Node2D
 var camera_offset: Vector2 = Vector2.ZERO
 var follow_player: bool = true
+## Zoom (spec §12/§23): 1.0 in ordinary flight, the warp pushes it to 1.30x
+## centred slightly ahead of the ship in the travel direction. Sourced from
+## the SIM (`world.warp_phase`/`warp_progress`), never a local clock - two
+## time sources is a bug waiting to happen (tasks/lessons.md).
+var zoom: float = 1.0
+const WARP_ZOOM_PEAK: float = 1.30
+const FOCUS_LEAD_PIXELS: float = 90.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -78,12 +85,33 @@ func _process(_delta: float) -> void:
 	_update_camera()
 
 func _update_camera() -> void:
-	camera_offset = Vector2(640, 400) - world.player_position if follow_player else Vector2.ZERO
-	background_viewport.canvas_transform = Transform2D(0.0, camera_offset)
+	zoom = _warp_zoom()
+	var lead: Vector2 = Vector2.ZERO
+	if zoom > 1.001 and world.warp_direction != Vector2i.ZERO:
+		lead = Vector2(world.warp_direction).normalized() * FOCUS_LEAD_PIXELS * clampf((zoom - 1.0) / (WARP_ZOOM_PEAK - 1.0), 0.0, 1.0)
+	var focus: Vector2 = (world.player_position + lead) if follow_player else Vector2.ZERO
+	var screen_center: Vector2 = Vector2(640, 400) if follow_player else Vector2.ZERO
+	camera_offset = screen_center - focus * zoom
+	var xform := Transform2D(0.0, Vector2.ZERO).scaled(Vector2(zoom, zoom))
+	xform.origin = camera_offset
+	background_viewport.canvas_transform = xform
 	foreground.position = camera_offset
+	foreground.scale = Vector2(zoom, zoom)
+
+## Reads the sim's warp phase/progress and turns it into a screen zoom -
+## the same shape as the phase table in spec §12 (zoom in 0.12s to 1.30x,
+## hold through the travel+arrival, zoom out 0.20s back to 1.00x). The
+## reduced-warp accessibility option (WARP_FADE) never zooms at all.
+func _warp_zoom() -> float:
+	if not is_instance_valid(world): return 1.0
+	match world.warp_phase:
+		world.WARP_ZOOM_IN: return lerpf(1.0, WARP_ZOOM_PEAK, world.warp_progress)
+		world.WARP_TRAVEL, world.WARP_ARRIVAL: return WARP_ZOOM_PEAK
+		world.WARP_ZOOM_OUT: return lerpf(WARP_ZOOM_PEAK, 1.0, world.warp_progress)
+		_: return 1.0
 
 func screen_to_world(point: Vector2) -> Vector2:
-	return point - camera_offset
+	return (point - camera_offset) / maxf(0.0001, zoom)
 
 func add_world_overlay(node: Node2D) -> void:
 	foreground.add_child(node)
@@ -93,6 +121,10 @@ func _sync_foreground() -> void:
 	if is_instance_valid(bullets) and bullets.get_parent() != foreground:
 		bullets.reparent(foreground, false)
 		bullets.z_index = 40
+	var trails: Node2D = world._trail_canvas
+	if is_instance_valid(trails) and trails.get_parent() != foreground:
+		trails.reparent(foreground, false)
+		trails.z_index = 5
 	var live_voids: Dictionary = {}
 	for actor: Dictionary in world.actors_by_id.values():
 		var source: ShipRenderer = actor.get("renderer") as ShipRenderer
@@ -135,6 +167,8 @@ func detach() -> void:
 	if is_instance_valid(world) and is_instance_valid(_original_parent):
 		var bullets: Node2D = world._bullet_canvas
 		if is_instance_valid(bullets) and bullets.get_parent() == foreground: bullets.reparent(world, false)
+		var trails: Node2D = world._trail_canvas
+		if is_instance_valid(trails) and trails.get_parent() == foreground: trails.reparent(world, false)
 		for actor: Dictionary in world.actors_by_id.values():
 			var renderer: ShipRenderer = actor.get("renderer") as ShipRenderer
 			if is_instance_valid(renderer):

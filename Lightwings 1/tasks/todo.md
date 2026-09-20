@@ -212,6 +212,19 @@ Carried forward for the review pass (found while verifying earlier phases, none 
 - [ ] `standard_a` and `standard_b` player hulls share geometry and differ only by primary weapon,
   so a tier's four offers read as three shapes (see the P2b-1 review).
 - [ ] `SCREEN_POLICY["intro"]` and `_show_rival_intro` in `main.gd` are dead code with no caller.
+- [ ] **Trails are not a MultiMesh.** §23 says "Trails are pooled segment buffers, not nodes" and
+  names MultiMesh; P6 pooled the buffers but draws them with immediate `draw_line` on one canvas.
+  The "not nodes" requirement and the 40-trail budget hold and the benchmark stays in budget, so
+  this is fidelity to the letter of §23, not a functional gap.
+- [ ] **Warp streak geometry.** §12 wants "radial streaks running from a vanishing point in the
+  travel direction". The capture shows them fanning outward from the ship rather than converging on
+  a point ahead, and only in a cone toward the exit rather than radially across the frame.
+- [ ] `scripts/world/run_controller.gd` was never extracted (deferred at P1, P5b and P6). `main.gd`
+  is now 1298 lines. Nothing depends on it — it is a maintainability item, and the facade contract
+  test keeps the members it would move honest.
+- [ ] The benchmark gate flaked once when run immediately after the GPU and export steps
+  (contention), then measured inside budget on three standalone re-runs. If it recurs, either run
+  the benchmark first in `gates.ps1` or take the best of N runs rather than widening the budget.
 
 ---
 

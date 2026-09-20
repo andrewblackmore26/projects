@@ -26,6 +26,11 @@ extends Resource
 @export var magnet_radius: float = 100.0
 @export var speed: float = 220.0
 @export var turn_rate: float = 10.0
+## Momentum model (spec v0.3 §13): `speed` is the TOP speed a full-input
+## `accel` vs `drag` balance reaches (drag = accel/speed at authoring time, so
+## a full-magnitude input approaches exactly `speed`, never overshoots).
+@export var accel: float = 1200.0
+@export var drag: float = 5.0
 @export var hp_buffer: float = 1.0
 @export var damage_multiplier: float = 1.0
 @export var motion_signature: String = "smooth"

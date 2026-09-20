@@ -122,8 +122,30 @@ static func _add_chained_pair(ship: ShipDefinition, id: String, position: Vector
 	left.mirror_id = right.id
 	right.mirror_id = left.id
 
+## Momentum tuning (spec v0.3 §13, plan P6): "Compact hulls turn far tighter."
+## `drag` is authored as `accel/speed` so a sustained full-magnitude input
+## approaches exactly `speed`, never overshoots it (see ShipDefinition.accel).
+## The plan's own suggested compact numbers (300/2400/8.0) measured a 90deg
+## turn-radius proxy only ~0.79x standard's, short of the plan's own ">=2x
+## tighter" acceptance line - both hulls share the same v^2/accel turn-radius
+## shape, so matching drag/speed ratios (accel/speed, both giving top speed
+## 300) is not enough; compact needed a materially higher accel BEYOND that
+## ratio. Doubled again from the first attempt (2x drag/accel measured
+## ~0.5-0.55x, still a coin flip) to 4x standard's, which measured with
+## headroom - see tasks/todo.md P6 review for the actual numbers.
 static func _base_stats(ship: ShipDefinition) -> void:
-	ship.speed = 220.0 * (1.25 if ship.role == "compact" else 0.85 if ship.role == "heavy" else 1.0)
+	if ship.role == "compact":
+		ship.speed = 300.0
+		ship.accel = 4800.0
+		ship.drag = 16.0
+	elif ship.role == "heavy":
+		ship.speed = 200.0
+		ship.accel = 700.0
+		ship.drag = 3.5
+	else:
+		ship.speed = 240.0
+		ship.accel = 1200.0
+		ship.drag = 5.0
 	ship.turn_rate = 10.0 * (1.25 if ship.role == "compact" else 0.8 if ship.role == "heavy" else 1.0)
 	ship.hp_buffer = 0.8 if ship.role == "compact" else 1.3 if ship.role == "heavy" else 1.0
 	ship.damage_multiplier = 1.15 if ship.role == "heavy" else 1.0

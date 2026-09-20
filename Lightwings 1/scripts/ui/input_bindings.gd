@@ -1,7 +1,7 @@
 class_name InputBindings
 extends RefCounted
 
-const ACTIONS: Dictionary = {"move_up":"Move up", "move_down":"Move down", "move_left":"Move left", "move_right":"Move right", "aim_up":"Aim up", "aim_down":"Aim down", "aim_left":"Aim left", "aim_right":"Aim right", "fire":"Fire primary", "ability_primary":"Secondary 1", "ability_secondary":"Secondary 2", "ability_tertiary":"Secondary 3", "evolve":"Evolve", "map":"Node map", "pause":"Pause"}
+const ACTIONS: Dictionary = {"move_up":"Move up", "move_down":"Move down", "move_left":"Move left", "move_right":"Move right", "aim_up":"Aim up", "aim_down":"Aim down", "aim_left":"Aim left", "aim_right":"Aim right", "fire":"Fire primary", "dash":"Dash", "ability_primary":"Secondary 1", "ability_secondary":"Secondary 2", "ability_tertiary":"Secondary 3", "evolve":"Evolve", "map":"Node map", "pause":"Pause"}
 const PATH: String = "user://controls.cfg"
 
 static func setup() -> void:
@@ -22,6 +22,10 @@ static func setup() -> void:
 	var mouse := InputEventMouseButton.new()
 	mouse.button_index = MOUSE_BUTTON_LEFT
 	InputMap.action_add_event("fire", mouse)
+	var dash_mouse := InputEventMouseButton.new()
+	dash_mouse.button_index = MOUSE_BUTTON_RIGHT
+	InputMap.action_add_event("dash", dash_mouse)
+	axis("dash", JOY_AXIS_TRIGGER_LEFT, 1.0)
 	axis("move_left", JOY_AXIS_LEFT_X, -1.0)
 	axis("move_right", JOY_AXIS_LEFT_X, 1.0)
 	axis("move_up", JOY_AXIS_LEFT_Y, -1.0)

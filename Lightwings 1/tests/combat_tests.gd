@@ -311,8 +311,12 @@ func test_regular_patterns() -> void:
  w.setup_player("fire",3,300,[],w.arena.center-Vector2(w.arena.radius-4.0,0))
  w.player.slow=2.0
  w.command.movement=Vector2.LEFT
- for i: int in range(6): w._update_player(1.0/60.0)
- check(w.player.pos.x<w.arena.center.x-w.arena.radius,"Slowed ships can traverse membranes without getting trapped at collision margin")
+ # P6: instant free-pass through a membrane is gone (spec §12 - it is the
+ # push/commit warp now). Push depth is TIME-based, not distance-based, so a
+ # slowed ship is not trapped at the rim: it still accumulates push and
+ # commits within the same 0.30s window an unslowed ship does.
+ for i: int in range(20): w._update_player(1.0/60.0)
+ check(w.warp_phase!=w.WARP_NONE and w.warp_phase!=w.WARP_PUSH,"Slowed ships still commit a push into the membrane, unslowed by collision margin")
  var fire_drone_hi: String=ShipGenerator.hull_id("enemy","drone","fire",5)
  w.start_sector({"id":"beaten","kind":"boss","boss_down":true,"element":"fire","tier":5,"resource_budget":200,"enemy_hulls":[fire_drone_hi,fire_drone_hi],"boss_hull":"boss_fire"})
  var rivals: int=0
@@ -421,6 +425,8 @@ func test_authored_runtime_contract() -> void:
  actor.desired_aim=Vector2.RIGHT
  actor.aim=Vector2.UP
  actor.fire_cd=10.0
+ actor.vel=Vector2.ZERO # P6: velocity now EASES toward target (accel/drag), so a stale
+                        # velocity from a previous step would corrupt this proportional check.
  w._update_ai(actor,0.01)
  var base_speed: float=Vector2(actor.vel).length()
  var base_turn: float=absf(Vector2.UP.angle_to(actor.aim))
@@ -431,6 +437,7 @@ func test_authored_runtime_contract() -> void:
  actor.desired_aim=Vector2.RIGHT
  actor.aim=Vector2.UP
  actor.fire_cd=10.0
+ actor.vel=Vector2.ZERO
  w._update_ai(actor,0.01)
  check(is_equal_approx(Vector2(actor.vel).length(),base_speed*1.2) and is_equal_approx(absf(Vector2.UP.angle_to(actor.aim)),base_turn*1.2),"NPC Thrusters changes both speed and turn rate")
  definition.passives.clear()

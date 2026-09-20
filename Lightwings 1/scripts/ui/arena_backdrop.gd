@@ -6,6 +6,7 @@ extends Node2D
 var world: CombatWorld
 var flashes: Array[Dictionary] = []
 var dead_zone_clip_enabled: bool = true # Test-only knob for the dead-zone negative control.
+var canvas_scale_override: float = -1.0 # Test-only knob: forces canvas_scale to a fixed value instead of reading the live transform.
 const WALL_COLOR: Color = Color("747e8c")
 const MEMBRANE_COLOR: Color = Color("bfe3ff")
 
@@ -24,6 +25,9 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	if not is_instance_valid(world): return
+	# Constant in screen space at any zoom (spec §17/§23), including during
+	# the warp's 1.30x push - the same technique `ship_renderer.gd` uses.
+	var canvas_scale: float = canvas_scale_override if canvas_scale_override>0.0 else maxf(0.01,get_global_transform_with_canvas().get_scale().abs().x)
 	var player: Vector2 = world.player_position
 	draw_rect(Rect2(player-Vector2(800,500),Vector2(1600,1000)),Color("050507"))
 	var tint: Color = ShipCatalog.get_color(str(world.sector.get("element","fire")))
@@ -42,15 +46,37 @@ func _draw() -> void:
 			var c: Vector2 = b+Vector2(13,13 if index%2==0 else -13)
 			# Dead space beyond the rim shows no trace pixels: skip any segment that leaves it.
 			if dead_zone_clip_enabled and (a.distance_to(center)>dead_limit or b.distance_to(center)>dead_limit or c.distance_to(center)>dead_limit): continue
-			draw_line(a,b,ink,1.0,true)
-			draw_line(b,c,ink,1.0,true)
-			draw_circle(a,1.2,ink)
-	draw_arc(center,world.arena.radius,0,TAU,64,WALL_COLOR,1.5,true)
+			draw_line(a,b,ink,1.0/canvas_scale,true)
+			draw_line(b,c,ink,1.0/canvas_scale,true)
+			draw_circle(a,1.2/canvas_scale,ink)
+	draw_arc(center,world.arena.radius,0,TAU,64,WALL_COLOR,1.5/canvas_scale,true)
 	for direction: Vector2i in world.arena.exits:
 		var mid: float = world.arena.direction_angle(direction)
 		var half: float = world.arena.membrane_half_angle
-		draw_arc(center,world.arena.radius,mid-half,mid+half,16,MEMBRANE_COLOR,3.5,true)
+		# Push (spec §12): "the arc brightens as push depth builds" - only the
+		# arc the player is actually pressing into.
+		var brighten: float = world.warp_progress if world.warp_phase==CombatWorld.WARP_PUSH and direction==world.warp_direction else 0.0
+		draw_arc(center,world.arena.radius,mid-half,mid+half,16,MEMBRANE_COLOR.lerp(Color.WHITE,brighten*0.6),(3.5+brighten*3.5)/canvas_scale,true)
 	for flash: Dictionary in flashes:
 		var ink: Color = Color.WHITE
 		ink.a = float(flash.time)/0.22
-		draw_arc(flash.point,9,0,TAU,24,ink,2.6,true)
+		draw_arc(flash.point,9,0,TAU,24,ink,2.6/canvas_scale,true)
+	if world.warp_phase in [CombatWorld.WARP_ZOOM_IN,CombatWorld.WARP_TRAVEL,CombatWorld.WARP_ARRIVAL]: _draw_streaks(player,canvas_scale)
+
+## Warp streaks (spec §12: "background traces stretch into radial streaks
+## running from a vanishing point in the travel direction... length ramps up,
+## holds, then collapses"). No motion blur - hard-edged lines, ramped by the
+## SIM's own warp_progress, never a local clock.
+func _draw_streaks(player: Vector2, canvas_scale: float) -> void:
+	var ramp: float = 1.0
+	if world.warp_phase==CombatWorld.WARP_ZOOM_IN: ramp=world.warp_progress
+	elif world.warp_phase==CombatWorld.WARP_ARRIVAL: ramp=1.0-world.warp_progress
+	var length: float = 260.0*ramp
+	if length<=1.0: return
+	var vanishing: Vector2 = player+Vector2(world.warp_direction).normalized()*640.0
+	var ink: Color = Color(0.82,0.9,1.0,0.4*ramp)
+	for index: int in range(28):
+		var angle: float = TAU*index/28.0
+		var base: Vector2 = player+Vector2.from_angle(angle)*36.0
+		var dir: Vector2 = (vanishing-base).normalized() if base.distance_squared_to(vanishing)>1.0 else Vector2(world.warp_direction)
+		draw_line(base,base+dir*length,ink,1.5/canvas_scale,true)

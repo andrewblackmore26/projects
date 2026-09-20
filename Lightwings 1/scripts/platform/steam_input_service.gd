@@ -2,7 +2,7 @@ class_name SteamInputService
 extends RefCounted
 
 const MANIFEST: String = "res://content/platform/steam_input_manifest.vdf"
-const DIGITAL_ACTIONS: Array[String] = ["Fire", "ComponentPrimary", "ComponentSecondary", "ComponentTertiary", "Evolve", "Map", "Pause", "MenuConfirm", "MenuBack", "MenuUp", "MenuDown", "MenuLeft", "MenuRight"]
+const DIGITAL_ACTIONS: Array[String] = ["Fire", "Dash", "ComponentPrimary", "ComponentSecondary", "ComponentTertiary", "Evolve", "Map", "Pause", "MenuConfirm", "MenuBack", "MenuUp", "MenuDown", "MenuLeft", "MenuRight"]
 const FORWARD_ACTIONS: Dictionary = {"Evolve": "evolve", "Map": "map", "Pause": "pause", "MenuConfirm": "ui_accept", "MenuBack": "ui_cancel", "MenuUp": "ui_up", "MenuDown": "ui_down", "MenuLeft": "ui_left", "MenuRight": "ui_right"}
 var steam: Object
 var ready: bool = false
@@ -95,6 +95,7 @@ func get_command(fallback_aim: Vector2 = Vector2.UP) -> ShipCommand:
 	command.movement = movement.limit_length(1.0)
 	command.aim = aim.normalized() if aim.length() > 0.12 else fallback_aim
 	command.fire = bool(buttons.get("Fire", false))
+	command.dash = bool(buttons.get("Dash", false))
 	command.ability_primary = _primary_pending
 	command.ability_secondary = _secondary_pending
 	command.secondary_held = bool(buttons.get("ComponentSecondary", false))

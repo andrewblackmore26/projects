@@ -14,6 +14,7 @@
 			"Button"
 			{
 				"Fire" "#Action_Fire"
+				"Dash" "#Action_Dash"
 				"ComponentPrimary" "#Action_Primary"
 				"ComponentSecondary" "#Action_Secondary"
 				"ComponentTertiary" "#Action_Tertiary"
@@ -49,6 +50,7 @@
 			"Action_Move" "Move"
 			"Action_Aim" "Aim direction"
 			"Action_Fire" "Fire"
+			"Action_Dash" "Dash"
 			"Action_Primary" "Secondary weapon 1"
 			"Action_Secondary" "Secondary weapon 2"
 			"Action_Tertiary" "Secondary weapon 3"

@@ -8,3 +8,4 @@ var secondaries: Array[bool] = [false, false, false]
 var ability_primary: bool = false
 var ability_secondary: bool = false
 var secondary_held: bool = false
+var dash: bool = false
