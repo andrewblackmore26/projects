@@ -42,7 +42,11 @@ func _make_pass(label: String, order: int) -> MultiMeshInstance2D:
 	batch.mesh = geometry
 	batch.instance_count = INITIAL_CAPACITY
 	batch.visible_instance_count = 0
-	batch.custom_aabb = AABB(Vector3(-256, -256, -1), Vector3(2304, 1632, 2))
+	# Fixed, generous AABB: a MultiMeshInstance2D caches its culling rect from the
+	# instances present at its first draw, and in live play that first frame is empty.
+	# Circular arena centre (896,560) radius 800, plus the black-hole special_radius
+	# reach of 171 and slack on every side, sits well inside this box.
+	batch.custom_aabb = AABB(Vector3(-400, -800, -1), Vector3(2600, 2800, 2))
 	instance.multimesh = batch
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = ProjectileShader

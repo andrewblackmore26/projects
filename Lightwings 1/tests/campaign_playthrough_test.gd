@@ -110,8 +110,8 @@ func _bot_command(combat: CombatWorld) -> ShipCommand:
 		var miss: Vector2 = relative-velocity*time
 		if miss.length()<26.0: avoidance += miss.normalized() if miss.length()>1.0 else velocity.normalized().orthogonal()
 	if not avoidance.is_zero_approx(): command.movement = (command.movement+avoidance*2.0).normalized()
-	var center: Vector2 = GameTuning.ARENA_SIZE*0.5
-	var edge: Vector2 = (position-center)/(GameTuning.ARENA_SIZE*0.5-Vector2.ONE*100.0)
+	var center: Vector2 = GameTuning.ARENA_CENTER
+	var edge: Vector2 = (position-center)/(GameTuning.ARENA_RADIUS-100.0)
 	if edge.length()>0.85: command.movement = (command.movement-edge.normalized()*1.5).normalized()
 	return command
 

@@ -14,7 +14,7 @@ signal shot_fired(position: Vector2, element: String, ability: String)
 signal boundary_contact(position: Vector2)
 const Pool = preload("res://scripts/combat/bullet_pool.gd")
 const BulletCanvas = preload("res://scripts/combat/combat_canvas.gd")
-const Arena = preload("res://scripts/combat/rounded_arena.gd")
+const Arena = preload("res://scripts/combat/circular_arena.gd")
 const ELEMENTS: Array[String] = ["fire","lightning","void","corruption","plasma"]
 const COLORS: Array[Color] = [Color("ff5436"),Color("ffd23f"),Color("9aa3b3"),Color("45e06a"),Color("a97dff")]
 const PLAYER_COLOR: Color = Color("6fd3ff")
@@ -93,7 +93,7 @@ func _ready() -> void:
  _rng.seed=734927
  _broadphase.world=self
  _ensure_canvas()
- if player.is_empty(): setup_player("neutral",1,40,[],arena.bounds.get_center())
+ if player.is_empty(): setup_player("neutral",1,40,[],arena.center)
 func _ensure_canvas() -> void:
  if is_instance_valid(_bullet_canvas): return
  _bullet_canvas=BulletCanvas.new()
@@ -284,7 +284,7 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   return
  var kind: String=str(sector.get("kind","regular"))
  if kind=="origin":
-  for i: int in range(3): _drop_pickup(arena.bounds.get_center()+Vector2((i-1)*64,190),["fire","corruption","plasma"][i],5)
+  for i: int in range(3): _drop_pickup(arena.center+Vector2((i-1)*64,190),["fire","corruption","plasma"][i],5)
   cleared_emitted=true
   return
  if bool(sector.get("cleared",false)):
@@ -295,15 +295,15 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
  var distance: float=float(sector.get("distance",tier*3))
  var population: int=mini(45,int(sector.get("enemy_count",4+int(distance)*0.7)))
  for i: int in range(population):
-  var p: Vector2=arena.bounds.get_center()+Vector2.from_angle(TAU*i/maxi(1,population))*Vector2(550,330)
-  if p.distance_to(player_position)<180.0: p=arena.bounds.get_center()*2.0-p
+  var p: Vector2=arena.center+Vector2.from_angle(TAU*i/maxi(1,population))*(arena.radius*0.55)
+  if p.distance_to(player_position)<180.0: p=arena.center*2.0-p
   _spawn_enemy(element,tier,p,false)
  var elite_count: int=int(sector.get("elite_count",1 if distance>=6.0 and _rng.randf()<minf(0.65,distance*0.02) else 0))
- for i: int in range(elite_count): _spawn_elite(element,tier,arena.bounds.get_center()+Vector2(150*(i-1),-200))
+ for i: int in range(elite_count): _spawn_elite(element,tier,arena.center+Vector2(150*(i-1),-200))
  if kind in ["core","demo_core"] and not bool(sector.get("core_defeated",false)):
-  var rival: Dictionary=_spawn_enemy(element,tier,arena.bounds.get_center()+Vector2(0,-230),true)
+  var rival: Dictionary=_spawn_enemy(element,tier,arena.center+Vector2(0,-230),true)
   if not rival.is_empty(): rival.core_id=str(sector.get("core_id",element))
- for i: int in range(3): _drop_pickup(arena.bounds.get_center()+Vector2(_rng.randf_range(-400,400),_rng.randf_range(-220,220)),element,1)
+ for i: int in range(3): _drop_pickup(arena.center+Vector2(_rng.randf_range(-400,400),_rng.randf_range(-220,220)),element,1)
 
 func _physics_process(delta: float) -> void:
  if not active or player.is_empty(): return
@@ -322,7 +322,7 @@ func _physics_process(delta: float) -> void:
  player.invulnerable=player_invulnerable
  beams.clear()
  if benchmark_mode:
-  var target_position: Vector2=arena.bounds.get_center()+Vector2(cos(elapsed*0.35)*360.0,sin(elapsed*0.35)*200.0)
+  var target_position: Vector2=arena.center+Vector2(cos(elapsed*0.35)*360.0,sin(elapsed*0.35)*200.0)
   command.movement=((target_position-Vector2(player.pos))/100.0).limit_length(1.0)
   command.aim=Vector2.from_angle(elapsed*0.55)
   command.fire=true
@@ -1029,7 +1029,7 @@ func debug_clear() -> void:
  _cleanup_dead()
 func benchmark(count: int) -> void:
  _clear_encounter()
- setup_player("plasma",5,1500,[],arena.bounds.get_center())
+ setup_player("plasma",5,1500,[],arena.center)
  set_player_hull("player_plasma_t5_heavy")
  command.aim=Vector2.RIGHT
  benchmark_mode=true

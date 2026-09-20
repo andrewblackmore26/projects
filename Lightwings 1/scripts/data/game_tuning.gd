@@ -19,8 +19,11 @@ const ELEMENTS: Array[String] = ["fire", "corruption", "plasma", "lightning", "v
 const CORE_DISTANCES: Array[int] = [8, 14, 20, 26, 32]
 const WAYPOINT_INTERVAL: int = 6
 const TP_BUDGETS: Array[float] = [6.0, 10.0, 15.0, 21.0, 28.0, 36.0]
-const ARENA_SIZE: Vector2 = Vector2(1792, 1120)
-const ARENA_MARGIN: float = 80.0
+## Kept equal to the old 1792x1120 rounded-rect arena's centre and area so enemy
+## density and the benchmark stay comparable (see docs/LIGHTSHIP_GAME_SPEC_V3.md preamble).
+const ARENA_CENTER: Vector2 = Vector2(896, 560)
+const ARENA_RADIUS: float = 800.0
+const ARENA_MARGIN: float = 80.0 # Dead space beyond the rim; nothing playable exists out there.
 const SHIELD_DURATION: float = 2.0
 const SHIELD_COOLDOWN: float = 8.0
 

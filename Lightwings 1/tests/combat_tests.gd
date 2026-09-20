@@ -80,19 +80,20 @@ func test_progression() -> void:
  release(w)
 func test_arena_collision() -> void:
  var w: CombatWorld=make_world()
- check(w.arena.bounds.size==Vector2(1792,1120),"Arena is 1.4 viewport dimensions")
- check(not w.arena.contains(Vector2.ZERO),"Rounded corner excludes rectangular corner")
- check(w.arena.contains(w.arena.clamp_point(Vector2(-100,-100),3),3),"Corner clamp is inside wall")
- check(w.arena.exit_direction(Vector2(-1,560))==Vector2i.LEFT,"Only marked opening accepts exit")
- check(w.arena.exit_direction(Vector2(-1,300))==Vector2i.ZERO,"Wall between openings prevents exit")
- check(w.arena.entry_position(Vector2i.RIGHT).x==44,"East travel enters west edge")
+ check(not w.arena.contains(w.arena.center+Vector2(w.arena.radius+1,0)),"Circular rim excludes a point just past the radius")
+ var clamped: Vector2=w.arena.clamp_point(w.arena.center+Vector2(w.arena.radius+50,0),3)
+ check(w.arena.contains(clamped,3),"Clamp of a far point lands inside the wall")
+ check(w.arena.exit_direction(w.arena.center+Vector2(w.arena.radius+1,0))==Vector2i.RIGHT,"Only a marked membrane accepts exit")
+ check(w.arena.exit_direction(w.arena.center+Vector2.from_angle(PI*0.25)*(w.arena.radius+1))==Vector2i.ZERO,"Wall between membranes prevents exit")
+ check(w.arena.entry_position(Vector2i.RIGHT)==w.arena.center-Vector2(w.arena.radius-44.0,0),"East travel enters just inside the west membrane")
  w.arena.exits.assign([Vector2i.LEFT,Vector2i.RIGHT])
- check(w.arena.exit_direction(Vector2(896,-1))==Vector2i.ZERO,"Unconnected direction has no exit")
+ check(w.arena.exit_direction(w.arena.center+Vector2(0,-(w.arena.radius+1)))==Vector2i.ZERO,"Unconnected direction has no exit")
  w._rebuild_actor_grid()
- w.bullets.add(Vector2(1750,560),Vector2(1000,0),-1,5,3,0,0,0)
+ var edge: Vector2=w.arena.center+Vector2(w.arena.radius-46.0,0)
+ w.bullets.add(edge,Vector2(1000,0),-1,5,3,0,0,0)
  w._update_bullets(0.1)
  check(w.bullets.count()==0,"Ordinary shot dies exactly at wall")
- w.bullets.add(Vector2(1750,560),Vector2(1000,0),-1,5,3,0,0,0,Pool.RICOCHET)
+ w.bullets.add(edge,Vector2(1000,0),-1,5,3,0,0,0,Pool.RICOCHET)
  w._update_bullets(0.1)
  var idx: int=w.bullets.active_indices[0]
  check(w.bullets.velocities[idx].x<0 and w.arena.contains(w.bullets.positions[idx],3),"Ricochet reflects remaining movement inside wall")
@@ -267,11 +268,11 @@ func test_regular_patterns() -> void:
    w._update_bullets(0.2)
    check(actor.hp==hp-7,"Void core remains vulnerable from behind")
  w._clear_encounter()
- w.setup_player("fire",3,300,[],Vector2(4,560))
+ w.setup_player("fire",3,300,[],w.arena.center-Vector2(w.arena.radius-4.0,0))
  w.player.slow=2.0
  w.command.movement=Vector2.LEFT
  for i: int in range(6): w._update_player(1.0/60.0)
- check(w.player.pos.x<0,"Slowed ships can traverse openings without getting trapped at collision margin")
+ check(w.player.pos.x<w.arena.center.x-w.arena.radius,"Slowed ships can traverse membranes without getting trapped at collision margin")
  w.start_sector({"id":"beaten","kind":"core","core_defeated":true,"element":"fire","tier":5,"resource_budget":200,"enemy_count":2})
  var rivals: int=0
  for actor: Dictionary in w.enemies:

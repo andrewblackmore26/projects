@@ -331,10 +331,10 @@ func _new_game(is_demo: bool) -> void:
 	seen_lines = {}
 	line_queue.clear()
 	_start_game_view()
-	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_SIZE*0.5)
+	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
 	combat.max_player_tier = mode_config.max_tier()
 	_queue_line("companion","Your first light","Your white core is your hitbox. Hollow light circles heal you and fill the same bar that grows your ship. Fly through an opening and find your first fight.","welcome_v2")
-	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_SIZE*0.5,false)
+	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
 
 func _continue_game(save_slot: String) -> void:
 	var snapshot: Dictionary = SaveService.load_snapshot(save_slot)
@@ -357,8 +357,8 @@ func _continue_game(save_slot: String) -> void:
 	_start_game_view()
 	combat.max_player_tier = mode_config.max_tier()
 	if run.get("combat",{}).is_empty():
-		combat.setup_player("neutral",1,40,[],GameTuning.ARENA_SIZE*0.5)
-		_enter_sector(Vector2i.ZERO,GameTuning.ARENA_SIZE*0.5,false)
+		combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
+		_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
 	else:
 		combat.restore(run.combat)
 	absorbed = combat.absorption
@@ -726,7 +726,7 @@ func _select_map_sector(coord: Vector2i) -> void:
 func _teleport_selected() -> void:
 	if campaign.can_teleport(map_selected,combat.player_tier):
 		_close_overlay()
-		_enter_sector(map_selected,GameTuning.ARENA_SIZE*0.5,false)
+		_enter_sector(map_selected,GameTuning.ARENA_CENTER,false)
 		sound.play("evolve")
 
 func _sector_description(coord: Vector2i) -> String:
@@ -877,8 +877,8 @@ func _on_death() -> void:
 func _reboot() -> void:
 	pending_offers.clear()
 	_close_overlay()
-	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_SIZE*0.5)
-	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_SIZE*0.5,false)
+	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
+	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
 	_queue_line("companion","You persisted","Your waypoints, discoveries, and defeated cores remain. Rebuild your lightship, then jump from the origin to a waypoint your tier can handle.","reboot_v2_"+str(campaign.deaths))
 
 func _show_ending(is_demo: bool) -> void:
