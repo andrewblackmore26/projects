@@ -81,6 +81,18 @@ static func _roster_ids(element: String, tier: int) -> Array[String]:
 		if not id.is_empty() and id not in result: result.append(id)
 	return result
 
+## Spec §4, Dev mode: "all hulls available at every evolution". Every next-tier hull of every
+## element, in a stable order (element order, then the roster's own order) so the tab strip and its
+## tests see the same list every time. Campaign and demo never call this - they use `offers` above,
+## which is the real three-card rule.
+static func all_offers(tier: int) -> Array[String]:
+	var result: Array[String] = []
+	if tier < 1 or tier >= Tuning.MAX_TIER: return result
+	for element: String in ROOT_ORDER:
+		for id: String in _roster_ids(element, tier + 1):
+			if id not in result: result.append(id)
+	return result
+
 static func _shuffle(values: Array[String], rng: RandomNumberGenerator) -> void:
 	for index: int in range(values.size() - 1, 0, -1):
 		var other: int = rng.randi_range(0, index)

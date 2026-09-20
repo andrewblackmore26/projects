@@ -1,7 +1,7 @@
 class_name SaveService
 extends RefCounted
 
-const SCHEMA_VERSION: int = 3
+const SCHEMA_VERSION: int = SchemaVersion.CURRENT
 const MAX_SAVE_BYTES: int = 16 * 1024 * 1024
 static var storage_root: String = "user://saves"
 static var last_load_source: String = ""
@@ -27,6 +27,9 @@ static func load_snapshot(slot: String = "campaign") -> Dictionary:
 		found_candidate = found_candidate or FileAccess.file_exists(candidate)
 		var snapshot: Dictionary = _read_snapshot(candidate)
 		if not snapshot.is_empty():
+			if not _mode_matches_slot(snapshot.get("profile", {}), slot):
+				last_error = "Save mode does not match slot; refusing to load"
+				continue
 			last_load_source = candidate
 			return _migrate_gameplay(snapshot, candidate, slot)
 	if found_candidate:
@@ -75,7 +78,11 @@ static func _migrate_gameplay(snapshot: Dictionary, source: String, slot: String
 	# Settings, Steam ledgers and generic transport fixtures are not campaigns.
 	if not (profile.has("world_seed") or profile.has("current_sector") or profile.has("territories")):
 		return snapshot
-	if int(profile.get("schema_version", 1)) >= 3:
+	# Bug fixed in P5b: this compared against the literal 3 even after
+	# GAMEPLAY_VERSION became 4, so every genuine schema-3 save short-
+	# circuited here and NEVER reached the archive-writing code below --
+	# no .legacy-v3 file was ever created. Compare against the live ceiling.
+	if int(profile.get("schema_version", 1)) >= SchemaVersion.CURRENT:
 		return snapshot
 	var original: PackedByteArray = FileAccess.get_file_as_bytes(source)
 	var legacy_path: String = snapshot_path(slot) + ".legacy-v%d" % int(profile.get("schema_version", 1))
@@ -104,7 +111,7 @@ static func _migrate_gameplay(snapshot: Dictionary, source: String, slot: String
 ## still be installed and archived by load_snapshot after the user's choice.
 static func preview_migration(snapshot: Dictionary) -> Dictionary:
 	var profile: Dictionary = snapshot.get("profile", {})
-	if not (profile.has("world_seed") or profile.has("current_sector") or profile.has("territories")) or int(profile.get("schema_version", 1)) >= 3:
+	if not (profile.has("world_seed") or profile.has("current_sector") or profile.has("territories")) or int(profile.get("schema_version", 1)) >= SchemaVersion.CURRENT:
 		return snapshot.duplicate(true)
 	var campaign_script: GDScript = preload("res://scripts/world/campaign_state.gd")
 	var campaign: RefCounted = campaign_script.new()
@@ -151,11 +158,12 @@ static func decode_snapshot(bytes: PackedByteArray) -> Dictionary:
 		return {}
 	return _validate_snapshot(snapshot)
 
-## Highest CampaignState gameplay schema this build understands (P5: v0.3
-## world model bumped CampaignState.GAMEPLAY_VERSION 3 -> 4). Kept as a
-## literal, not a preload of campaign_state.gd, to avoid a load-order cycle;
-## bump this whenever GAMEPLAY_VERSION moves.
-const MAX_KNOWN_GAMEPLAY_SCHEMA: int = 4
+## Highest CampaignState gameplay schema this build understands. Shares
+## SchemaVersion.CURRENT with CampaignState.GAMEPLAY_VERSION and the save
+## envelope's own SCHEMA_VERSION (P5b: "bump the envelope and gameplay
+## versions together through ONE shared constant" -- v0.2 had the literal 3
+## written separately in several places).
+const MAX_KNOWN_GAMEPLAY_SCHEMA: int = SchemaVersion.CURRENT
 
 static func _validate_snapshot(snapshot: Dictionary) -> Dictionary:
 	if not snapshot.get("profile") is Dictionary or not snapshot.get("run") is Dictionary:
@@ -163,6 +171,15 @@ static func _validate_snapshot(snapshot: Dictionary) -> Dictionary:
 	if int(snapshot["profile"].get("schema_version", 1)) > MAX_KNOWN_GAMEPLAY_SCHEMA:
 		return {}
 	return {"profile": snapshot["profile"].duplicate(true), "run": snapshot["run"].duplicate(true)}
+
+## A profile that names its own mode must agree with the slot it is loaded
+## from (spec P5b: "a load whose mode does not match its slot is rejected").
+## Pre-v4 profiles carry no `mode` field at all and are tolerated here --
+## `_migrate_gameplay`/CampaignState.from_dict handle them.
+static func _mode_matches_slot(profile: Dictionary, slot: String) -> bool:
+	if not profile.has("mode") or slot not in ["campaign", "dev", "demo"]:
+		return true
+	return str(profile.get("mode", slot)) == slot
 
 static func _valid_slot(slot: String) -> bool:
 	if slot.is_empty() or slot.length() > 64:

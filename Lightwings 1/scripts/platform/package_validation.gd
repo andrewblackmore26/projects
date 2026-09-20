@@ -26,6 +26,18 @@ func run(app: Node) -> void:
 	check(Engine.has_singleton("Steam"), "Packaged GodotSteam extension loads")
 	check(FileAccess.file_exists("res://content/platform/steam_input_manifest.vdf"), "Input manifest is packaged")
 	check(FileAccess.file_exists("res://addons/godotsteam/license.md"), "Extension license is packaged")
+	## Every export preset excludes scripts/editor/*; dev_console.gd and
+	## mode_config.gd live outside that folder specifically so Dev mode can
+	## start in a shipped build. A silent failure here (the PCK not carrying
+	## the script) would otherwise only surface as an unclickable menu
+	## button, which is exactly the kind of thing this build-time check
+	## exists to catch instead.
+	var console_script: GDScript = load("res://scripts/ui/dev_console.gd")
+	check(console_script != null and console_script.get_global_name() == "DevConsole", "dev_console.gd is packaged and loads from the PCK")
+	check(DevConsole.parse("tier 3 fire").ok, "Packaged DevConsole parser runs")
+	var mode_config_script: GDScript = load("res://scripts/world/mode_config.gd")
+	check(mode_config_script != null and mode_config_script.get_global_name() == "ModeConfig", "mode_config.gd is packaged and loads from the PCK")
+	check(("dev" in ModeConfig.available_modes(expected_demo)) == (not expected_demo), "Dev mode is reachable only in the full (non-demo) package")
 	SaveService.storage_root = "user://package-validation-"+str(Time.get_ticks_usec())
 	app.testing = true
 	await tree.process_frame

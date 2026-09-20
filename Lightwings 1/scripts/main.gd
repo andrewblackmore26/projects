@@ -49,6 +49,8 @@ var absorbed: Dictionary = {}
 var pending_offers: Array[String] = []
 var previous_offers: Array[String] = []
 var offer_serial: int = 0
+## Which element's four hulls the evolution screen is showing when every hull is on offer (dev mode).
+var evolution_tab: String = ""
 var map_center: Vector2i = Vector2i.ZERO
 var tier_ticks: Control
 var radar_overlay: Control
@@ -80,11 +82,12 @@ var cloud_review: Dictionary = {}
 var cloud_sync_ready: bool = false
 var compositor: CombatCompositor
 var mode_config: ModeConfig = ModeConfig.from_demo(false)
+var dev_console: DevConsole
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for argument: String in OS.get_cmdline_user_args():
-		if argument.begins_with("--capture=") or argument in ["--benchmark","--show-evolution","--show-map","--verify-package"]:
+		if argument.begins_with("--capture=") or argument.begins_with("--show-map-level=") or argument in ["--benchmark","--show-evolution","--show-map","--show-dev-console","--verify-package"]:
 			testing = true
 	InputBindings.setup()
 	load_settings()
@@ -127,6 +130,13 @@ func _ready() -> void:
 		elif arg == "--show-map" and OS.has_feature("editor"):
 			_new_game(false)
 			_show_map()
+		elif arg.begins_with("--show-map-level=") and OS.has_feature("editor"):
+			_new_game_as("dev")
+			campaign.travel_to_level(int(arg.trim_prefix("--show-map-level=")))
+			_show_map()
+		elif arg == "--show-dev-console" and OS.has_feature("editor"):
+			_new_game_as("dev")
+			if is_instance_valid(dev_console): dev_console.toggle()
 		elif arg == "--show-combat" and OS.has_feature("editor"):
 			_new_game(false)
 			combat.setup_player("plasma",4,750,[],Vector2(896,560))
@@ -218,7 +228,10 @@ func _build_hud() -> void:
 	slot_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(slot_overlay)
 	slot_overlay.draw.connect(_draw_slot_icons)
-	evolution_button = button(hud,"EVOLUTION READY · E",Rect2(845,738,405,43),_show_evolution)
+	## Pill under the bar (spec §24: slot icons and the evolve prompt must
+	## coexist, not overlap -- moved off the slot-icon strip at y=752).
+	evolution_button = button(hud,"EVOLUTION READY · E",Rect2(845,690,405,22),_show_evolution)
+	evolution_button.add_theme_font_size_override("font_size",12)
 	evolution_button.visible = false
 	minimap = Control.new()
 	minimap.position = Vector2(1057,101)
@@ -229,7 +242,11 @@ func _build_hud() -> void:
 	hud.visible = false
 
 func _draw_slot_icons() -> void:
-	if not is_instance_valid(combat) or evolution_button.visible: return
+	## Spec §24: slot icons with cooldowns AND the evolve prompt are both
+	## required on screen at once (P1 left this returning early because they
+	## used to overlap -- the evolve pill moved in _build_hud so they no
+	## longer do; slot icons must stay visible regardless of its visibility).
+	if not is_instance_valid(combat): return
 	var ship: ShipDefinition = combat.player.get("definition")
 	if ship == null: return
 	var components: Array[String] = ship.mounted_components()
@@ -284,19 +301,26 @@ func _show_menu() -> void:
 		combat = null
 	if is_instance_valid(sector_edges): sector_edges.queue_free()
 	if is_instance_valid(compositor): compositor.queue_free()
+	if is_instance_valid(dev_console): dev_console.queue_free()
+	dev_console = null
 	clear(menu)
 	menu.visible = true
 	label(menu,"AN INSTANCE AWAKENS",Vector2(76,77),Vector2(600,30),13,GOLD)
 	label(menu,"LIGHTSHIP",Vector2(70,124),Vector2(650,100),76,WHITE)
 	label(menu,"Absorb light. Become something new.",Vector2(78,238),Vector2(570,38),23,MUTED)
 	label(menu,"A living machine in a world of rival minds.\nLight is your health. Grow, reshape, and survive.",Vector2(78,294),Vector2(550,65),16,MUTED)
-	var menu_slot: String = "demo" if OS.has_feature("demo") else "campaign"
+	## Available modes for THIS build flavour (spec §4: a demo build offers
+	## demo only -- Dev must never be reachable there). The old "PLAY THE
+	## DEMO" full-build entry is gone: the demo is its own build flavour now
+	## (approved preamble), not a menu option inside the full campaign.
+	var available_modes: Array[String] = ModeConfig.available_modes(OS.has_feature("demo"))
+	var menu_slot: String = ModeConfig.from_id(available_modes[0]).save_slot()
 	var exists: bool = not SaveService.load_snapshot(menu_slot).is_empty() or FileAccess.file_exists(SaveService.snapshot_path(menu_slot))
-	var primary: Button = button(menu,("CONTINUE " if exists else "BEGIN ")+menu_slot.to_upper(),Rect2(78,395,375,52),func() -> void: _continue_game(menu_slot) if exists else _new_game(OS.has_feature("demo")))
-	if OS.has_feature("demo"):
-		if exists: button(menu,"NEW DEMO",Rect2(78,460,375,48),_confirm_new.bind(true))
-	else:
-		button(menu,"PLAY THE DEMO",Rect2(78,460,375,48),func() -> void: _continue_game("demo") if not SaveService.load_snapshot("demo").is_empty() else _new_game(true))
+	var primary: Button = button(menu,("CONTINUE " if exists else "BEGIN ")+menu_slot.to_upper(),Rect2(78,395,375,52),func() -> void: _continue_game(menu_slot) if exists else _show_level_select(available_modes[0]))
+	if "dev" in available_modes:
+		button(menu,"DEV MODE",Rect2(78,460,375,48),_show_level_select.bind("dev"))
+	if exists and OS.has_feature("demo"):
+		button(menu,"NEW DEMO",Rect2(78,637,181,36),_confirm_new.bind(true))
 	if OS.has_feature("editor"):
 		button(menu,"SHIP WORKSHOP",Rect2(78,521,181,44),_open_editor)
 		button(menu,"SHIP ATLAS",Rect2(271,521,182,44),_open_gallery)
@@ -323,12 +347,36 @@ func _show_menu() -> void:
 		label(menu,root.to_upper(),preview.position+Vector2(20,222),Vector2(180,25),12,ShipCatalog.get_color(root)).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	primary.grab_focus()
 
-func _new_game(is_demo: bool) -> void:
-	is_demo = is_demo or OS.has_feature("demo")
-	mode_config = ModeConfig.from_demo(is_demo)
+## Level select (spec §4: "Menu: Campaign and Dev mode, each with level
+## select"). Campaign offers levels 1..completed+1; dev offers all five.
+## This chooses where a NEW run starts; an existing "continue" resumes
+## exactly where the profile left off and does not go through this screen.
+func _show_level_select(mode_id: String) -> void:
+	var config := ModeConfig.from_id(mode_id)
+	var completed: Array = []
+	var snapshot: Dictionary = SaveService.load_snapshot(config.save_slot())
+	if not snapshot.is_empty(): completed.assign(snapshot.get("profile",{}).get("levels_completed",[]))
+	_open_overlay("confirm")
+	label(overlay,"SELECT A LEVEL · "+config.menu_label(),Vector2(200,120),Vector2(880,52),30,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var levels: Array[int] = config.selectable_levels(completed)
+	var first: Button
+	for index: int in range(levels.size()):
+		var level: int = levels[index]
+		var choice: Button = button(overlay,"LEVEL %d · %s" % [level,GameTuning.ELEMENTS[mini(level-1,GameTuning.ELEMENTS.size()-1)].to_upper()],Rect2(200+float(index%2)*440,220+float(index/2)*70,400,52),_begin_at_level.bind(mode_id,level))
+		if first == null: first = choice
+	button(overlay,"CANCEL",Rect2(480,560,320,45),_close_overlay)
+	if first != null: first.grab_focus()
+
+func _begin_at_level(mode_id: String, level: int) -> void:
+	_close_overlay()
+	_new_game_as(mode_id)
+	if level > 1: _travel_to_level(level)
+
+func _new_game_as(mode_id: String) -> void:
+	mode_config = ModeConfig.from_id(mode_id)
 	slot = mode_config.save_slot()
 	campaign = CampaignState.new()
-	campaign.configure(is_demo)
+	campaign.configure_mode(mode_id)
 	campaign.world_seed = randi() if not testing else 734927
 	absorbed = {}
 	pending_offers.clear()
@@ -342,6 +390,15 @@ func _new_game(is_demo: bool) -> void:
 	_queue_line("companion","Your first light","Your white core is your hitbox. Hollow light circles heal you and fill the same bar that grows your ship. Fly through an opening and find your first fight.","welcome_v2")
 	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
 
+## Kept for the many call sites (and tests) that only ever asked the old
+## binary demo/campaign question.
+func _new_game(is_demo: bool) -> void:
+	_new_game_as("demo" if (is_demo or OS.has_feature("demo")) else "campaign")
+
+func _travel_to_level(level: int) -> void:
+	campaign.travel_to_level(level)
+	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
+
 func _continue_game(save_slot: String) -> void:
 	var snapshot: Dictionary = SaveService.load_snapshot(save_slot)
 	if snapshot.is_empty():
@@ -353,7 +410,7 @@ func _continue_game(save_slot: String) -> void:
 	slot = save_slot
 	campaign = CampaignState.new()
 	campaign.from_dict(snapshot.get("profile",{}))
-	mode_config = ModeConfig.from_demo(campaign.demo)
+	mode_config = ModeConfig.from_id(campaign.mode)
 	var run: Dictionary = snapshot.get("run",{})
 	pending_offers.assign(run.get("pending_offers",[]))
 	previous_offers.assign(run.get("previous_offers",[]))
@@ -406,6 +463,15 @@ func _start_game_view() -> void:
 	compositor.add_world_overlay(sector_edges)
 	last_hp = 100.0
 	apply_settings()
+	if is_instance_valid(dev_console): dev_console.queue_free()
+	dev_console = null
+	## Dev console: spec §4 "stays in the shipped build", present only for
+	## dev-mode saves (mode_isolation_test.gd checks the node's presence is
+	## exactly the console_enabled() guard, both ways).
+	if mode_config.console_enabled():
+		dev_console = DevConsole.new()
+		hud.add_child(dev_console)
+		dev_console.command_submitted.connect(_on_dev_command)
 
 func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> void:
 	if is_instance_valid(combat) and not combat.sector.is_empty():
@@ -587,6 +653,28 @@ func _on_regression(from_tier: int, to_tier: int) -> void:
 func _on_shot_fired(at: Vector2, element: String, _ability: String) -> void:
 	sound.play_at(element,at-combat.player_position)
 
+## Applies a validated DevConsole.parse() result. Only ever reachable when
+## mode_config.console_enabled() (the dev_console node does not exist
+## otherwise), so this never needs to re-check the mode guard itself.
+func _on_dev_command(result: Dictionary) -> void:
+	if not bool(result.get("ok",false)) or not is_instance_valid(combat): return
+	match str(result.get("command","")):
+		"tier":
+			var args: Dictionary = result.args
+			var element: String = str(args.get("element","")) if not str(args.get("element","")).is_empty() else combat.player_element
+			var tier: int = int(args.tier)
+			# evolve_hull only permits a +1 step above threshold; the console
+			# is a debug jump to ANY tier, so it goes through the same
+			# adapter the ship editor/tests use to force an exact tier.
+			combat.evolve_player(element,tier,[])
+		"level":
+			_travel_to_level(int(result.args.level))
+		"light":
+			combat.collect_light(float(result.args.amount),combat.player_element if not combat.player_element.is_empty() else "lightning")
+		"help":
+			pass
+	_refresh_hud()
+
 func _achieve(id: String) -> void:
 	if mode_config.achievements_enabled(): platform.unlock_achievement(id)
 
@@ -596,6 +684,9 @@ func _on_rival_reward(_component: String, _offered_root: String) -> void:
 
 func _on_boss_defeated(element: String) -> void:
 	if element.is_empty(): return
+	# CampaignState.complete_level() is itself idempotent (tasks/todo.md:
+	# "call it every time a boss dies; it only fires level_completed... the
+	# first time"), so this handler needs no separate guard of its own.
 	var result: Dictionary = campaign.complete_level()
 	_queue_line(element,"A rival yields",_defeat_line(element),"defeat_v2_"+element)
 	_achieve("FIRST_RIVAL")
@@ -604,8 +695,22 @@ func _on_boss_defeated(element: String) -> void:
 			_achieve("CAMPAIGN_COMPLETE")
 			_show_ending(false)
 		else:
-			_show_ending(true)
+			_show_level_complete(result)
 	_save_game()
+
+## Level complete (spec §4/§11): reveal the next element, unlock the next
+## level, grant the achievement (already through the mode guard, `_achieve`
+## above), and offer CONTINUE TO LEVEL N+1 / KEEP EXPLORING.
+func _show_level_complete(result: Dictionary) -> void:
+	var next_level: int = int(result.get("next_level",campaign.level+1))
+	var revealed: String = str(result.get("revealed_element",""))
+	_open_overlay("ending")
+	label(overlay,"LEVEL %d COMPLETE" % campaign.level,Vector2(100,220),Vector2(1080,70),35,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var text: String = "The rival's signal yields.\n%s light now reveals itself in the world." % revealed.capitalize() if not revealed.is_empty() else "The rival's signal yields."
+	label(overlay,text,Vector2(150,340),Vector2(980,80),22,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button(overlay,"CONTINUE TO LEVEL %d" % next_level,Rect2(440,470,400,55),_begin_at_level.bind(mode_config.id,next_level)).grab_focus()
+	button(overlay,"KEEP EXPLORING",Rect2(440,545,400,48),_close_overlay)
+	button(overlay,"SAVE & MAIN MENU",Rect2(440,619,400,48),func() -> void: _save_game(); _show_menu())
 
 func _on_sector_clear() -> void:
 	sound.play("clear")
@@ -617,7 +722,9 @@ func _show_evolution() -> void:
 	if combat.player_tier >= mode_config.max_tier() or combat.light_total < EvolutionRules.threshold(combat.player_tier): return
 	if not overlay_kind.is_empty() and overlay_kind != "evolution": return
 	if pending_offers.is_empty():
-		pending_offers = EvolutionRules.offers(combat.player_element,combat.player_tier,combat.absorption,campaign.unlocked,previous_offers,campaign.world_seed+offer_serial)
+		# Spec §4: dev mode offers every next-tier hull, campaign and demo the ranked three.
+		if mode_config.offer_policy() == "all_hulls": pending_offers = EvolutionRules.all_offers(combat.player_tier)
+		else: pending_offers = EvolutionRules.offers(combat.player_element,combat.player_tier,combat.absorption,campaign.unlocked,previous_offers,campaign.world_seed+offer_serial)
 		previous_offers.assign(pending_offers)
 		offer_serial += 1
 		_save_game()
@@ -626,7 +733,28 @@ func _show_evolution() -> void:
 	label(overlay,"Choose a lightship. Every weapon and passive shown belongs to that hull.",Vector2(110,110),Vector2(1060,35),17,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var first: Button
 	var x: float = 125.0
-	for id: String in pending_offers:
+	# With every hull on offer (dev mode) the cards are grouped behind a one-element-at-a-time tab
+	# strip: 20 cards will not fit, and 20 live ShipPreviews would mean 20 HDR SubViewports.
+	var shown: Array[String] = pending_offers
+	if pending_offers.size() > 3:
+		var by_element: Dictionary = {}
+		for id: String in pending_offers:
+			var ship: ShipDefinition = ShipCatalog.get_ship(id)
+			if ship == null: continue
+			if not by_element.has(ship.element): by_element[ship.element] = [] as Array[String]
+			by_element[ship.element].append(id)
+		var elements: Array = by_element.keys()
+		if not elements.has(evolution_tab): evolution_tab = str(elements[0]) if not elements.is_empty() else ""
+		var tab_x: float = 125.0
+		for element: String in elements:
+			var tab: Button = button(overlay,element.to_upper(),Rect2(tab_x,128,190,30),func() -> void:
+				evolution_tab = element
+				_close_overlay()
+				_show_evolution())
+			tab.disabled = element == evolution_tab
+			tab_x += 200.0
+		shown = by_element.get(evolution_tab,[] as Array[String])
+	for id: String in shown:
 		var ship: ShipDefinition = ShipCatalog.get_ship(id)
 		if ship == null: continue
 		var ink: Color = ShipCatalog.get_color(ship.element)
@@ -657,49 +785,43 @@ func _choose_evolution(id: String) -> void:
 	_queue_line("companion","A different kind of you","Each visible part belongs to your new build. Follow another dialect's light when you want a different future.","first_evolution_v2")
 	_save_game()
 
-## NOTE (P5a): this is a minimal compiling stand-in for the map screen. The
-## real MinimapModel-backed map/level-select screen is P5b scope (see
-## tasks/todo.md P5); waypoints and teleport are gone per spec (§7: "a fresh
-## seed every life" -- layouts re-roll, so a remembered coordinate means
-## nothing once you die).
+## The full map screen (spec §11). MinimapModel is the single source of
+## truth: the whole level fits on screen at every level radius (R up to 12
+## -> a 25x25 grid), so there is no panning, no waypoint picker, no JUMP.
 func _show_map() -> void:
 	if mode != "play" or not is_instance_valid(combat) or (not overlay_kind.is_empty() and overlay_kind != "map"): return
-	if overlay_kind != "map": map_center = campaign.current_sector
 	_open_overlay("map")
-	label(overlay,"THE AI-VERSE",Vector2(85,50),Vector2(620,52),34,WHITE)
-	label(overlay,"Direction chooses the light. Distance chooses the danger.",Vector2(87,109),Vector2(1000,30),16,MUTED)
-	var radius: int = 4
-	var cell: float = 53.0
-	var origin := Vector2(88,183)
-	for y: int in range(-radius,radius+1):
-		for x: int in range(-radius,radius+1):
-			var coord: Vector2i = map_center+Vector2i(x,y)
-			var known: bool = _sector_known(coord)
-			var text: String = ""
-			if known and coord == campaign.boss_coord() and campaign.in_bounds(coord): text = "◎"
-			if not campaign.in_bounds(coord): text = "▦"
-			if coord == Vector2i.ZERO: text = "O"
-			if coord == campaign.current_sector: text = "●"
-			var tile: Button = button(overlay,text,Rect2(origin+Vector2(x+radius,y+radius)*cell,Vector2(cell-4,cell-4)),_select_map_sector.bind(coord))
-			var ink: Color = _sector_color(coord,known)
-			tile.add_theme_stylebox_override("normal",box(Color(ink,0.10) if known else Color("07080c"),Color(ink,0.45)))
-			tile.add_theme_color_override("font_color",ink)
-			tile.tooltip_text = _sector_description(coord)
-	button(overlay,"←",Rect2(88,675,60,36),_pan_map.bind(Vector2i.LEFT*4))
-	button(overlay,"↑",Rect2(158,675,60,36),_pan_map.bind(Vector2i.UP*4))
-	button(overlay,"↓",Rect2(228,675,60,36),_pan_map.bind(Vector2i.DOWN*4))
-	button(overlay,"→",Rect2(298,675,60,36),_pan_map.bind(Vector2i.RIGHT*4))
-	button(overlay,"ORIGIN",Rect2(369,675,90,36),func() -> void: map_center=Vector2i.ZERO; _show_map())
-	button(overlay,"YOU",Rect2(469,675,90,36),func() -> void: map_center=campaign.current_sector; _show_map())
-	panel(overlay,Rect2(605,183,588,321),Color("0d1018"),Color("303a49"))
-	map_detail = label(overlay,"",Vector2(630,203),Vector2(536,201),17,WHITE)
-	label(overlay,"● You   ◎ Boss   ▦ Sealed perimeter\nUnexplored nodes stay dark. Layouts re-roll every life (spec §7).",Vector2(630,587),Vector2(536,98),15,MUTED)
+	label(overlay,"THE AI-VERSE",Vector2(85,20),Vector2(620,40),28,WHITE)
+	var model: MinimapModel = MinimapModel.build(campaign)
+	label(overlay,"Boss bearing: %s · %d nodes" % [model.bearing_direction,model.bearing_distance],Vector2(87,58),Vector2(1000,26),16,GOLD)
+	var side: int = model.grid_size()
+	var area: float = 600.0
+	var cell: float = area/float(side)
+	var origin := Vector2(80,92)
+	for map_cell: MinimapModel.Cell in model.cells:
+		var local: Vector2i = map_cell.coord+Vector2i(model.radius,model.radius)
+		var at: Vector2 = origin+Vector2(local)*cell
+		var tile: Button = button(overlay,"",Rect2(at,Vector2(cell-1.5,cell-1.5)),_select_map_sector.bind(map_cell.coord))
+		var ink: Color = _sector_color(map_cell.coord,map_cell.explored)
+		var fill: Color = Color(ink,0.14) if map_cell.explored else Color("050608")
+		var border: Color = Color(ink,0.55) if map_cell.explored else Color("1c2028")
+		# A Chebyshev disc IS the square this grid draws, so the sealed
+		# perimeter is the OUTERMOST RING, not a set of excluded cells: those
+		# nodes' membranes never open outward (spec §11 "sits on the
+		# perimeter"). Draw that ring as a solid wall regardless of element.
+		var is_perimeter: bool = not map_cell.in_bounds or CampaignState.ring(map_cell.coord) == model.radius
+		if is_perimeter:
+			fill = Color("0b0d12") if not map_cell.in_bounds else fill
+			border = MUTED
+		tile.add_theme_stylebox_override("normal",box(fill,border,3 if is_perimeter else 1))
+		tile.tooltip_text = _sector_description(map_cell.coord)
+		if map_cell.is_boss: label(overlay,"◎",at,Vector2(cell,cell),12,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		elif map_cell.current: label(overlay,"●",at,Vector2(cell,cell),12,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel(overlay,Rect2(700,92,480,412),Color("0d1018"),Color("303a49"))
+	map_detail = label(overlay,"",Vector2(725,112),Vector2(430,201),17,WHITE)
+	label(overlay,"● You   ◎ Boss (bearing above, from the first tick)\nDark = unexplored, reveals nothing. Wall border = sealed perimeter.\nLayouts re-roll every life (spec §7).",Vector2(725,330),Vector2(430,140),15,MUTED)
 	button(overlay,"RETURN TO FLIGHT",Rect2(870,721,320,45),_close_overlay).grab_focus()
 	_select_map_sector(campaign.current_sector)
-
-func _pan_map(offset: Vector2i) -> void:
-	map_center += offset
-	_show_map()
 
 func _select_map_sector(coord: Vector2i) -> void:
 	map_selected = coord
@@ -727,23 +849,28 @@ func _draw_minimap() -> void:
 	if campaign == null or not is_instance_valid(combat): return
 	const CELL: float = 18.0
 	var center := Vector2(93,93)
+	var model: MinimapModel = MinimapModel.build(campaign)
 	minimap.draw_rect(Rect2(Vector2(-5,-5),Vector2(196,217)),Color(0.02,0.025,0.035,0.94))
 	var perimeter_radius: int = campaign.level_radius()
-	minimap.draw_arc(center,perimeter_radius*CELL,0,TAU,64,Color(MUTED,0.5),2.0,true)
-	for y: int in range(-4,5):
-		for x: int in range(-4,5):
-			var coord: Vector2i = campaign.current_sector+Vector2i(x,y)
-			if not campaign.in_bounds(coord) or not _sector_known(coord): continue
-			var at: Vector2 = center+Vector2(x,y)*CELL
-			var ink: Color = _sector_color(coord,true)
-			minimap.draw_circle(at,5.0,Color(ink,0.16))
-			minimap.draw_arc(at,5.0,0,TAU,16,Color(ink,0.7),1.0,true)
+	minimap.draw_arc(center,perimeter_radius*CELL,0,TAU,64,Color(MUTED,0.5),2.0,true) # perimeter as a solid wall
+	for map_cell: MinimapModel.Cell in model.cells:
+		var offset: Vector2i = map_cell.coord-campaign.current_sector
+		if maxi(absi(offset.x),absi(offset.y)) > 4: continue # local window only; boss marker (below) is unwindowed
+		if not map_cell.in_bounds: continue
+		var at: Vector2 = center+Vector2(offset)*CELL
+		if not map_cell.explored:
+			minimap.draw_circle(at,4.0,Color("13161d")) # unexplored: dark, discloses nothing
+			continue
+		var ink: Color = _sector_color(map_cell.coord,true)
+		minimap.draw_circle(at,5.0,Color(ink,0.16))
+		minimap.draw_arc(at,5.0,0,TAU,16,Color(ink,0.7),1.0,true)
 	minimap.draw_circle(center,3,BLUE)
-	var boss: Vector2i = campaign.boss_coord()
-	var direction: Vector2 = Vector2(boss-campaign.current_sector)
+	# Boss marker + bearing, present from the first tick regardless of the
+	# local window above (spec §11 M3: "always knows which way the boss is").
+	var direction: Vector2 = Vector2(model.boss_coord-campaign.current_sector)
 	if not direction.is_zero_approx():
-		minimap.draw_circle(center+direction.normalized()*87,3,ShipCatalog.get_color(str(campaign.sector_at(boss).get("element",""))))
-	minimap.draw_string(ThemeDB.fallback_font,Vector2(3,203),"RING %d · T%d" % [CampaignState.ring(campaign.current_sector),combat.player_tier],HORIZONTAL_ALIGNMENT_LEFT,180,12,MUTED)
+		minimap.draw_circle(center+direction.normalized()*87,3,ShipCatalog.get_color(str(campaign.sector_at(model.boss_coord).get("element",""))))
+	minimap.draw_string(ThemeDB.fallback_font,Vector2(3,203),"RING %d · T%d · BOSS %s %d" % [CampaignState.ring(campaign.current_sector),combat.player_tier,model.bearing_direction,model.bearing_distance],HORIZONTAL_ALIGNMENT_LEFT,180,12,MUTED)
 
 func _show_rival_intro(sector: Dictionary) -> void:
 	var element: String = str(sector.get("element","fire"))

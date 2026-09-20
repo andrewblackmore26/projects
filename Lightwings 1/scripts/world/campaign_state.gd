@@ -24,7 +24,7 @@ const Tuning = preload("res://scripts/data/game_tuning.gd")
 const DEFAULT_CAMPAIGN = preload("res://content/campaign/default_campaign.tres")
 const DIRECTIONS: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
 const ELEMENTS: Array[String] = Tuning.ELEMENTS
-const GAMEPLAY_VERSION: int = 4
+const GAMEPLAY_VERSION: int = SchemaVersion.CURRENT
 
 var mode: String = "campaign"
 var demo: bool = false
@@ -35,6 +35,10 @@ var unlocked: Array = []
 var levels_completed: Array = []
 var best_ring: Dictionary = {}
 var story_flags: Dictionary = {}
+## Discarded state from a migrated pre-v4 save, keyed "schema_<N>_unlocked"
+## (spec preamble: "unlocks reset to Lightning" -- the old list survives here
+## instead of vanishing, per tasks/todo.md P5b save-schema item).
+var legacy_history: Dictionary = {}
 
 var level: int = 1
 var current_sector: Vector2i = Vector2i.ZERO
@@ -50,14 +54,22 @@ func _init() -> void:
 	configure(false)
 
 func configure(is_demo: bool) -> void:
-	mode = "demo" if is_demo else "campaign"
-	demo = is_demo
+	configure_mode("demo" if is_demo else "campaign")
+
+## Mode-aware configure (campaign / dev / demo -- spec §4). `demo` is kept as
+## a plain bool field for the many call sites that only ever asked the old
+## binary question; `mode` is the source of truth ModeConfig.from_id reads.
+func configure_mode(mode_id: String) -> void:
+	mode = mode_id if mode_id in ["campaign", "dev", "demo"] else "campaign"
+	demo = mode == "demo"
 	epoch = 0
 	deaths = 0
-	unlocked = [ELEMENTS[0]]
+	## Dev mode: "every element unlocked from the start" (spec §4).
+	unlocked = ELEMENTS.duplicate() if mode == "dev" else [ELEMENTS[0]]
 	levels_completed = []
 	best_ring = {}
 	story_flags = {}
+	legacy_history = {}
 	level = 1
 	_reset_life()
 
@@ -202,7 +214,10 @@ func _element_block(coord: Vector2i) -> Vector2i:
 	var size: int = Tuning.ELEMENT_BLOCK_SIZE
 	return Vector2i(_floor_div(coord.x, size), _floor_div(coord.y, size))
 
+## Dev mode reveals every element regardless of level ("every enemy element
+## in the node pool", spec §4); campaign/demo reveal one level at a time.
 func _revealed_elements() -> Array:
+	if mode == "dev": return Array(ELEMENTS).duplicate()
 	return Array(ELEMENTS).slice(0, clampi(level, 1, ELEMENTS.size()))
 
 func element_of(coord: Vector2i) -> String:
@@ -370,16 +385,24 @@ func on_death() -> void:
 	story_flags["reboot_%d" % deaths] = true
 	_reset_life()
 
-## P5a stopgap (full demo-import semantics are ModeConfig/P5b territory,
-## per tasks/todo.md "ModeConfig rows campaign / dev / demo"): carries
-## compatible progress into a fresh full-campaign profile and always starts
-## at level 1, origin, epoch 0 -- a demo import is not itself a life, so it
-## should not need to look like a fresh death.
+## Demo -> campaign import (spec preamble: "the demo build flavour is
+## campaign levels 1-2... Demo progress imports into the full campaign").
+## Carries unlocked (restricted to the demo's own {lightning, fire} pool),
+## levels_completed, best_ring, deaths and story flags; the run itself
+## (current combat state, discovered map) is always discarded, since a demo
+## life has nothing a bounded-disc full campaign can safely resume into.
 func import_demo(data: Dictionary) -> void:
 	from_dict(data)
 	demo = false
 	mode = "campaign"
+	var demo_pool: Array = ["lightning", "fire"]
+	for element: Variant in unlocked.duplicate():
+		if element not in demo_pool: unlocked.erase(element)
+	if unlocked.is_empty(): unlocked = [ELEMENTS[0]]
 	level = 1
+	for entry: Variant in levels_completed:
+		level = maxi(level, int(entry) + 1)
+	level = clampi(level, 1, Tuning.LEVEL_RADIUS.size())
 	epoch = 0
 	_reset_life()
 
@@ -391,22 +414,33 @@ func to_dict() -> Dictionary:
 		"story_flags": story_flags.duplicate(true), "level": level,
 		"current_sector": coord_key(current_sector), "discovered": discovered.duplicate(),
 		"ring_reached": ring_reached, "boss_down": boss_down,
+		"legacy_history": legacy_history.duplicate(true),
 	}
 
+## Migrates any schema < GAMEPLAY_VERSION profile, including genuine v0.2
+## (schema 3) saves. SaveService._migrate_gameplay/preview_migration already
+## archived the original bytes byte-for-byte as `<slot>.json.legacy-v<N>`
+## before this runs, so nothing here needs to touch disk.
 func from_dict(data: Dictionary) -> void:
-	configure(bool(data.get("demo", false)))
-	if int(data.get("schema_version", 1)) < GAMEPLAY_VERSION:
-		# Pre-v4 (wedge/core) saves have no equivalent world state. Their
-		# bytes are archived untouched by SaveService; here we only carry
-		# forward what still means something: deaths and whitelisted story
-		# flags. Unlocks reset to the starting element (approved preamble:
-		# "v0.2 (schema 3) saves: unlocks reset to Lightning").
+	configure_mode(str(data.get("mode", "demo" if bool(data.get("demo", false)) else "campaign")))
+	var incoming_schema: int = int(data.get("schema_version", 1))
+	if incoming_schema < GAMEPLAY_VERSION:
+		# Pre-v4 (wedge/core) saves have no equivalent world state. Here we
+		# only carry forward what still means something: deaths, whitelisted
+		# story flags, and any legacy_history the profile already carried.
+		# Unlocks reset to the starting element (approved preamble: "v0.2
+		# (schema 3) saves: unlocks reset to Lightning") -- the discarded
+		# list is kept, not lost, under legacy_history so it is inspectable.
 		deaths = maxi(0, int(data.get("deaths", 0)))
 		var old_story: Dictionary = _dictionary_field(data, "story_flags")
 		for flag: String in old_story:
 			if flag.begins_with("reboot_"): story_flags[flag] = bool(old_story[flag])
+		legacy_history = _dictionary_field(data, "legacy_history").duplicate(true)
+		var old_unlocked: Array = _array_field(data, "unlocked")
+		if not old_unlocked.is_empty():
+			legacy_history["schema_%d_unlocked" % incoming_schema] = old_unlocked.duplicate()
 		return
-	mode = str(data.get("mode", "campaign"))
+	legacy_history = _dictionary_field(data, "legacy_history").duplicate(true)
 	world_seed = int(data.get("world_seed", DEFAULT_CAMPAIGN.campaign_seed))
 	epoch = maxi(0, int(data.get("epoch", 0)))
 	deaths = maxi(0, int(data.get("deaths", 0)))
