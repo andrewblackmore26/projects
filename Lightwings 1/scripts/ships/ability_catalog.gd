@@ -60,7 +60,7 @@ static func build_definition(id: String) -> AbilityDefinition:
  a.visual_color = str(d[6])
  a.duration = float(d[7])
  a.description = a.display_name
- if a.slot_kind == "enemy": a.allowed_factions = ["enemy", "elite", "rival"]
+ if a.slot_kind == "enemy": a.allowed_factions = ["enemy", "elite", "boss"]
  return a
 static func all_definitions() -> Array[AbilityDefinition]:
  var result: Array[AbilityDefinition] = []

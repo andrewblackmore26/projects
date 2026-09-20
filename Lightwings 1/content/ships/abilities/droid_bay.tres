@@ -13,4 +13,4 @@ damage = 24.0
 range_pixels = 0.0
 slot_kind = "enemy"
 visual_color = "green"
-allowed_factions = Array[String](["enemy", "elite", "rival"])
+allowed_factions = Array[String](["enemy", "elite", "boss"])

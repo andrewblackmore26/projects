@@ -88,7 +88,7 @@ func _initialize() -> void:
 
 	# --- Symmetry: a mirrored pair stays a mirror image at every tick ---
 	var mirror_ship: ShipDefinition = null
-	for id: String in ["player_corruption_t2_standard_a", "player_corruption_t3_standard_a", "player_corruption_t4_standard_a"]:
+	for id: String in ["player_plasma_t2_standard_a", "player_plasma_t3_standard_a", "player_plasma_t4_standard_a", "player_void_t4_standard_a"]:
 		var candidate: ShipDefinition = ShipCatalog.get_ship(id)
 		if candidate != null:
 			for group: GroupDefinition in candidate.groups:
@@ -128,8 +128,8 @@ func _initialize() -> void:
 		h.control("both mirrored roots given the same (not opposite) orbit_speed sign", caught)
 
 	# --- Reach ring: exactly one dashed, unfilled synthesized circle at orbit_radius ---
-	var void_ship: ShipDefinition = ShipCatalog.get_ship("enemy_void_t2")
-	h.check(void_ship != null, "enemy_void_t2 exists")
+	var void_ship: ShipDefinition = ShipCatalog.get_ship("enemy_drone_void_t4")
+	h.check(void_ship != null, "enemy_drone_void_t4 exists")
 	if void_ship != null:
 		var ring_groups: Array[GroupDefinition] = []
 		for group: GroupDefinition in void_ship.groups:

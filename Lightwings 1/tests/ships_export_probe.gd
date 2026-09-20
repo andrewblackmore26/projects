@@ -5,15 +5,15 @@ func _initialize() -> void:
 	ShipCatalog.invalidate()
 	var forms: Array[ShipDefinition] = ShipCatalog.all_forms()
 	var factions: Dictionary = {}
-	if forms.size() != 136:
+	if forms.size() != 141:
 		failures += 1
-		push_error("Exported catalog must enumerate all 136 hulls; found " + str(forms.size()))
+		push_error("Exported catalog must enumerate all 141 hulls; found " + str(forms.size()))
 	for ship: ShipDefinition in forms:
 		factions[ship.faction] = int(factions.get(ship.faction, 0)) + 1
 		if not ShipCatalog.validate(ship).is_empty() or ShipCatalog.get_ship(ship.id) == null:
 			failures += 1
 			push_error("Exported resource failed: " + ship.id)
-	if factions.get("player", 0) != 81 or factions.get("enemy", 0) != 25 or factions.get("elite", 0) != 25 or factions.get("rival", 0) != 5:
+	if factions.get("player", 0) != 101 or factions.get("enemy", 0) != 50 or factions.get("elite", 0) != 35 or factions.get("boss", 0) != 5:
 		failures += 1
 		push_error("Exported faction census failed: " + str(factions))
 	var seed: ShipDefinition = ShipCatalog.get_ship("player_seed")

@@ -1,0 +1,131 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_wcs76"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_4jb2k"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_cubf3"]
+
+[sub_resource type="Resource" id="Resource_7pvjh"]
+script = ExtResource("2_4jb2k")
+id = "core"
+radius = 87.0
+stat_id = "speed"
+tp_cost = 4.0
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_ca1v6"]
+script = ExtResource("2_4jb2k")
+id = "sub_core_0"
+position = Vector2(-2.0915897e-06, 47.85)
+radius = 30.45
+parent_id = "core"
+light_phase = -0.7
+stat_id = "sub_core"
+tp_cost = 1.25
+hp = 440.0
+
+[sub_resource type="Resource" id="Resource_csg28"]
+script = ExtResource("2_4jb2k")
+id = "sub_core_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "sub_core_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ywfcu"]
+script = ExtResource("2_4jb2k")
+id = "sub_core_1"
+position = Vector2(5.706055e-07, -47.85)
+radius = 30.45
+parent_id = "core"
+light_period = 1.6
+stat_id = "sub_core"
+tp_cost = 1.25
+hp = 440.0
+
+[sub_resource type="Resource" id="Resource_fdbqk"]
+script = ExtResource("2_4jb2k")
+id = "sub_core_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "sub_core_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_0rv8u"]
+script = ExtResource("2_4jb2k")
+id = "shield_generator"
+position = Vector2(0, -82.65)
+radius = 19.14
+parent_id = "core"
+color_role = "yellow"
+light_phase = -1.3
+stat_id = "shield_generator"
+tp_cost = 0.75
+hp = 330.0
+
+[sub_resource type="Resource" id="Resource_bb7r8"]
+script = ExtResource("2_4jb2k")
+id = "shield_generator_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "shield_generator"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_aqujk"]
+script = ExtResource("2_4jb2k")
+id = "primary"
+position = Vector2(0, 82.65)
+radius = 12.0
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "beam"
+mount_id = "primary"
+tp_cost = 0.0
+hp = 620.0
+
+[sub_resource type="Resource" id="Resource_1bdof"]
+script = ExtResource("2_4jb2k")
+id = "primary_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("3_cubf3")
+id = "boss_plasma"
+display_name = "Plasma Boss"
+element = "plasma"
+tier = 6
+parts = Array[ExtResource("2_4jb2k")]([SubResource("Resource_7pvjh"), SubResource("Resource_ca1v6"), SubResource("Resource_csg28"), SubResource("Resource_ywfcu"), SubResource("Resource_fdbqk"), SubResource("Resource_0rv8u"), SubResource("Resource_bb7r8"), SubResource("Resource_aqujk"), SubResource("Resource_1bdof")])
+abilities = Array[String](["beam"])
+faction = "boss"
+role = "heavy"
+family = "heavy"
+footprint = 203.5800030517578
+magnet_radius = 90.0
+speed = 187.0
+turn_rate = 8.0
+hp_buffer = 1.3
+damage_multiplier = 1.15
+motion_signature = "counter_rotate"
+primary = "beam"
+tp_used = 10.25
+tp_max = 288.0

@@ -13,7 +13,7 @@
 			"paused": false,
 			"profile": "9026690cfe095f9f",
 			"sector": "(0, 0)",
-			"snapshot": "838b64deebd96df6",
+			"snapshot": "b30ab82be4004873",
 			"step": "new_game",
 			"tier": 1
 		},
@@ -29,7 +29,7 @@
 			"paused": false,
 			"profile": "9026690cfe095f9f",
 			"sector": "(0, 0)",
-			"snapshot": "7050a565f36f9dd5",
+			"snapshot": "f0e8531703574b5a",
 			"step": "origin_flown",
 			"tier": 1
 		},
@@ -45,7 +45,7 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "bfe9025b6a928aab",
+			"snapshot": "e1bbd511f275c8d4",
 			"step": "entered_1_0",
 			"tier": 1
 		},
@@ -61,7 +61,7 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "5b151de9945c3dbe",
+			"snapshot": "2289484a84572e7c",
 			"step": "fought_1_0",
 			"tier": 1
 		},
@@ -81,7 +81,7 @@
 			"paused": true,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "bb395fa4a751ddd9",
+			"snapshot": "8e1601ca1749ba74",
 			"step": "evolution_offered",
 			"tier": 1
 		},
@@ -97,7 +97,7 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "942ebec31bd5c4b0",
+			"snapshot": "f41c40ff33ea7fe0",
 			"step": "evolved",
 			"tier": 2
 		},
@@ -113,7 +113,7 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "2a1e49370a1e6e54",
+			"snapshot": "df996c4caa421ffb",
 			"step": "fought_as_t2",
 			"tier": 1
 		},
@@ -129,7 +129,7 @@
 			"paused": true,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "2a1e49370a1e6e54",
+			"snapshot": "df996c4caa421ffb",
 			"step": "map_open",
 			"tier": 1
 		},
@@ -145,7 +145,7 @@
 			"paused": false,
 			"profile": "c8a371576ebaf1ca",
 			"sector": "(2, 0)",
-			"snapshot": "854c111de51ca170",
+			"snapshot": "21a9e66d05315baa",
 			"step": "fought_2_0",
 			"tier": 1
 		},
@@ -161,7 +161,7 @@
 			"paused": true,
 			"profile": "b68a4ffa16a299bb",
 			"sector": "(0, 0)",
-			"snapshot": "3c5f879e5ce32954",
+			"snapshot": "4489b11c84b053a5",
 			"step": "died",
 			"tier": 1
 		},
@@ -177,7 +177,7 @@
 			"paused": false,
 			"profile": "b68a4ffa16a299bb",
 			"sector": "(0, 0)",
-			"snapshot": "9a9e4016fb468afd",
+			"snapshot": "946f10e8f7999b3a",
 			"step": "rebooted",
 			"tier": 1
 		}

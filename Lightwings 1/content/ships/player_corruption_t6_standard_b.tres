@@ -1,0 +1,740 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_lp4u7"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_ktvmw"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_ms45y"]
+
+[sub_resource type="Resource" id="Resource_xojc2"]
+script = ExtResource("1_lp4u7")
+root_id = "core"
+breathe_amp = 0.05
+
+[sub_resource type="Resource" id="Resource_sd08y"]
+script = ExtResource("1_lp4u7")
+root_id = "tail_0"
+chain_mode = "whip"
+
+[sub_resource type="Resource" id="Resource_q68yn"]
+script = ExtResource("2_ktvmw")
+id = "core"
+radius = 15.0
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_bpoj6"]
+script = ExtResource("2_ktvmw")
+id = "tail_0"
+position = Vector2(0, 24)
+radius = 6.0
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_7hfh5"]
+script = ExtResource("2_ktvmw")
+id = "tail_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "tail_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_o4ske"]
+script = ExtResource("2_ktvmw")
+id = "t2_bud_l"
+position = Vector2(-13.5, -13)
+radius = 9.3
+parent_id = "core"
+layer = 2
+light_period = 1.6
+mirror_id = "t2_bud_r"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_jftr0"]
+script = ExtResource("2_ktvmw")
+id = "t2_bud_r"
+position = Vector2(13.5, -13)
+radius = 9.3
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+mirror_id = "t2_bud_l"
+stat_id = "speed"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_sxtfg"]
+script = ExtResource("2_ktvmw")
+id = "t2_bud_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "t2_bud_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_05o47"]
+script = ExtResource("2_ktvmw")
+id = "t2_bud_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "t2_bud_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_pvn37"]
+script = ExtResource("2_ktvmw")
+id = "tail_1"
+position = Vector2(0, 33)
+radius = 7.0
+parent_id = "tail_0"
+layer = 2
+light_period = 1.6
+light_phase = -0.7
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_yugb7"]
+script = ExtResource("2_ktvmw")
+id = "tail_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "tail_0"
+to_id = "tail_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ucfup"]
+script = ExtResource("2_ktvmw")
+id = "t3_bud_l"
+position = Vector2(-22.5, 0)
+radius = 8.700000000000001
+parent_id = "core"
+layer = 2
+mirror_id = "t3_bud_r"
+stat_id = "magnet_radius"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_exjhg"]
+script = ExtResource("2_ktvmw")
+id = "t3_bud_r"
+position = Vector2(22.5, 0)
+radius = 8.700000000000001
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+mirror_id = "t3_bud_l"
+stat_id = "magnet_radius"
+tp_cost = 0.5
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_n381i"]
+script = ExtResource("2_ktvmw")
+id = "t3_bud_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_period = 1.6
+light_phase = -1.3
+from_id = "core"
+to_id = "t3_bud_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_e4fh8"]
+script = ExtResource("2_ktvmw")
+id = "t3_bud_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "t3_bud_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_rtf48"]
+script = ExtResource("2_ktvmw")
+id = "t3_stub_l"
+position = Vector2(-15.75, -10)
+radius = 5.220000000000001
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+mirror_id = "t3_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_56ssd"]
+script = ExtResource("2_ktvmw")
+id = "t3_stub_r"
+position = Vector2(15.75, -10)
+radius = 5.220000000000001
+parent_id = "core"
+layer = 2
+light_phase = -1.3
+mirror_id = "t3_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_nmdnt"]
+script = ExtResource("2_ktvmw")
+id = "t3_stub_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_period = 1.6
+from_id = "core"
+to_id = "t3_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_g05fp"]
+script = ExtResource("2_ktvmw")
+id = "t3_stub_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "t3_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_75t6a"]
+script = ExtResource("2_ktvmw")
+id = "tail_2"
+position = Vector2(0, 42)
+radius = 6.0
+parent_id = "tail_1"
+layer = 2
+light_phase = -1.3
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_7ew6n"]
+script = ExtResource("2_ktvmw")
+id = "tail_2_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "tail_1"
+to_id = "tail_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_lyk0i"]
+script = ExtResource("2_ktvmw")
+id = "t4_bud_l"
+position = Vector2(-31.5, 13)
+radius = 8.100000000000001
+parent_id = "core"
+layer = 2
+light_period = 1.6
+light_phase = -0.7
+mirror_id = "t4_bud_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_3moe0"]
+script = ExtResource("2_ktvmw")
+id = "t4_bud_r"
+position = Vector2(31.5, 13)
+radius = 8.100000000000001
+parent_id = "core"
+layer = 2
+light_phase = -1.3
+mirror_id = "t4_bud_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_oi0ik"]
+script = ExtResource("2_ktvmw")
+id = "t4_bud_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "t4_bud_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_rcmqj"]
+script = ExtResource("2_ktvmw")
+id = "t4_bud_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "t4_bud_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_oi16s"]
+script = ExtResource("2_ktvmw")
+id = "t4_stub_l"
+position = Vector2(-22.05, 3)
+radius = 4.86
+parent_id = "core"
+layer = 2
+light_period = 1.6
+light_phase = -1.3
+mirror_id = "t4_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_2jvpx"]
+script = ExtResource("2_ktvmw")
+id = "t4_stub_r"
+position = Vector2(22.05, 3)
+radius = 4.86
+parent_id = "core"
+layer = 2
+mirror_id = "t4_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ha66b"]
+script = ExtResource("2_ktvmw")
+id = "t4_stub_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "t4_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_2q0iu"]
+script = ExtResource("2_ktvmw")
+id = "t4_stub_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "t4_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_hii8m"]
+script = ExtResource("2_ktvmw")
+id = "tail_3"
+position = Vector2(0, 51)
+parent_id = "tail_2"
+layer = 2
+light_period = 1.6
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_0ke1l"]
+script = ExtResource("2_ktvmw")
+id = "tail_3_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "tail_2"
+to_id = "tail_3"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_5fjll"]
+script = ExtResource("2_ktvmw")
+id = "t5_bud_l"
+position = Vector2(-40.5, 26)
+radius = 7.500000000000001
+parent_id = "core"
+layer = 2
+light_phase = -1.3
+mirror_id = "t5_bud_r"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_lugkx"]
+script = ExtResource("2_ktvmw")
+id = "t5_bud_r"
+position = Vector2(40.5, 26)
+radius = 7.500000000000001
+parent_id = "core"
+layer = 2
+mirror_id = "t5_bud_l"
+stat_id = "magnet_radius"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_kqwfx"]
+script = ExtResource("2_ktvmw")
+id = "t5_bud_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_period = 1.6
+light_phase = -0.7
+from_id = "core"
+to_id = "t5_bud_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_71upi"]
+script = ExtResource("2_ktvmw")
+id = "t5_bud_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "t5_bud_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_ibe6u"]
+script = ExtResource("2_ktvmw")
+id = "t5_stub_l"
+position = Vector2(-28.35, 16)
+radius = 4.5
+parent_id = "core"
+layer = 2
+mirror_id = "t5_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_lu5dc"]
+script = ExtResource("2_ktvmw")
+id = "t5_stub_r"
+position = Vector2(28.35, 16)
+radius = 4.5
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+mirror_id = "t5_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_u0wtr"]
+script = ExtResource("2_ktvmw")
+id = "t5_stub_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_period = 1.6
+light_phase = -1.3
+from_id = "core"
+to_id = "t5_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_gkk01"]
+script = ExtResource("2_ktvmw")
+id = "t5_stub_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "t5_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_q64ae"]
+script = ExtResource("2_ktvmw")
+id = "tail_4"
+position = Vector2(0, 60)
+radius = 4.0
+parent_id = "tail_3"
+layer = 2
+light_phase = -0.7
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_f7uhe"]
+script = ExtResource("2_ktvmw")
+id = "tail_4_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "tail_3"
+to_id = "tail_4"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_mmt2r"]
+script = ExtResource("2_ktvmw")
+id = "t6_bud_l"
+position = Vector2(-49.5, 39)
+radius = 6.9
+parent_id = "core"
+layer = 2
+light_period = 1.6
+mirror_id = "t6_bud_r"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_vifls"]
+script = ExtResource("2_ktvmw")
+id = "t6_bud_r"
+position = Vector2(49.5, 39)
+radius = 6.9
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+mirror_id = "t6_bud_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_soao7"]
+script = ExtResource("2_ktvmw")
+id = "t6_bud_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "t6_bud_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_8wkxs"]
+script = ExtResource("2_ktvmw")
+id = "t6_bud_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "t6_bud_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_boif7"]
+script = ExtResource("2_ktvmw")
+id = "t6_stub_l"
+position = Vector2(-34.65, 29)
+radius = 4.14
+parent_id = "core"
+layer = 2
+light_period = 1.6
+light_phase = -0.7
+mirror_id = "t6_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_vjipb"]
+script = ExtResource("2_ktvmw")
+id = "t6_stub_r"
+position = Vector2(34.65, 29)
+radius = 4.14
+parent_id = "core"
+layer = 2
+light_phase = -1.3
+mirror_id = "t6_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_h0n6e"]
+script = ExtResource("2_ktvmw")
+id = "t6_stub_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "t6_stub_l"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_e8nmn"]
+script = ExtResource("2_ktvmw")
+id = "t6_stub_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "t6_stub_r"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_qgnim"]
+script = ExtResource("2_ktvmw")
+id = "tail_5"
+position = Vector2(0, 69)
+radius = 3.5
+parent_id = "tail_4"
+layer = 2
+light_period = 1.6
+light_phase = -1.3
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_x7fcv"]
+script = ExtResource("2_ktvmw")
+id = "tail_5_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "tail_4"
+to_id = "tail_5"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_15bvk"]
+script = ExtResource("2_ktvmw")
+id = "primary"
+position = Vector2(0, -10.5)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_phase = -0.7
+ability_id = "ricochet"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_ajkb3"]
+script = ExtResource("2_ktvmw")
+id = "primary_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_fp6dl"]
+script = ExtResource("2_ktvmw")
+id = "secondary_0"
+position = Vector2(0, 22)
+radius = 3.5
+parent_id = "core"
+color_role = "green"
+layer = 4
+light_period = 1.6
+ability_id = "virus"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_5ttx6"]
+script = ExtResource("2_ktvmw")
+id = "secondary_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_uk8fd"]
+script = ExtResource("2_ktvmw")
+id = "secondary_1"
+position = Vector2(0, 31)
+radius = 3.5
+parent_id = "core"
+color_role = "green"
+layer = 4
+light_phase = -1.3
+ability_id = "poison_cloud"
+mount_id = "secondary_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_3edty"]
+script = ExtResource("2_ktvmw")
+id = "secondary_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "secondary_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_yiflb"]
+script = ExtResource("2_ktvmw")
+id = "secondary_2"
+position = Vector2(0, 40)
+radius = 3.5
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "seeker_missiles"
+mount_id = "secondary_2"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_g8ccd"]
+script = ExtResource("2_ktvmw")
+id = "secondary_2_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "secondary_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_a1h6s"]
+script = ExtResource("2_ktvmw")
+id = "passive_0"
+position = Vector2(0, -23)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+ability_id = "radar"
+mount_id = "passive_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_y6h00"]
+script = ExtResource("2_ktvmw")
+id = "passive_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "passive_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("3_ms45y")
+id = "player_corruption_t6_standard_b"
+display_name = "Leviathan Standard B"
+tier = 6
+is_player = true
+parts = Array[ExtResource("2_ktvmw")]([SubResource("Resource_q68yn"), SubResource("Resource_bpoj6"), SubResource("Resource_7hfh5"), SubResource("Resource_o4ske"), SubResource("Resource_jftr0"), SubResource("Resource_sxtfg"), SubResource("Resource_05o47"), SubResource("Resource_pvn37"), SubResource("Resource_yugb7"), SubResource("Resource_ucfup"), SubResource("Resource_exjhg"), SubResource("Resource_n381i"), SubResource("Resource_e4fh8"), SubResource("Resource_rtf48"), SubResource("Resource_56ssd"), SubResource("Resource_nmdnt"), SubResource("Resource_g05fp"), SubResource("Resource_75t6a"), SubResource("Resource_7ew6n"), SubResource("Resource_lyk0i"), SubResource("Resource_3moe0"), SubResource("Resource_oi0ik"), SubResource("Resource_rcmqj"), SubResource("Resource_oi16s"), SubResource("Resource_2jvpx"), SubResource("Resource_ha66b"), SubResource("Resource_2q0iu"), SubResource("Resource_hii8m"), SubResource("Resource_0ke1l"), SubResource("Resource_5fjll"), SubResource("Resource_lugkx"), SubResource("Resource_kqwfx"), SubResource("Resource_71upi"), SubResource("Resource_ibe6u"), SubResource("Resource_lu5dc"), SubResource("Resource_u0wtr"), SubResource("Resource_gkk01"), SubResource("Resource_q64ae"), SubResource("Resource_f7uhe"), SubResource("Resource_mmt2r"), SubResource("Resource_vifls"), SubResource("Resource_soao7"), SubResource("Resource_8wkxs"), SubResource("Resource_boif7"), SubResource("Resource_vjipb"), SubResource("Resource_h0n6e"), SubResource("Resource_e8nmn"), SubResource("Resource_qgnim"), SubResource("Resource_x7fcv"), SubResource("Resource_15bvk"), SubResource("Resource_ajkb3"), SubResource("Resource_fp6dl"), SubResource("Resource_5ttx6"), SubResource("Resource_uk8fd"), SubResource("Resource_3edty"), SubResource("Resource_yiflb"), SubResource("Resource_g8ccd"), SubResource("Resource_a1h6s"), SubResource("Resource_y6h00")])
+groups = Array[ExtResource("1_lp4u7")]([SubResource("Resource_xojc2"), SubResource("Resource_sd08y")])
+abilities = Array[String](["ricochet", "virus", "poison_cloud", "seeker_missiles", "radar"])
+family = "standard_b"
+footprint = 145.0
+magnet_radius = 106.0
+speed = 244.0
+primary = "ricochet"
+secondaries = Array[String](["virus", "poison_cloud", "seeker_missiles"])
+passives = Array[String](["radar"])
+tp_used = 24.25
+tp_max = 36.0

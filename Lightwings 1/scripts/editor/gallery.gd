@@ -12,7 +12,7 @@ func _ready() -> void:
 	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(layout)
 	var title: Label = Label.new()
-	title.text = "LIGHTSHIP / FIVE ELEMENTS / 81 PLAYER HULLS"
+	title.text = "LIGHTSHIP / %d ELEMENTS / %d PLAYER HULLS" % [GameTuning.ELEMENTS.size(), ShipGenerator.player_hull_count()]
 	title.add_theme_font_size_override("font_size", 24)
 	layout.add_child(title)
 	var controls: HBoxContainer = HBoxContainer.new()

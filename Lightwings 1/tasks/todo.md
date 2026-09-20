@@ -50,14 +50,31 @@ Done as four sequential steps, each ending green with its own commit (the files 
 - [x] Schema v3 on `PartDefinition` / `ShipDefinition`; `group_definition.gd`
 - [x] `scripts/ships/ship_motion.gd` (ShipRig / ShipPose / step); delete shader `inward()` and whole-ship `breathes`
 - [x] Shader: lines out of the 128 uniform slots; `.z` radius scale, `.w` rim flare
-- [ ] GameTuning: 6 tiers, thresholds, T6 max 2300, TP 36, slots table, element order
-- [ ] `scripts/ships/ship_generator.gd` + `ROSTER` manifest; five element builders; growth by addition
-- [ ] Roster 101 + 25 + 10 + 5 = 141 regenerated; no nearest-tier fallback
-- [ ] `validate()` hard errors (parent graph, attachment, line ends, group caps, > 128 circles)
-- [ ] Editor: Body = circle + line (+ macros), Parent/Filled/Radius/HP inspector, Motion tab, derived literals, JSON §22 + v2 upgrade
-- [ ] `EvolutionRules` fill rule
-- [ ] Proof list from the plan (pose = collider = muzzle, determinism, GPU orbit, 120-circle hull, census, growth subset, roles, footprint, rejected shapes, cache miss) each with its negative control; commit
-- [ ] Post roster captures for a look (non-blocking)
+- [x] GameTuning: 6 tiers, thresholds, T6 max 2300, TP 36, slots table. Element order (`GameTuning.ELEMENTS`) deliberately NOT reordered here: it only matters to the campaign's level reveal (`campaign_state.gd _initial_element`, `_region_elements`) and the evolution tie-break (`evolution_rules.gd ROOT_ORDER`); reordering now would move the v0.2 wedge world's element assignment for no benefit this step. **Deferred to P5**, alongside the world rewrite that already touches those files.
+- [x] `scripts/ships/ship_generator.gd` + `ROSTER` manifest (named `roster_manifest()`); five element builders; growth by addition (id-subset, not full-attribute-subset — see P2b-1 review)
+- [x] Roster 101 + 25 + 10 + 5 = 141 regenerated; no nearest-tier fallback (`ShipCatalog.pick_enemy` / `ShipGenerator.pick_enemy`, tagged `V02-ADAPTER`, hard-errors on an unknown element/faction)
+- [x] `validate()` hard errors (parent graph, attachment, line ends, group caps, > 128 circles) — plus new P2b-1 rules: tier 1..MAX_TIER, TP x2.5 elite / x8 boss, player majority-light-blue
+- [→ P2b-2] Editor: Body = circle + line (+ macros), Parent/Filled/Radius/HP inspector, Motion tab, derived literals, JSON §22 + v2 upgrade — unchanged this step; the editor still authors single hulls via `ShipCatalog.build_ship`, now forwarding to `ShipGenerator`
+- [→ P2b-2] `EvolutionRules` fill rule — unchanged this step, per the plan's own phase split
+- [x] Proof list (census, growth subset, roles, elite footprint, TP floor, element signatures, pick_enemy coverage) each with its negative control — see `tests/ship_roster_test.gd`; commit
+- [x] Roster captures taken and looked at: growth by addition reads correctly (each tier keeps the previous arrangement and adds around it), corruption is irregular clusters with off-axis buds, void keeps its crescent and dashed reach rings, plasma rings unfilled. Gallery title was still hard-coded "81 PLAYER HULLS"; it now derives from the manifest (`ShipGenerator.player_hull_count()`)
+
+**Regression found and fixed while verifying P2b-1** (`campaign_playthrough_test` was failing, 225/250 light):
+each element is only authored across its campaign level's tier band, so a v0.2 wedge sector asking
+for a low tier of a late element got a much higher-tier hull — carrying that hull's SLOT ALLOWANCE.
+Measured against a stationary player over 10 s: a tier-1 corruption request fielded 2 mounts and
+dealt 347 damage, plasma 3 mounts and 578, where `GameTuning.slots` grants tier 1 exactly one.
+Slots are a hard cap in this game, so `ShipCatalog.trim_to_tier` now applies that cap to a
+substituted hull, and a dropped ability takes its mount circle and that circle's line with it
+(§17: every visible circle is an ability or a stat). After the fix: corruption 97, plasma 0, and
+tier-3 requests unchanged (425 / 713). The route reaches 250 light in 14.0 s instead of stalling at
+225. Locked by 706 checks in `ship_roster_test` incl. 12 negative controls; tagged `V02-ADAPTER`,
+removed with the shim in P5.
+
+- [→ P2b-2] `standard_a` and `standard_b` share geometry and differ only by primary weapon
+  (standard_b carries ricochet). Legal per spec — roles are tags, not the menu, and the tier still
+  spans three roles — but v0.2 gave standard_b a rear-biased arrangement, so the four cards read as
+  three shapes. Worth a distinct arrangement when the editor work lands.
 
 ## P3 — Node geometry
 - [ ] `scripts/combat/circular_arena.gd` replaces `rounded_arena.gd`; analytic `boundary_hit`

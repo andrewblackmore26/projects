@@ -42,7 +42,7 @@ var player_position: Vector2 = Vector2(896,560):
  set(value):
   player_position=value
   if not player.is_empty(): player.pos=value
-var max_player_tier: int = 5
+var max_player_tier: int = GameTuning.MAX_TIER
 var player_tier: int = 1
 var player_element: String = "neutral"
 var player_stolen: Array = [] # Deprecated read-only empty compatibility surface.
@@ -109,7 +109,7 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  player=_make_actor(0,element,tier,position,0,false)
  actors_by_id[0]=player
  hull_history=["player_seed"]
- for t: int in range(2,clampi(tier,1,5)+1): hull_history.append("player_%s_t%d_standard_a" % [element,t])
+ for t: int in range(2,clampi(tier,1,GameTuning.MAX_TIER)+1): hull_history.append("player_%s_t%d_standard_a" % [element,t])
  set_player_hull(hull_history[-1])
  absorption={}
  player_invulnerable=0.0
@@ -149,7 +149,7 @@ func evolve_hull(id: String) -> bool:
  return true
 func evolve_player(element: String, tier: int, _stolen: Array) -> void:
  # Transitional test/editor adapter; production evolution uses evolve_hull.
- var id: String="player_seed" if tier==1 else "player_%s_t%d_standard_a" % [element,clampi(tier,1,5)]
+ var id: String="player_seed" if tier==1 else "player_%s_t%d_standard_a" % [element,clampi(tier,1,GameTuning.MAX_TIER)]
  set_player_hull(id,true)
  while hull_history.size()<tier: hull_history.append("player_%s_t%d_standard_a" % [element,hull_history.size()+1])
  hull_history[tier-1]=id
@@ -169,13 +169,19 @@ func collect_energy(amount: float, element: String) -> void: collect_light(amoun
 
 func _make_actor(id: int, element: String, tier: int, position: Vector2, faction: int, rival: bool) -> Dictionary:
  var hp: float=(140.0+80.0*tier) if rival else (24.0+14.0*tier)
- return {"id":id,"element":element,"tier":clampi(tier,1,5),"pos":position,"vel":Vector2.ZERO,"aim":Vector2.DOWN,"faction":faction,"native_faction":faction,"rival":rival,"elite":false,"hp":hp,"max_hp":hp,"energy":40.0,"fire_cd":0.0,"primary_cd":0.0,"secondary_cd":0.0,"decision_cd":0.0,"target":0,"desired":Vector2.ZERO,"age":_rng.randf()*TAU,"dead":false,"renderer":null,"invulnerable":0.0,"reward_remaining":(80+30*tier) if rival else 24+10*tier,"reward_damage":0.0,"cooldowns":{},"guns":[],"shield":0.0,"blockers":0.0,"blocker_hits":0,"orbit_stock":0,"orbit_cd":0.0,"slow":0.0,"stored":0,"stolen":[],"infected":0.0,"charge":0.0}
+ return {"id":id,"element":element,"tier":clampi(tier,1,GameTuning.MAX_TIER),"pos":position,"vel":Vector2.ZERO,"aim":Vector2.DOWN,"faction":faction,"native_faction":faction,"rival":rival,"elite":false,"hp":hp,"max_hp":hp,"energy":40.0,"fire_cd":0.0,"primary_cd":0.0,"secondary_cd":0.0,"decision_cd":0.0,"target":0,"desired":Vector2.ZERO,"age":_rng.randf()*TAU,"dead":false,"renderer":null,"invulnerable":0.0,"reward_remaining":(80+30*tier) if rival else 24+10*tier,"reward_damage":0.0,"cooldowns":{},"guns":[],"shield":0.0,"blockers":0.0,"blocker_hits":0,"orbit_stock":0,"orbit_cd":0.0,"slow":0.0,"stored":0,"stolen":[],"infected":0.0,"charge":0.0}
 func _spawn_enemy(element: String, tier: int, position: Vector2, rival: bool) -> Dictionary:
  if enemies.size()>=MAX_ACTORS: return {}
  var actor: Dictionary=_make_actor(next_actor_id,element,tier,arena.clamp_point(position,30.0),ELEMENTS.find(element)+1,rival)
  next_actor_id+=1
- actor.hull_id="rival_%s_t5" % element if rival else "enemy_%s_t%d" % [element,tier]
- var definition: ShipDefinition=ShipCatalog.get_ship(actor.hull_id)
+ # V02-ADAPTER: v0.2 asked for ids by formula ("enemy_%s_t%d" / "rival_%s_t5");
+ # those ids no longer exist under the P2b-1 roster. ShipCatalog.pick_enemy
+ # maps (faction, element, tier) onto the nearest roster hull for that
+ # archetype; it hard-errors (returns null) rather than silently
+ # substituting a wrong tier. Removed with the rest of the shim in P5.
+ actor.hull_id=ShipCatalog.pick_enemy("boss" if rival else "enemy",element,tier)
+ if actor.hull_id.is_empty(): push_error("V02-ADAPTER: no roster hull for faction=%s element=%s tier=%d" % ["boss" if rival else "enemy",element,tier])
+ var definition: ShipDefinition=ShipCatalog.trim_to_tier(ShipCatalog.get_ship(actor.hull_id),int(actor.tier)) # V02-ADAPTER
  if definition==null: definition=ShipCatalog.make_ship(element,tier,false)
  _configure_actor(actor,definition,true)
  enemies.append(actor)
@@ -186,11 +192,12 @@ func _spawn_elite(element: String, tier: int, position: Vector2) -> Dictionary:
  var actor: Dictionary=_spawn_enemy(element,tier,position,false)
  if actor.is_empty(): return actor
  actor.elite=true
- actor.hull_id="elite_%s_t%d" % [element,tier]
+ actor.hull_id=ShipCatalog.pick_enemy("elite",element,tier) # V02-ADAPTER
+ if actor.hull_id.is_empty(): push_error("V02-ADAPTER: no roster hull for faction=elite element=%s tier=%d" % [element,tier])
  actor.max_hp=180.0+110.0*tier
  actor.hp=actor.max_hp
  actor.reward_remaining=150+60*tier
- _configure_actor(actor,ShipCatalog.get_ship(actor.hull_id),true)
+ _configure_actor(actor,ShipCatalog.trim_to_tier(ShipCatalog.get_ship(actor.hull_id),int(actor.tier)),true) # V02-ADAPTER
  _update_visual(actor)
  return actor
 func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool = false) -> void:
@@ -284,7 +291,7 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   cleared_emitted=true
   return
  var element: String=str(sector.get("element","fire"))
- var tier: int=clampi(int(sector.get("tier",1)),1,5)
+ var tier: int=clampi(int(sector.get("tier",1)),1,GameTuning.MAX_TIER)
  var distance: float=float(sector.get("distance",tier*3))
  var population: int=mini(45,int(sector.get("enemy_count",4+int(distance)*0.7)))
  for i: int in range(population):

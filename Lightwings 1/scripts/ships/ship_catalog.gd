@@ -12,7 +12,7 @@ const PALETTE: Dictionary = {"player": Color("6fd3ff"), "player_blue": Color("6f
 const FILLS: Dictionary = {"player": Color("08233a"), "player_blue": Color("08233a"), "fire": Color("2a0b08"), "lightning": Color("2a2206"), "corruption": Color("062a12"), "plasma": Color("1d1233"), "violet": Color("1d1233"), "void": Color.BLACK, "silver": Color.BLACK, "gold": Color.BLACK, "yellow": Color("2a2206"), "red": Color("2a0b08"), "white": Color("191919"), "neutral": Color("101015"), "green": Color("062a12"), "black": Color.BLACK}
 const LIGHTS: Dictionary = {"player": Color("dcf5ff"), "player_blue": Color("dcf5ff"), "fire": Color("ffc6b5"), "lightning": Color("fff3bd"), "corruption": Color("caffd5"), "plasma": Color("e4d6ff"), "violet": Color("e4d6ff"), "void": Color.WHITE, "silver": Color.WHITE, "gold": Color("fff3bd"), "yellow": Color("fff3bd"), "red": Color("ffc6b5"), "white": Color.WHITE, "neutral": Color.WHITE, "green": Color("caffd5"), "black": Color.BLACK}
 # Retained for descriptive legacy consumers; gameplay uses mounted_components().
-const NAMES: Dictionary = {"fire": ["Ember", "Flare", "Stoker", "Furnace", "Sunburst"], "lightning": ["Spark", "Arc", "Fork", "Surge", "Tempest"], "void": ["Null", "Eclipse", "Umbra", "Horizon", "Singularity"], "corruption": ["Glitch", "Worm", "Trojan", "Rootkit", "Botnet"], "plasma": ["Ion", "Orbit", "Corona", "Pulsar", "Quasar"]}
+const NAMES: Dictionary = {"fire": ["Ember", "Flare", "Stoker", "Furnace", "Sunburst", "Cataclysm"], "lightning": ["Spark", "Arc", "Fork", "Surge", "Tempest", "Maelstrom"], "void": ["Null", "Eclipse", "Umbra", "Horizon", "Singularity", "Oblivion"], "corruption": ["Glitch", "Worm", "Trojan", "Rootkit", "Botnet", "Leviathan"], "plasma": ["Ion", "Orbit", "Corona", "Pulsar", "Quasar", "Supernova"]}
 const ABILITIES: Dictionary = {"fire": ["flame_cone", "mine_layer", "explosives", "rocket_launcher", "forcefield"], "lightning": ["bolt", "laser_prong", "shield", "seeker_missiles", "thrusters"], "void": ["homing_beam", "orbital_blockers", "shield", "virus", "magnet"], "corruption": ["pulse_cannon", "virus", "poison_cloud", "seeker_missiles", "siphon"], "plasma": ["beam", "seeker_missiles", "laser_prong", "rocket_launcher", "orbital_seekers"]}
 
 static func get_color(role: String) -> Color:
@@ -85,134 +85,64 @@ static func make_ship(element: String, tier: int, is_player: bool = false, _lega
 	tier = clampi(tier, 1, GameTuning.MAX_TIER)
 	if is_player and tier == 1: return get_ship("player_seed")
 	if not element in ELEMENTS: element = "corruption"
-	return get_ship(("player_" if is_player else "enemy_") + element + "_t" + str(tier) + ("_standard_a" if is_player else ""))
+	if is_player: return get_ship("player_" + element + "_t" + str(tier) + "_standard_a")
+	return get_ship(pick_enemy("enemy", element, tier))
+
+## V02-ADAPTER: v0.2 built enemy/elite/rival hull ids by formula
+## ("enemy_%s_t%d", "elite_%s_t%d", "rival_%s_t5"). Those exact ids no
+## longer exist under the P2b-1 roster (archetype-first ids, banded tiers).
+## This maps (faction, element, tier) onto the nearest roster hull for that
+## archetype. It is a HARD ERROR (returns "", callers must treat a null
+## `get_ship` result as a bug) when the element/faction combination has no
+## roster entry at all - never a silent nearest-tier substitute that hides
+## a genuinely missing hull. Removed with the rest of the shim in P5.
+static func pick_enemy(faction: String, element: String, tier: int) -> String:
+	return ShipGenerator.pick_enemy(faction, element, tier)
+
+## V02-ADAPTER: each element is only authored across the tier band of the campaign level that
+## introduces it, so a v0.2 wedge sector asking for a low-tier hull of a late element is handed a
+## much higher-tier one. That hull carries the SLOT ALLOWANCE of its own tier, which made ring-1
+## corruption and plasma enemies fight several tiers above their reward and HP (measured: a tier-1
+## request fielded 2 mounts for corruption and 3 for plasma, against the 1 that GameTuning.slots
+## grants tier 1). Slots are a hard cap in this game; apply that cap to the substitute so a tier-N
+## enemy fights like tier N. Every dropped ability takes its mount circle and that circle's line
+## with it, because a visible circle must always be an ability or a stat. Removed with the shim in P5.
+static func trim_to_tier(ship: ShipDefinition, tier: int) -> ShipDefinition:
+	if ship == null or ship.tier <= tier: return ship
+	var limits: Dictionary = GameTuning.slots(tier, ship.role)
+	if ship.secondaries.size() <= int(limits.secondary) and ship.passives.size() <= int(limits.passive): return ship
+	var dropped: Dictionary = {}
+	for index: int in range(int(limits.secondary), ship.secondaries.size()): dropped["secondary_" + str(index)] = true
+	for index: int in range(int(limits.passive), ship.passives.size()): dropped["passive_" + str(index)] = true
+	ship.secondaries = ship.secondaries.slice(0, int(limits.secondary))
+	ship.passives = ship.passives.slice(0, int(limits.passive))
+	var removed: Dictionary = {}
+	var kept: Array[PartDefinition] = []
+	for part: PartDefinition in ship.parts:
+		if part.shape == "circle" and dropped.has(part.mount_id): removed[part.id] = true
+		else: kept.append(part)
+	var survivors: Array[PartDefinition] = []
+	for part: PartDefinition in kept:
+		if part.shape == "line" and (removed.has(part.from_id) or removed.has(part.to_id)): continue
+		survivors.append(part)
+	ship.parts = survivors
+	recalculate(ship)
+	return ship
 
 static func ability_description(element: String, tier: int) -> String:
-	return str(NAMES.get(element, NAMES.corruption)[clampi(tier - 1, 0, 4)])
+	return str(NAMES.get(element, NAMES.corruption)[clampi(tier - 1, 0, GameTuning.MAX_TIER - 1)])
 
 static func role_for_family(family: String) -> String:
 	return family if family in ["compact", "heavy"] else "standard"
 
+## Generation itself (the ROSTER manifest and the five element growth
+## builders) lives in ship_generator.gd (P2b-1); ShipCatalog keeps loading,
+## caching, recalculate() and validate(). This is a thin forwarder kept for
+## the editor/tests, which build one hull outside the manifest for authoring
+## experiments (ShipAuthoring.from_description, the editor's tier/family
+## pickers). `_legacy` is an unused parameter kept for call-site compatibility.
 static func build_ship(element: String, tier: int, is_player: bool = false, _legacy: Array = [], family: String = "standard_a", faction: String = "") -> ShipDefinition:
-	var ship: ShipDefinition = ShipDefinition.new()
-	ship.is_player = is_player
-	ship.faction = "player" if is_player else ("enemy" if faction.is_empty() else faction)
-	ship.tier = clampi(tier, 1, GameTuning.MAX_TIER)
-	ship.element = "neutral" if is_player and tier == 1 else element
-	ship.family = family
-	ship.role = "standard" if tier == 1 else role_for_family(family)
-	ship.id = "player_seed" if is_player and tier == 1 else ship.faction + "_" + element + "_t" + str(tier) + ("_" + family if is_player else "")
-	ship.display_name = "Lumen" if ship.element == "neutral" else str(NAMES[element][tier - 1]) + " " + family.replace("_", " ").capitalize()
-	# "inward"/"breathe" are retired from the light-only motion_signature vocabulary;
-	# void's old whole-hull pull and corruption's old whole-hull scale are now, where
-	# they still happen at all, expressed as groups (ShipMotion), not shader terms.
-	ship.motion_signature = {"fire": "flicker", "lightning": "snap", "plasma": "counter_rotate"}.get(ship.element, "smooth")
-	ship.breathes = false
-	ship.speed = 220.0 * (1.25 if ship.role == "compact" else 0.85 if ship.role == "heavy" else 1.0)
-	ship.turn_rate = 10.0 * (1.25 if ship.role == "compact" else 0.8 if ship.role == "heavy" else 1.0)
-	ship.hp_buffer = 0.8 if ship.role == "compact" else 1.3 if ship.role == "heavy" else 1.0
-	ship.damage_multiplier = 1.15 if ship.role == "heavy" else 1.0
-	ship.primary = "pulse_cannon" if ship.element == "neutral" else str(ABILITIES[element][0])
-	if family == "standard_b" and tier > 1: ship.primary = "ricochet"
-	if ship.faction == "enemy" and element in ["void", "plasma"]: ship.primary = "pulse_cannon"
-	var limits: Dictionary = GameTuning.slots(tier, ship.role)
-	for index: int in range(int(limits.secondary)):
-		ship.secondaries.append(str(ABILITIES[element][1 + index % 3]))
-	if ship.faction == "elite": ship.secondaries.clear()
-	if ship.faction == "enemy" and element == "corruption" and tier >= 2: ship.secondaries[0] = "droid_bay"
-	if tier >= 4: ship.passives.append("radar" if is_player and family == "standard_b" else "health_readout" if is_player and family == "compact" else str(ABILITIES[element][4]))
-	ship.abilities = ship.mounted_components()
-	var body_radius: float = 11.0 if tier == 1 else (12.0 if ship.role == "compact" else 18.0 if ship.role == "heavy" else 15.0)
-	if not is_player and ship.faction == "elite": body_radius *= 2.8
-	# Corruption's old ellipse body had half-axes (body_radius, body_radius*0.9); a
-	# circle keeps the mean radius so the eye and mounts stay in the same place.
-	var core_radius: float = body_radius * 0.95 if element == "corruption" and tier > 1 else body_radius
-	var core: PartDefinition = add_part(ship, "core", "circle", Vector2.ZERO, core_radius, "chassis", "hp_buffer", 3)
-	if ship.element == "corruption":
-		# The old whole-hull `breathes` scale (1.00 -> 1.05 over 2s, spec §18)
-		# is now a group covering the whole ship (root = core, no parent), so
-		# it is expressed through the pose the sim also reads, not a shader-only term.
-		var breathe: GroupDefinition = GroupDefinition.new()
-		breathe.root_id = "core"
-		breathe.breathe_amp = 0.05
-		ship.groups.append(breathe)
-	if ship.element == "void":
-		ship.hull_radius = body_radius + 5.0 * tier
-		core.radius = ship.hull_radius
-		# The reach ring is synthesized from the group below (ShipMesh), not
-		# authored as a visible part; this circle only carries the position/
-		# stat (magnet_radius on players, void_pull on enemies) at the radius
-		# the old dashed ring used to draw at.
-		var reach: PartDefinition = add_part(ship, "reach", "circle", Vector2.ZERO, 1.0, "chassis", "magnet_radius", 3, false, "core")
-		var reach_group: GroupDefinition = GroupDefinition.new()
-		reach_group.root_id = "reach"
-		reach_group.orbit_radius = ship.hull_radius + 9
-		reach_group.reach_ring = true
-		ship.groups.append(reach_group)
-		# The old crescent "maw" is a bright rimmed circle with a black disc laid
-		# over part of it; the rimmed circle keeps the id, position and stat that
-		# combat reads (scripts/combat/combat_broadphase.gd's bullet_eater mouth).
-		var maw_half: float = body_radius * 1.4 * 0.5
-		var maw_position: Vector2 = Vector2(0, -body_radius * 0.3)
-		var maw: PartDefinition = add_part(ship, "maw", "circle", maw_position, maw_half, "chassis", "hp_buffer", 3, true, "core")
-		var maw_inner_radius: float = maw_half * 0.84
-		var maw_inner_position: Vector2 = maw_position + Vector2(0, -maw_half * 0.42)
-		var maw_cover: PartDefinition = add_part(ship, "maw_cover", "circle", maw_inner_position, maw_inner_radius, "black", "structure", 4, true, "maw")
-		maw_cover.tp_cost = 0.0
-	if ship.element == "plasma":
-		for index: int in range(1 + tier / 2):
-			add_part(ship, "orbit_" + str(index), "circle", Vector2.ZERO, body_radius + 5 + index * 6, "chassis", "magnet_radius", 2, false, "core")
-	if tier > 1:
-		for index: int in range(tier - 1):
-			var spread: float = (9.0 if ship.role == "compact" else 14.0 if ship.role == "heavy" else 11.0)
-			var x: float = body_radius + spread + (index % 2) * 7.0
-			var y: float = (float(index) - float(tier - 2) * 0.5) * 15.0
-			var radius: float = maxf(4.0, 9.0 - index)
-			if element == "lightning": x += 12 + index * 4; radius = 5
-			if element == "fire": y -= 9; x -= 5
-			if element == "void": x = body_radius * 0.55; y *= 0.6; radius = 5
-			if family == "standard_b": y = -y - 10; x += 4
-			# Corruption's old lobe ellipse had half-axes (radius, radius*0.75); a
-			# circle keeps the mean of the two.
-			var lobe_radius: float = radius * 0.875 if element == "corruption" else radius
-			add_pair(ship, "lobe_" + str(index), "circle", Vector2(x, y), lobe_radius, "chassis", "speed" if index % 2 == 0 else "magnet_radius", 2)
-			add_line(ship, "link_" + str(index) + "_l", "core", "lobe_" + str(index) + "_l")
-			add_line(ship, "link_" + str(index) + "_r", "core", "lobe_" + str(index) + "_r")
-			ship.parts[-2].mirror_id = ship.parts[-1].id
-			ship.parts[-1].mirror_id = ship.parts[-2].id
-			if element == "corruption":
-				# Lobes carry no mount, so orbiting them cannot move a weapon or
-				# change a bullet spawn point; sibling radii get opposite spin
-				# or the hull reads as one spinning wheel (spec §18).
-				var spin: float = 0.5 + 0.15 * float(index)
-				var left_orbit: GroupDefinition = GroupDefinition.new()
-				left_orbit.root_id = "lobe_" + str(index) + "_l"
-				left_orbit.orbit_radius = lobe_radius
-				left_orbit.orbit_speed = spin if index % 2 == 0 else -spin
-				ship.groups.append(left_orbit)
-				var right_orbit: GroupDefinition = GroupDefinition.new()
-				right_orbit.root_id = "lobe_" + str(index) + "_r"
-				right_orbit.orbit_radius = lobe_radius
-				right_orbit.orbit_speed = -left_orbit.orbit_speed
-				ship.groups.append(right_orbit)
-	mount_component(ship, ship.primary, "primary", Vector2(0, -body_radius * 0.7), 11.0 if ship.faction == "elite" else 3.5)
-	if ship.faction == "elite": ship.parts[-2].hp = 24 + tier * 15
-	for index: int in range(ship.secondaries.size()): mount_component(ship, ship.secondaries[index], "secondary_" + str(index), Vector2(0, body_radius + 7 + index * 9))
-	for index: int in range(ship.passives.size()): mount_component(ship, ship.passives[index], "passive_" + str(index), Vector2(0, -body_radius - 8 - index * 9))
-	if ship.faction == "elite":
-		var weapons: Array[String] = ["laser_prong", "egg", "droid_bay", "deployment_ramp", "turret_ring", "explosives", "rocket_launcher", "poison_cloud"]
-		for index: int in range(clampi(tier + 1, 2, 7)):
-			var angle: float = TAU * float(index) / float(tier + 2)
-			mount_component(ship, weapons[index], "elite_weapon_" + str(index), Vector2.from_angle(angle) * body_radius * 1.6, 11.0)
-			ship.parts[-2].hp = 24 + tier * 15
-	if ship.faction == "enemy":
-		for part: PartDefinition in ship.parts:
-			if element == "void" and part.id == "maw": part.stat_id = "bullet_eater"; part.stat_value = 9.0
-			if element == "void" and part.id == "reach": part.stat_id = "void_pull"; part.stat_value = 180.0
-			if element == "plasma" and part.id == "orbit_0": part.stat_id = "projectile_orbit"; part.stat_value = 65.0
-	ship.magnet_radius = 95 + (15 if ship.role == "heavy" else -10 if ship.role == "compact" else 0) + (8 if family == "standard_b" else 0)
-	recalculate(ship)
-	return ship
+	return ShipGenerator.build_ship(element, tier, is_player, family, faction)
 
 static func add_part(ship: ShipDefinition, id: String, shape: String, position: Vector2, radius: float, color: String = "chassis", stat: String = "hp_buffer", layer: int = 3, filled: bool = true, parent_id: String = "") -> PartDefinition:
 	var part: PartDefinition = PartDefinition.new()
@@ -235,9 +165,9 @@ static func add_part(ship: ShipDefinition, id: String, shape: String, position: 
 	ship.parts.append(part)
 	return part
 
-static func add_pair(ship: ShipDefinition, id: String, shape: String, position: Vector2, radius: float, color: String, stat: String, layer: int = 2) -> void:
-	var left: PartDefinition = add_part(ship, id + "_l", shape, Vector2(-position.x, position.y), radius, color, stat, layer, true, "core")
-	var right: PartDefinition = add_part(ship, id + "_r", shape, position, radius, color, stat, layer, true, "core")
+static func add_pair(ship: ShipDefinition, id: String, shape: String, position: Vector2, radius: float, color: String, stat: String, layer: int = 2, parent_id: String = "core") -> void:
+	var left: PartDefinition = add_part(ship, id + "_l", shape, Vector2(-position.x, position.y), radius, color, stat, layer, true, parent_id)
+	var right: PartDefinition = add_part(ship, id + "_r", shape, position, radius, color, stat, layer, true, parent_id)
 	left.mirror_id = right.id
 	right.mirror_id = left.id
 
@@ -256,7 +186,7 @@ static func mount_component(ship: ShipDefinition, ability: String, mount: String
 	add_line(ship, mount + "_link", "core", part.id)
 
 static func recalculate(ship: ShipDefinition) -> void:
-	ship.tp_max = GameTuning.TP_BUDGETS[clampi(ship.tier - 1, 0, GameTuning.MAX_TIER - 1)] * (2.5 if ship.faction == "elite" else 1.0)
+	ship.tp_max = GameTuning.TP_BUDGETS[clampi(ship.tier - 1, 0, GameTuning.MAX_TIER - 1)] * (2.5 if ship.faction == "elite" else 8.0 if ship.faction == "boss" else 1.0)
 	ship.tp_used = 0
 	var mounts: Dictionary = {}
 	var radius: float = ship.hull_radius
@@ -286,7 +216,7 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 	if ship.schema_version != 3: errors.append("Unsupported ship schema version.")
 	if not ship.element in ELEMENTS and not (ship.tier == 1 and ship.element == "neutral" and ship.is_player): errors.append("Unknown element.")
 	if ship.tier < 1 or ship.tier > GameTuning.MAX_TIER: errors.append("Tier outside supported range."); return errors
-	if not ship.faction in ["player", "enemy", "elite", "rival"]: errors.append("Unknown faction.")
+	if not ship.faction in ["player", "enemy", "elite", "boss"]: errors.append("Unknown faction.")
 	if ship.is_player != (ship.faction == "player"): errors.append("Faction and player flag disagree.")
 	if not ship.role in ["compact", "standard", "heavy"]: errors.append("Unknown role.")
 	var circle_count: int = 0
@@ -313,7 +243,7 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 		if part.light_period <= 0 or not is_finite(part.light_period) or not is_finite(part.light_phase): errors.append(part.id + ": invalid light timing.")
 		if part.color_role != "chassis" and not PALETTE.has(part.color_role): errors.append(part.id + ": unknown color.")
 		if not ship.is_player and part.color_role in ["player", "player_blue"]: errors.append(part.id + ": player blue is reserved.")
-		if part.mount_id.is_empty() and not part.stat_id in ["speed", "turn_rate", "magnet_radius", "structure", "bullet_eater", "void_pull", "projectile_orbit"]: errors.append(part.id + ": assign a component or body statistic.")
+		if part.mount_id.is_empty() and not part.stat_id in ["speed", "turn_rate", "magnet_radius", "structure", "bullet_eater", "void_pull", "projectile_orbit", "sub_core", "shield_generator"]: errors.append(part.id + ": assign a component or body statistic.")
 		if ship.is_player and part.stat_id in ["bullet_eater", "void_pull", "projectile_orbit"]: errors.append(part.id + ": enemy-only body feature.")
 		if not is_finite(part.stat_value) or part.stat_value < 0: errors.append(part.id + ": invalid body contribution.")
 		if not part.mount_id.is_empty():
@@ -412,6 +342,16 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 				if group.root_id == part.mirror_id: theirs = group
 			if mine != null and theirs != null and not is_equal_approx(mine.orbit_speed, -theirs.orbit_speed): errors.append(part.id + ": mirrored group roots must counter-rotate.")
 	if not errors.is_empty(): return errors
+	if ship.is_player:
+		# Spec §17: player hulls are majority light blue (chassis); the element
+		# shows through arrangement and component colours, not a wholesale recolor.
+		var chassis_circles: int = 0
+		var colored_circles: int = 0
+		for part: PartDefinition in ship.parts:
+			if part.shape == "circle":
+				colored_circles += 1
+				if part.color_role == "chassis": chassis_circles += 1
+		if colored_circles > 0 and chassis_circles * 2 < colored_circles: errors.append("Player hull must be majority light blue (chassis circles).")
 	var copy: ShipDefinition = ship.duplicate(true)
 	recalculate(copy)
 	if copy.tp_used > copy.tp_max + 0.001: errors.append("TP budget exceeded: %.2f / %.2f" % [copy.tp_used, copy.tp_max])
@@ -419,9 +359,18 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 
 static func warnings(ship: ShipDefinition) -> PackedStringArray:
 	var result: PackedStringArray = []
-	var bands: Dictionary = {"compact": Vector2(20, 90), "standard": Vector2(35, 135), "heavy": Vector2(60, 180)}
+	# Widened for P2b-1's six-tier growth. Lightning's long straight spokes
+	# (spec §17: "few circles on long straight spokes") are the true worst
+	# case, not the compact/dense elements this band was tuned against in
+	# v0.2 - measured max per role across the whole roster: compact 259,
+	# standard 313, heavy 367.
+	var bands: Dictionary = {"compact": Vector2(20, 270), "standard": Vector2(35, 325), "heavy": Vector2(60, 380)}
 	var band: Vector2 = bands.get(ship.role, Vector2(0, 200))
-	if ship.tier > 1 and ship.faction != "elite" and (ship.footprint < band.x or ship.footprint > band.y): result.append("Footprint lies outside the role's suggested band.")
+	# The role footprint band is a player-legibility guide (§17 role bands);
+	# enemy archetypes (a chain's shrinking tail can run long), elites (2-4x
+	# a player hull by spec) and bosses (3-4x scale by spec) are exempt by
+	# design, not by oversight.
+	if ship.is_player and ship.tier > 1 and (ship.footprint < band.x or ship.footprint > band.y): result.append("Footprint lies outside the role's suggested band.")
 	var connected: Dictionary = {"core": true}
 	for pass_index: int in range(ship.parts.size()):
 		for part: PartDefinition in ship.parts:

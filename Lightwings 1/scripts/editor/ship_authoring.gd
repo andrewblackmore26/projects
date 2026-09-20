@@ -12,14 +12,14 @@ static func from_description(text: String) -> Dictionary:
 		if candidate in description: element = candidate
 	var tier: int = 2
 	var expression: RegEx = RegEx.new()
-	expression.compile("(?:tier\\s*|t)([1-5])")
+	expression.compile("(?:tier\\s*|t)([1-6])")
 	var match_result: RegExMatch = expression.search(description)
 	if match_result != null: tier = int(match_result.get_string(1))
 	var family: String = "standard_a"
 	for candidate: String in ShipCatalog.FAMILIES:
 		if candidate.replace("_", " ") in description: family = candidate
 	var faction: String = "player"
-	for candidate: String in ["enemy", "elite", "rival"]:
+	for candidate: String in ["enemy", "elite", "boss"]:
 		if candidate in description: faction = candidate
 	var ship: ShipDefinition = ShipCatalog.build_ship(element, tier, faction == "player", [], family, faction)
 	var explicit: Dictionary = {"primary": [], "secondary": [], "passive": []}
@@ -43,7 +43,7 @@ static func from_description(text: String) -> Dictionary:
 	ship.description = text
 	ShipCatalog.recalculate(ship)
 	var warning: PackedStringArray = []
-	var known: PackedStringArray = PackedStringArray(["a", "an", "the", "with", "and", "of", "ship", "hull", "tier", "t1", "t2", "t3", "t4", "t5", "1", "2", "3", "4", "5", "player", "enemy", "elite", "rival", "compact", "standard", "heavy", "standard_a", "standard_b", "fire", "corruption", "plasma", "lightning", "void"])
+	var known: PackedStringArray = PackedStringArray(["a", "an", "the", "with", "and", "of", "ship", "hull", "tier", "t1", "t2", "t3", "t4", "t5", "t6", "1", "2", "3", "4", "5", "6", "player", "enemy", "elite", "boss", "compact", "standard", "heavy", "standard_a", "standard_b", "fire", "corruption", "plasma", "lightning", "void"])
 	var words: RegEx = RegEx.new()
 	words.compile("[a-z0-9_]+")
 	var unsupported: PackedStringArray = []

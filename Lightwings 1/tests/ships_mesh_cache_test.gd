@@ -2,7 +2,7 @@ extends SceneTree
 var failures: int = 0
 func _initialize() -> void:
 	ShipMesh.clear_cache()
-	var ship: ShipDefinition = ShipCatalog.get_ship("elite_plasma_t5")
+	var ship: ShipDefinition = ShipCatalog.get_ship("elite_radial_plasma_t6")
 	var first: ShipMesh = ShipMesh.new()
 	var first_mesh: ArrayMesh = first.build(ship)
 	var second: ShipMesh = ShipMesh.new()

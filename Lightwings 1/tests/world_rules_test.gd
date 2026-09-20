@@ -27,12 +27,12 @@ func _test_world() -> void:
 	for coord: Vector2i in [Vector2i(10000, -2400), Vector2i(-31, 12), Vector2i(4, 17), Vector2i.ZERO]:
 		var descriptor: Dictionary = first.sector_at(coord)
 		expect(descriptor == second.sector_at(coord), "Seed and coordinate determine node independent of exploration")
-		expect(descriptor.tier >= 1 and descriptor.tier <= 5, "Distance tier stays within supported roster")
+		expect(descriptor.tier >= 1 and descriptor.tier <= GameTuning.MAX_TIER, "Distance tier stays within supported roster")
 		for direction: Vector2i in Campaign.DIRECTIONS:
 			expect(first.can_enter(coord, coord + direction, 0).allowed and first.can_enter(coord + direction, coord, 0).allowed, "Every cardinal exit is reciprocal and has no resource gate")
 	expect(first.to_dict() == initial, "Reading procedural nodes does not inflate profile")
 	expect(not first.can_enter(Vector2i.ZERO, Vector2i.ONE, 1500).allowed, "Travel requires an actual neighboring exit")
-	expect(first.sector_at(Vector2i(36,0)).tier == 5 and first.sector_at(Vector2i(36,0)).enemy_count > first.sector_at(Vector2i(1,0)).enemy_count, "Outward travel increases capped tier and population")
+	expect(first.sector_at(Vector2i(36,0)).tier == GameTuning.MAX_TIER and first.sector_at(Vector2i(36,0)).enemy_count > first.sector_at(Vector2i(1,0)).enemy_count, "Outward travel increases capped tier and population")
 	var core_ids: Array = []
 	for element: String in Campaign.ELEMENTS:
 		var coord: Vector2i = first.core_coordinate(element)
@@ -97,7 +97,7 @@ func _test_progression() -> void:
 	expect(malformed.checkpoints.is_empty() and malformed.current_sector == Vector2i.ZERO and malformed.discovered == ["0,0"], "Malformed collection records recover safely")
 
 func _test_evolution() -> void:
-	expect([Rules.threshold(1),Rules.threshold(2),Rules.threshold(3),Rules.threshold(4),Rules.threshold(5)] == [100,250,500,900,-1], "Five-tier light thresholds use central tuning")
+	expect([Rules.threshold(1),Rules.threshold(2),Rules.threshold(3),Rules.threshold(4),Rules.threshold(5),Rules.threshold(6)] == [100,250,500,900,1500,-1], "Six-tier light thresholds use central tuning")
 	var unlocked: Array = Array(GameTuning.ELEMENTS)
 	var first: Array[String] = Rules.offers("neutral",1,{"void":50,"plasma":30,"fire":20},unlocked,[],42)
 	expect(first.size() == 3 and ShipCatalog.get_ship(first[0]).element == "void" and ShipCatalog.get_ship(first[1]).element == "plasma" and ShipCatalog.get_ship(first[2]).element == "fire", "Seed evolution ranks three absorbed elements")
@@ -115,7 +115,7 @@ func _test_evolution() -> void:
 	for id: String in cross:
 		if ShipCatalog.get_ship(id).element == "void": void_count += 1
 	expect(void_count == 1, "More than forty percent replaces exactly one offer")
-	expect(Rules.offers("fire",5,{},unlocked).is_empty(), "Terminal tier has no offer")
+	expect(Rules.offers("fire",GameTuning.MAX_TIER,{},unlocked).is_empty(), "Terminal tier has no offer")
 
 func _test_saves() -> void:
 	var previous_root: String = Saves.storage_root

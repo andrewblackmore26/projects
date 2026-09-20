@@ -11,7 +11,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	for element: String in ShipCatalog.ELEMENTS:
-		for tier: int in range(1, 5):
+		for tier: int in range(1, GameTuning.MAX_TIER):
 			for target_element: String in ShipCatalog.ELEMENTS:
 				var renderer: ShipRenderer = ShipRenderer.new()
 				root.add_child(renderer)

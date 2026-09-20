@@ -11,4 +11,4 @@ trigger = "enemy"
 cooldown = 1.4
 range_pixels = 80.0
 slot_kind = "enemy"
-allowed_factions = Array[String](["enemy", "elite", "rival"])
+allowed_factions = Array[String](["enemy", "elite", "boss"])

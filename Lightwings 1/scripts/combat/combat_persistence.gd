@@ -60,7 +60,7 @@ static func snapshot(world: Node) -> Dictionary:
 static func restore(world: Node, data: Dictionary) -> void:
  if int(data.get("version",0))<2: return
  world._clear_encounter()
- world.max_player_tier=clampi(int(data.get("max_player_tier",5)),1,5)
+ world.max_player_tier=clampi(int(data.get("max_player_tier",GameTuning.MAX_TIER)),1,GameTuning.MAX_TIER)
  var pos: Array=data.get("position",[896,560])
  world.setup_player("neutral",1,float(data.get("light_total",40.0)),[],Vector2(float(pos[0]),float(pos[1])))
  world.set_player_hull(str(data.get("hull_id","player_seed")))

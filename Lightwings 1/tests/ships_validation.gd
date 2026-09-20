@@ -7,9 +7,9 @@ func _initialize() -> void:
 	var source_names: PackedStringArray = DirAccess.get_files_at(ShipCatalog.catalog_root)
 	var remapped_names: PackedStringArray = []
 	for name: String in source_names: remapped_names.append(name + ".remap" if name.ends_with(".tres") else name)
-	_check(ShipCatalog.ids_from_files(remapped_names) == ShipCatalog.ids_from_files(source_names), "Full136-hull listing survives exported remap filenames")
+	_check(ShipCatalog.ids_from_files(remapped_names) == ShipCatalog.ids_from_files(source_names), "Full 141-hull listing survives exported remap filenames")
 	var forms: Array[ShipDefinition] = ShipCatalog.all_forms()
-	_check(forms.size() == 136, "81 player, 25 regular, 25 elite, 5 rivals")
+	_check(forms.size() == 141, "101 player, 50 regular, 35 elite, 5 bosses")
 	var counts: Dictionary = {}
 	var shipped_components: Dictionary = {}
 	var shape_census: Dictionary = {"circle_filled": 0, "circle_unfilled": 0, "line": 0}
@@ -42,7 +42,7 @@ func _initialize() -> void:
 				_check(reached or cursor == "core", ship.id + ": " + part.id + " reaches the core")
 		_check(cores == 1, ship.id + " has exactly one core")
 		if ship.faction == "elite": _check(guns >= 3 and guns <= 8, "Elite carries 3–8 functional guns")
-	_check(counts.get("player") == 81 and counts.get("enemy") == 25 and counts.get("elite") == 25 and counts.get("rival") == 5, "Faction census")
+	_check(counts.get("player") == 101 and counts.get("enemy") == 25 and counts.get("elite") == 10 and counts.get("boss") == 5, "Faction census")
 	_check(shape_census.line > 0 and (shape_census.circle_filled + shape_census.circle_unfilled) > 0, "Census contains circles and lines")
 	print("Shape census: ", shape_census)
 	for component: String in AbilityCatalog.DEFINITIONS:
@@ -50,7 +50,7 @@ func _initialize() -> void:
 	var seed: ShipDefinition = ShipCatalog.get_ship("player_seed")
 	_check(seed.element == "neutral" and seed.secondaries.is_empty(), "Shared neutral seed with no secondary")
 	for element: String in ShipCatalog.ELEMENTS:
-		for tier: int in range(2, 6):
+		for tier: int in range(2, GameTuning.MAX_TIER + 1):
 			var roster: Array[ShipDefinition] = ShipCatalog.roster(element, tier)
 			_check(roster.size() == 4, "%s T%d four hulls" % [element, tier])
 			var roles: Dictionary = {}
@@ -85,16 +85,16 @@ func _initialize() -> void:
 	broken = ship.duplicate(true)
 	# Introduce a two-part parent cycle between two non-core circles.
 	for part: PartDefinition in broken.parts:
-		if part.id == "lobe_0_l": part.parent_id = "lobe_0_r"
-		if part.id == "lobe_0_r": part.parent_id = "lobe_0_l"
+		if part.id == "t2_pod_l": part.parent_id = "t2_pod_r"
+		if part.id == "t2_pod_r": part.parent_id = "t2_pod_l"
 	_check(not ShipCatalog.validate(broken).is_empty(), "Parent cycle rejected")
 	broken = ship.duplicate(true)
 	for part: PartDefinition in broken.parts:
-		if part.id == "lobe_0_l": part.parent_id = "does_not_exist"
+		if part.id == "t2_pod_l": part.parent_id = "does_not_exist"
 	_check(not ShipCatalog.validate(broken).is_empty(), "Parent chain that never reaches the core rejected")
 	broken = ship.duplicate(true)
 	for part: PartDefinition in broken.parts:
-		if part.id == "link_0_l": part.to_id = "link_0_r"
+		if part.id == "t2_pod_link_l": part.to_id = "t2_pod_link_r"
 	_check(not ShipCatalog.validate(broken).is_empty(), "A line ending on a line is rejected")
 	broken = ship.duplicate(true)
 	broken.parts[1].position.x += 5
@@ -106,7 +106,7 @@ func _initialize() -> void:
 	broken.parts[0].radius = 10000
 	broken.parts[0].tp_cost = -100
 	_check(not ShipCatalog.validate(broken).is_empty(), "TP is derived, imported fake costs cannot bypass budgets")
-	broken = ShipCatalog.get_ship("enemy_fire_t3")
+	broken = ShipCatalog.get_ship("enemy_drone_fire_t3")
 	broken.parts[0].color_role = "player"
 	_check(not ShipCatalog.validate(broken).is_empty(), "Enemy player-blue rejected")
 	# --- Group negative controls (P2a-2) ---
@@ -130,26 +130,30 @@ func _initialize() -> void:
 	broken = grouped.duplicate(true)
 	broken.groups[0].chain_mode = "diagonal"
 	_check(not ShipCatalog.validate(broken).is_empty(), "Unknown chain_mode rejected")
-	broken = grouped.duplicate(true)
+	# Plasma's mirrored orbit riders (t2_ring0_rider_l/_r) are an authored
+	# counter-rotating pair; corruption's own groups (breathe/whip) are not
+	# mirrored orbit pairs, so this control needs a different fixture.
+	var mirror_source: ShipDefinition = ShipCatalog.get_ship("player_plasma_t2_standard_a")
+	var left_id: String = "t2_ring_rider_l"
+	var right_id: String = "t2_ring_rider_r"
+	var has_mirror_pair: bool = false
+	for part: PartDefinition in mirror_source.parts:
+		if part.id == left_id: has_mirror_pair = true
+	_check(has_mirror_pair, "Fixture actually carries a mirrored orbit pair to sabotage")
+	broken = mirror_source.duplicate(true)
 	for group: GroupDefinition in broken.groups:
-		if group.root_id == "lobe_0_l": group.orbit_speed = absf(group.orbit_speed)
-		if group.root_id == "lobe_0_r": group.orbit_speed = absf(group.orbit_speed)
+		if group.root_id == left_id: group.orbit_speed = absf(group.orbit_speed)
+		if group.root_id == right_id: group.orbit_speed = absf(group.orbit_speed)
 	_check(not ShipCatalog.validate(broken).is_empty(), "Mirrored group roots spinning the same way rejected")
+	# Corruption's authored whip group (root "tail_0") is already a simple
+	# chain (tail_0 -> tail_1 -> tail_2 ...); branch it by giving tail_0 a
+	# second child.
 	var whip_source: ShipDefinition = ShipCatalog.get_ship("player_corruption_t4_standard_a")
 	broken = whip_source.duplicate(true)
 	for part: PartDefinition in broken.parts:
-		# Give lobe_0_l two children (lobe_1_l and lobe_2_l): a branch, not a chain.
-		if part.id == "lobe_1_l" or part.id == "lobe_2_l": part.parent_id = "lobe_0_l"
-	var kept_groups: Array[GroupDefinition] = []
-	for group: GroupDefinition in broken.groups:
-		if group.root_id != "lobe_0_l": kept_groups.append(group)
-	broken.groups = kept_groups
-	var whip_group: GroupDefinition = GroupDefinition.new()
-	whip_group.root_id = "lobe_0_l"
-	whip_group.chain_mode = "whip"
-	broken.groups.append(whip_group)
+		if part.id == "tail_2": part.parent_id = "tail_0"
 	_check(not ShipCatalog.validate(broken).is_empty(), "A whip/sway subtree that branches (a tree, not a chain) rejected")
-	var overflow: ShipDefinition = ShipCatalog.get_ship("elite_plasma_t5")
+	var overflow: ShipDefinition = ShipCatalog.get_ship("elite_radial_plasma_t6")
 	broken = overflow.duplicate(true)
 	var overflow_group: GroupDefinition = GroupDefinition.new()
 	overflow_group.root_id = "core"
@@ -172,6 +176,26 @@ func _initialize() -> void:
 		ShipCatalog.add_line(broken, "extra_line_%d" % line_count, "core", "primary")
 		line_count += 1
 	_check(not ShipCatalog.validate(broken).is_empty(), "512 lines over budget rejected")
+	# --- P2b-1: six tiers, TP multipliers, majority-blue player hulls ---
+	broken = ship.duplicate(true)
+	broken.tier = GameTuning.MAX_TIER + 1
+	_check(not ShipCatalog.validate(broken).is_empty(), "Tier above MAX_TIER rejected")
+	broken = ship.duplicate(true)
+	broken.tier = 0
+	_check(not ShipCatalog.validate(broken).is_empty(), "Tier below 1 rejected")
+	var t6_ok: ShipDefinition = ShipCatalog.get_ship("player_fire_t6_standard_a")
+	_check(t6_ok != null and ShipCatalog.validate(t6_ok).is_empty(), "T6 player hull validates (six tiers, not five)")
+	var elite_ok: ShipDefinition = ShipCatalog.get_ship("elite_radial_fire_t3")
+	_check(elite_ok != null and is_equal_approx(elite_ok.tp_max, GameTuning.TP_BUDGETS[2] * 2.5), "Elite TP budget is 2.5x its tier")
+	var boss_ok: ShipDefinition = ShipCatalog.get_ship("boss_fire")
+	_check(boss_ok != null and is_equal_approx(boss_ok.tp_max, GameTuning.TP_BUDGETS[boss_ok.tier - 1] * 8.0), "Boss TP budget is 8x its tier")
+	broken = boss_ok.duplicate(true)
+	broken.parts[0].radius *= 100.0
+	_check(not ShipCatalog.validate(broken).is_empty(), "Boss TP over its 8x budget still rejected")
+	broken = ship.duplicate(true)
+	for part: PartDefinition in broken.parts:
+		if part.shape == "circle" and part.mount_id.is_empty(): part.color_role = "fire"
+	_check(not ShipCatalog.validate(broken).is_empty(), "Player hull that is no longer majority light blue rejected")
 	var portable: Dictionary = ShipAuthoring.from_json(ShipAuthoring.to_json(ship))
 	_check(portable.errors.is_empty() and portable.ship.parts.size() == ship.parts.size() and portable.ship.id == ship.id, "Portable JSON roundtrip")
 	_check(not ShipAuthoring.from_json('{"schema_version":99,"parts":[]}').errors.is_empty(), "Future schema rejected")

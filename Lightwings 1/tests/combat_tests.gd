@@ -68,10 +68,10 @@ func test_progression() -> void:
  w.setup_player("fire",5,900,[],Vector2(500,500))
  w._damage_actor(w.player,900,1)
  check(not w.active and w.light_total==0,"Zero bar dies directly")
- w.setup_player("fire",5,1499.5,[],Vector2(500,500))
+ w.setup_player("fire",6,2299.5,[],Vector2(500,500))
  consumed=w.collect_light(20,"plasma")
- check(is_equal_approx(consumed,0.5) and w.light_total==1500,"Terminal capacity preserves fractional excess")
- check(not w.evolve_hull("player_fire_t5_heavy"),"Terminal tier cannot evolve")
+ check(is_equal_approx(consumed,0.5) and w.light_total==2300,"Terminal capacity preserves fractional excess")
+ check(not w.evolve_hull("player_fire_t6_heavy"),"Terminal tier cannot evolve")
  w.setup_player("corruption",4,899,[],Vector2(500,500))
  w.player.ability_set.siphon=true
  consumed=w.collect_light(5,"corruption")

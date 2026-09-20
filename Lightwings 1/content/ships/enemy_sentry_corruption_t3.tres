@@ -1,0 +1,144 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_xsgdo"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_poax2"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_uy73i"]
+
+[sub_resource type="Resource" id="Resource_dumtx"]
+script = ExtResource("2_poax2")
+id = "core"
+radius = 13.5
+stat_id = "speed"
+stat_value = 40.0
+
+[sub_resource type="Resource" id="Resource_8nkcs"]
+script = ExtResource("2_poax2")
+id = "prong_0"
+position = Vector2(-11.266499, -20.623192)
+radius = 3.5
+parent_id = "core"
+layer = 2
+light_phase = -0.7
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_y1deu"]
+script = ExtResource("2_poax2")
+id = "prong_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "prong_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_vrm6p"]
+script = ExtResource("2_poax2")
+id = "prong_1"
+position = Vector2(-1.0272176e-06, -23.5)
+radius = 3.5
+parent_id = "core"
+layer = 2
+light_period = 1.6
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_xx1ul"]
+script = ExtResource("2_poax2")
+id = "prong_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "prong_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_dyhag"]
+script = ExtResource("2_poax2")
+id = "prong_2"
+position = Vector2(11.266499, -20.623192)
+radius = 3.5
+parent_id = "core"
+layer = 2
+light_phase = -1.3
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_005yb"]
+script = ExtResource("2_poax2")
+id = "prong_2_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "prong_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_m6kab"]
+script = ExtResource("2_poax2")
+id = "primary"
+position = Vector2(0, -9.45)
+radius = 3.5
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "pulse_cannon"
+mount_id = "primary"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_n0egj"]
+script = ExtResource("2_poax2")
+id = "primary_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "primary"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_uthgs"]
+script = ExtResource("2_poax2")
+id = "secondary_0"
+position = Vector2(0, 22.5)
+radius = 3.5
+parent_id = "core"
+color_role = "red"
+layer = 4
+ability_id = "laser_prong"
+mount_id = "secondary_0"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_knn04"]
+script = ExtResource("2_poax2")
+id = "secondary_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "secondary_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[resource]
+script = ExtResource("3_uy73i")
+id = "enemy_sentry_corruption_t3"
+display_name = "Corruption Sentry T3"
+tier = 3
+parts = Array[ExtResource("2_poax2")]([SubResource("Resource_dumtx"), SubResource("Resource_8nkcs"), SubResource("Resource_y1deu"), SubResource("Resource_vrm6p"), SubResource("Resource_xx1ul"), SubResource("Resource_dyhag"), SubResource("Resource_005yb"), SubResource("Resource_m6kab"), SubResource("Resource_n0egj"), SubResource("Resource_uthgs"), SubResource("Resource_knn04")])
+abilities = Array[String](["pulse_cannon", "laser_prong"])
+faction = "enemy"
+footprint = 54.0
+magnet_radius = 90.0
+secondaries = Array[String](["laser_prong"])
+tp_used = 6.0
+tp_max = 15.0

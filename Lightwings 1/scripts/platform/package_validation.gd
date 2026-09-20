@@ -20,7 +20,7 @@ func run(app: Node) -> void:
 	for ship: ShipDefinition in ShipCatalog.all_forms():
 		check(ShipCatalog.validate(ship).is_empty(),"Packaged ship: "+ship.id)
 		if ship.is_player: player_count += 1
-	check(player_count == 81,"Complete 81-player-hull roster packaged")
+	check(player_count == 101,"Complete 101-player-hull roster packaged")
 	for id: String in AbilityCatalog.DEFINITIONS:
 		check(AbilityCatalog.get_definition(id).id == id, "Packaged ability: "+id)
 	check(Engine.has_singleton("Steam"), "Packaged GodotSteam extension loads")

@@ -12,5 +12,5 @@ extends Resource
 @export var minimum_tier: int = 1
 @export var tp_cost: float = 2.0
 @export var visual_color: String = "red"
-@export var allowed_factions: Array[String] = ["player", "enemy", "elite", "rival"]
+@export var allowed_factions: Array[String] = ["player", "enemy", "elite", "boss"]
 @export var duration: float = 0.0

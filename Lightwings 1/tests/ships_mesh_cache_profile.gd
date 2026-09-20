@@ -1,6 +1,6 @@
 extends SceneTree
 func _initialize() -> void:
-	var ship: ShipDefinition = ShipCatalog.get_ship("elite_plasma_t5")
+	var ship: ShipDefinition = ShipCatalog.get_ship("elite_radial_plasma_t6")
 	var started: int = Time.get_ticks_usec()
 	for index: int in range(100):
 		var builder: ShipMesh = ShipMesh.new()

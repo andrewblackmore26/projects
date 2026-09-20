@@ -80,7 +80,7 @@ func _run() -> void:
 	app.combat.setup_player("plasma",3,500,[])
 	app._show_evolution()
 	check(app.overlay_kind != "evolution","Demo maximum does not offer T4")
-	check(GameTuning.capacity(3,3) == 500.0,"Demo uses T3 capacity, not T5 survivability")
+	check(GameTuning.capacity(3,3) == 500.0,"Demo uses T3 capacity, not terminal survivability")
 	check(InputMap.has_action("ability_tertiary"),"Third secondary is rebindable")
 	await app._stop_audio()
 	app.queue_free()

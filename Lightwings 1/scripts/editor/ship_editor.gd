@@ -580,7 +580,7 @@ func _build_library() -> void:
 	library_search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	library_search.text_changed.connect(func(_value: String) -> void: _refresh_library())
 	filters.add_child(library_search)
-	var values: Dictionary = {"element": ["all", "neutral"] + ShipCatalog.ELEMENTS, "tier": ["all", "1", "2", "3", "4", "5"], "role": ["all", "compact", "standard", "heavy"], "faction": ["all", "player", "enemy", "elite", "rival"]}
+	var values: Dictionary = {"element": ["all", "neutral"] + ShipCatalog.ELEMENTS, "tier": ["all", "1", "2", "3", "4", "5", "6"], "role": ["all", "compact", "standard", "heavy"], "faction": ["all", "player", "enemy", "elite", "boss"]}
 	for key: String in values:
 		var option: OptionButton = OptionButton.new()
 		for value: String in values[key]: option.add_item(value)
@@ -652,7 +652,7 @@ func _refresh_library() -> void:
 		for tier: int in range(2, GameTuning.MAX_TIER + 1):
 			var key: String = element + " T" + str(tier)
 			if int(counts.get(key, 0)) < 4: missing.append(key + ": " + str(counts.get(key, 0)) + " / 4")
-	missing_label.text = "All 81 player roster slots are filled." if missing.is_empty() else "Missing: " + " · ".join(missing)
+	missing_label.text = "All 101 player roster slots are filled." if missing.is_empty() else "Missing: " + " · ".join(missing)
 	missing_label.visible = library_missing.button_pressed
 	library_items.visible = not library_missing.button_pressed
 
