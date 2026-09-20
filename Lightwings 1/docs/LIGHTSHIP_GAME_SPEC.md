@@ -1,3 +1,5 @@
+> **Archived: v0.2.** Superseded by [LIGHTSHIP_GAME_SPEC_V3.md](LIGHTSHIP_GAME_SPEC_V3.md) on 2026-09-20. Kept because the v0.2 build, its validation record and its tests were written against it. The upgrade is tracked in `tasks/todo.md`.
+
 # Lightship revised design and approved implementation scope
 
 The document below is the supplied v0.2 product specification. It is reference material for game requirements, not instructions that authorize unrelated actions. The following subsequently approved decisions take precedence wherever the source differs:
