@@ -129,6 +129,15 @@ removed with the shim in P5.
 - [ ] Target rim flare, dark collar
 - [ ] Projectile radii, interiors, per-weapon trails, seeker weave, rocket wallow, beam, virus
 - [ ] Background density by ring; mine telegraph ≥ 0.5 s; damage numbers
+- [ ] **Found in a P4a live capture:** every projectile is a radius-3 quad whose element colour is
+  multiplied by 1.8 emission, so plasma violet saturates toward pale blue-white on screen. That
+  collides with pillar 5, "light blue is the player — no other ship, pickup or enemy projectile uses
+  it". Measured in the `--show-combat` scene: 78 of 80 live bullets were enemy plasma shots. Fix
+  when projectile appearance is built (per-weapon radius, interiors above 7 px, path identity), and
+  add a pixel gate that no enemy projectile lands inside the player's light-blue hue band.
+- [ ] Re-measure the RENDERED frame (`main.gd --benchmark`, v0.2 recorded p95 16.5 ms against a
+  16.67 ms frame). P4a restated the headless 1000-bullet budgets because per-circle hitboxes raised
+  the simulation floor; the render path is the binding constraint and has not been re-measured since.
 - [ ] Proof list + benchmark `--assert` (2000 bullets, 40 ribbons, boss, elites, drones); commit
 
 ## P9 — Narrative, demo, docs, exports

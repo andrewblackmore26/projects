@@ -13,7 +13,7 @@
 			"paused": false,
 			"profile": "9026690cfe095f9f",
 			"sector": "(0, 0)",
-			"snapshot": "b30ab82be4004873",
+			"snapshot": "0ecf101ea0a81150",
 			"step": "new_game",
 			"tier": 1
 		},
@@ -29,7 +29,7 @@
 			"paused": false,
 			"profile": "9026690cfe095f9f",
 			"sector": "(0, 0)",
-			"snapshot": "5c3d8f155d7cae5e",
+			"snapshot": "6fea412f1eb45fc9",
 			"step": "origin_flown",
 			"tier": 1
 		},
@@ -45,7 +45,7 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "dcd9ce44974743c5",
+			"snapshot": "864217073c0458d5",
 			"step": "entered_1_0",
 			"tier": 1
 		},
@@ -61,7 +61,7 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "214cbbee2a0a24f8",
+			"snapshot": "3d1100cd68e0c3c5",
 			"step": "fought_1_0",
 			"tier": 1
 		},
@@ -81,7 +81,7 @@
 			"paused": true,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "e27dc8bc534bcf93",
+			"snapshot": "bb318c53843f4980",
 			"step": "evolution_offered",
 			"tier": 1
 		},
@@ -97,15 +97,15 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "7073d7d3d6adfaf1",
+			"snapshot": "2cde98214df1cdbd",
 			"step": "evolved",
 			"tier": 2
 		},
 		{
-			"bullets": 8,
+			"bullets": 6,
 			"enemies": 4,
 			"hull": "player_fire_t2_standard_b",
-			"light": 97.75,
+			"light": 96.75,
 			"lines": "e857280724c237d6",
 			"mode": "play",
 			"offers": [],
@@ -113,15 +113,15 @@
 			"paused": false,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "6ade5cb06f55837a",
+			"snapshot": "cd3b01fccb82ddab",
 			"step": "fought_as_t2",
 			"tier": 2
 		},
 		{
-			"bullets": 8,
+			"bullets": 6,
 			"enemies": 4,
 			"hull": "player_fire_t2_standard_b",
-			"light": 97.75,
+			"light": 96.75,
 			"lines": "e857280724c237d6",
 			"mode": "play",
 			"offers": [],
@@ -129,7 +129,7 @@
 			"paused": true,
 			"profile": "8efd3d8bbec5d1c9",
 			"sector": "(1, 0)",
-			"snapshot": "6ade5cb06f55837a",
+			"snapshot": "cd3b01fccb82ddab",
 			"step": "map_open",
 			"tier": 2
 		},
@@ -137,7 +137,7 @@
 			"bullets": 41,
 			"enemies": 5,
 			"hull": "player_fire_t2_standard_b",
-			"light": 97.75,
+			"light": 96.75,
 			"lines": "e857280724c237d6",
 			"mode": "play",
 			"offers": [],
@@ -145,7 +145,7 @@
 			"paused": false,
 			"profile": "c8a371576ebaf1ca",
 			"sector": "(2, 0)",
-			"snapshot": "cafa526586eb5a01",
+			"snapshot": "3623f2c0a9b5a1ae",
 			"step": "fought_2_0",
 			"tier": 2
 		},
@@ -161,7 +161,7 @@
 			"paused": true,
 			"profile": "b68a4ffa16a299bb",
 			"sector": "(0, 0)",
-			"snapshot": "38814a5afbaefbd4",
+			"snapshot": "975323b55cacabb1",
 			"step": "died",
 			"tier": 2
 		},
@@ -177,7 +177,7 @@
 			"paused": false,
 			"profile": "b68a4ffa16a299bb",
 			"sector": "(0, 0)",
-			"snapshot": "28ae1581edcccdcb",
+			"snapshot": "abb4448a69c08dce",
 			"step": "rebooted",
 			"tier": 1
 		}

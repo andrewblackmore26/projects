@@ -96,19 +96,17 @@ func _process(delta: float) -> void:
 	if not ship.is_player: actor.pos = Vector2(960, 560); actor.speed = 0
 	var lines: PackedStringArray = [ship.display_name + " · live production combat", "Dummy HP is replenished; close to return to editing."]
 	for gun: Dictionary in actor.get("guns", []): lines.append("%s  HP %.0f / %.0f  fire in %.2fs" % [gun.id, gun.hp, gun.max_hp, maxf(0, gun.cd)])
-	if elite_mode:
-		# Per-circle HP is authored data (§22); the detach set is a subtree
-		# walk over parent_id. ShipRig already stores circles in pre-order so
-		# a subtree is the contiguous range [i, i + subtree_size[i]) - reused
-		# here rather than a second walk. Live per-circle damage/respawn
-		# timers are P4 scope (per-circle HP arrays in the broadphase); this
-		# is a structural preview of the authored data, not a running sim.
-		var rig: ShipMotion.ShipRig = ShipMotion.get_rig(ship)
-		lines.append("— Elite mode: per-circle HP and detach set —")
-		for part: PartDefinition in ship.parts:
-			if part.shape != "circle": continue
-			var index: int = rig.index_of(part.id)
-			var detach: int = rig.subtree_size[index] - 1 if index >= 0 else 0
-			lines.append("%s  HP %.0f  detaches %d circle(s) if destroyed" % [part.id, part.hp, detach])
+	if elite_mode and actor.has("rig"):
+		# P4a: this now reads the actor's real per-circle packed arrays
+		# (`part_hp`/`part_max_hp`/`part_attached`), the same source of truth
+		# combat and the broadphase use - not just authored data. ShipRig
+		# already stores circles in pre-order so a subtree is the contiguous
+		# range [i, i + subtree_size[i]), reused here rather than a second walk.
+		var rig: ShipMotion.ShipRig = actor.rig
+		lines.append("— Elite mode: live per-circle HP and detach set —")
+		for i: int in range(rig.ids.size()):
+			var detach: int = rig.subtree_size[i] - 1
+			var state: String = "core" if i == 0 else ("attached" if bool(actor.part_attached[i]) else "DETACHED")
+			lines.append("%s  HP %.0f / %.0f  %s  detaches %d circle(s) if destroyed" % [rig.ids[i], actor.part_hp[i], actor.part_max_hp[i], state, detach])
 	details.text = "\n".join(lines)
 

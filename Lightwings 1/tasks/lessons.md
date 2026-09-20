@@ -45,4 +45,17 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
 - **A budget nobody measured is an assertion.** The plan set "sim mean ≤ 4.5 ms at 2000 bullets" from a design agent's estimate; the first measurement of the untouched v0.2 build was 6.0–6.9 ms. Measure the baseline before writing any threshold, and derive the threshold from the measurement with stated headroom. Numbers that arrive from a planning agent are hypotheses until a run confirms them.
 - JSON reads integers back as floats (`0` → `0.0`). Comparing a live value with a value loaded from a JSON fixture reports a difference that is not there. Send the live side through the same `JSON.stringify` → `parse_string` round trip and compare like with like. (The golden trace "failed" on its first cross-process run for exactly this reason.)
 - A fixture is only as representative as the state it was captured in. The first save fixture showed the seed hull because 90 frames of combat had already regressed the freshly evolved ship below its 85 % floor. Print what a fixture contains (hull, tier, light, flags) and read it before committing it.
+- **Profile before optimising, then keep the losing attempts in the comment.** P4a's per-circle
+  hitboxes pushed the bullet phase over budget. The obvious fix — one bound collider per enemy plus a
+  narrow phase — measured WORSE (2000-bullet mean 8.64 → 9.29) because a hull's bound is ~180 px, so
+  in a crowded node almost every bullet fell inside one and re-tested all its circles. The section
+  timings said the grid rebuild was only 0.58 ms of 8.64, so the rebuild was never the problem;
+  shrinking the cell from 96 px to 32 px fixed it (mean 6.92, p95 9.50). Guessing cost two rewrites.
+- **A budget that sits exactly on the measurement is a coin flip.** The 1000-bullet p95 budget was
+  7.0 ms and the new measurement was 7.03; "passing" would have depended on the run. When a spec
+  requirement legitimately raises a floor, restate the budget from the new measurement with the
+  stated headroom and record why it moved — do not leave a gate that flakes.
+- I used `sed -i` on a GDScript file during P4a, which is exactly what the seeded rule above
+  forbids. It happened to survive, but source edits go through Edit/Write — no exceptions for
+  one-line constants.
 - A negative control covers only the lines it can reach. Scaling the time budgets to 1 % could never fail the pool-fill line of the benchmark gate, so that line got its own sabotage (`--fill-scale=2`). When adding a control, list the instrument's lines and check each one turns `ok=0` under some control.

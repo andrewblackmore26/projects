@@ -34,8 +34,22 @@ class ShipRig extends RefCounted:
 	var mirror_index: PackedInt32Array = PackedInt32Array()     # -1, else the rig index of the mirrored circle
 	var line_from: PackedInt32Array = PackedInt32Array()
 	var line_to: PackedInt32Array = PackedInt32Array()
+	var line_ids: PackedStringArray = PackedStringArray() # the line's own PartDefinition.id, aligned with line_from/line_to
+	## P4a: per-hull-constant per-circle metadata, cached here (not per actor)
+	## because it never changes for a given ShipDefinition. Combat reads these
+	## to size an actor's mutable per-circle packed arrays (part_hp etc.).
+	var ability_id: PackedStringArray = PackedStringArray()
+	var mount_id: PackedStringArray = PackedStringArray()
+	var authored_hp: PackedFloat32Array = PackedFloat32Array()
 	var groups: Array[GroupDefinition] = []
 	var id_index: Dictionary = {}
+	## Radius of a circle centred on the core that contains every circle at any point in its motion
+	## (rest offset + radius, plus the orbit radius of any group it belongs to). Constant for a hull,
+	## and deliberately NOT shrunk as circles die, so it is always conservative. The broadphase
+	## registers one collider of this size per enemy and only tests individual circles for the few
+	## bullets that reach it - with per-circle hitboxes the grid would otherwise carry 5-10x the
+	## colliders and every bullet would pay for it.
+	var bound_radius: float = 0.0
 
 	func has(id: String) -> bool:
 		return id_index.has(id)
@@ -120,12 +134,18 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 	rig.mirror_index.resize(order.size())
 	rig.group_index.fill(-1)
 	rig.mirror_index.fill(-1)
+	rig.ability_id.resize(order.size())
+	rig.mount_id.resize(order.size())
+	rig.authored_hp.resize(order.size())
 	for i: int in range(order.size()): rig.id_index[order[i]] = i
 	for i: int in range(order.size()):
 		var part: PartDefinition = by_id[order[i]]
 		rig.rest[i] = part.position
 		rig.radius[i] = part.radius
 		rig.parent_index[i] = rig.id_index.get(part.parent_id, -1) if part.id != "core" else -1
+		rig.ability_id[i] = part.ability_id
+		rig.mount_id[i] = part.mount_id
+		rig.authored_hp[i] = part.hp
 	for i: int in range(order.size()):
 		var mirror_id: String = str(by_id[order[i]].mirror_id)
 		if rig.id_index.has(mirror_id): rig.mirror_index[i] = int(rig.id_index[mirror_id])
@@ -172,6 +192,17 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 		if not rig.id_index.has(part.from_id) or not rig.id_index.has(part.to_id): continue
 		rig.line_from.append(int(rig.id_index[part.from_id]))
 		rig.line_to.append(int(rig.id_index[part.to_id]))
+		rig.line_ids.append(part.id)
+	# Conservative motion-inclusive bound, computed once per hull: a circle can be displaced by its
+	# group's orbit radius (and a chain's drift), so add the largest such displacement rather than
+	# measuring the rest pose alone.
+	for i: int in range(rig.rest.size()):
+		var reach: float = 0.0
+		var group: int = rig.group_index[i]
+		if group >= 0 and group < rig.groups.size():
+			var definition: GroupDefinition = rig.groups[group]
+			reach = absf(definition.orbit_radius) + absf(definition.drift_amp)
+		rig.bound_radius = maxf(rig.bound_radius, rig.rest[i].length() + rig.radius[i] + reach)
 	return rig
 
 ## Writes `pose` in place. Allocates nothing (Vector2/float are value types).

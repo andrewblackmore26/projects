@@ -82,6 +82,7 @@ var sector_energy_paid: int = 0
 var sector_cache: Dictionary = {}
 var encounter_records: Dictionary = {}
 var encounter_epoch: int = -1
+var debris: Array = [] # P4a detachment: each entry is one destroyed circle's subtree, see `_destroy_part`
 var _ability_cache: Dictionary = {}
 var _bullet_canvas: Node2D
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -169,7 +170,7 @@ func collect_energy(amount: float, element: String) -> void: collect_light(amoun
 
 func _make_actor(id: int, element: String, tier: int, position: Vector2, faction: int, rival: bool) -> Dictionary:
  var hp: float=(140.0+80.0*tier) if rival else (24.0+14.0*tier)
- return {"id":id,"element":element,"tier":clampi(tier,1,GameTuning.MAX_TIER),"pos":position,"vel":Vector2.ZERO,"aim":Vector2.DOWN,"faction":faction,"native_faction":faction,"rival":rival,"elite":false,"hp":hp,"max_hp":hp,"energy":40.0,"fire_cd":0.0,"primary_cd":0.0,"secondary_cd":0.0,"decision_cd":0.0,"target":0,"desired":Vector2.ZERO,"age":_rng.randf()*TAU,"dead":false,"renderer":null,"invulnerable":0.0,"reward_remaining":(80+30*tier) if rival else 24+10*tier,"reward_damage":0.0,"cooldowns":{},"guns":[],"shield":0.0,"blockers":0.0,"blocker_hits":0,"orbit_stock":0,"orbit_cd":0.0,"slow":0.0,"stored":0,"stolen":[],"infected":0.0,"charge":0.0}
+ return {"id":id,"element":element,"tier":clampi(tier,1,GameTuning.MAX_TIER),"pos":position,"vel":Vector2.ZERO,"aim":Vector2.DOWN,"faction":faction,"native_faction":faction,"rival":rival,"elite":false,"hp":hp,"max_hp":hp,"energy":40.0,"fire_cd":0.0,"primary_cd":0.0,"secondary_cd":0.0,"decision_cd":0.0,"target":0,"desired":Vector2.ZERO,"age":_rng.randf()*TAU,"dead":false,"renderer":null,"invulnerable":0.0,"reward_remaining":(80+30*tier) if rival else 24+10*tier,"reward_damage":0.0,"reward_unpaid_limb":0.0,"cooldowns":{},"guns":[],"shield":0.0,"blockers":0.0,"blocker_hits":0,"orbit_stock":0,"orbit_cd":0.0,"slow":0.0,"stored":0,"stolen":[],"infected":0.0,"charge":0.0}
 func _spawn_enemy(element: String, tier: int, position: Vector2, rival: bool) -> Dictionary:
  if enemies.size()>=MAX_ACTORS: return {}
  var actor: Dictionary=_make_actor(next_actor_id,element,tier,arena.clamp_point(position,30.0),ELEMENTS.find(element)+1,rival)
@@ -215,6 +216,26 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
  var enabled: Dictionary={}
  actor.mounts={}
  actor.body_features={}
+ # P4a: capture the previous per-circle state BY ID before the rig is
+ # replaced, so a mid-fight definition edit (or a save restore) carries
+ # damage/cooldowns across, keyed by circle id rather than array index
+ # (a definition edit can reorder or add/remove circles).
+ var previous_rig: ShipMotion.ShipRig=actor.get("rig")
+ var old_hp: Dictionary={}
+ var old_attached: Dictionary={}
+ var old_cd: Dictionary={}
+ var old_egg: Dictionary={}
+ var old_aim: Dictionary={}
+ var old_share: Dictionary={}
+ if previous_rig!=null and actor.has("part_hp"):
+  for i: int in range(previous_rig.ids.size()):
+   var pid: String=previous_rig.ids[i]
+   old_hp[pid]=float(actor.part_hp[i])
+   old_attached[pid]=bool(actor.part_attached[i])
+   old_cd[pid]=float(actor.part_cd[i])
+   old_egg[pid]=float(actor.part_egg_cd[i])
+   old_aim[pid]=actor.part_aim[i]
+   if actor.has("part_reward_share") and i<actor.part_reward_share.size(): old_share[pid]=float(actor.part_reward_share[i])
  actor.rig=ShipMotion.get_rig(definition)
  actor.pose=ShipMotion.ShipPose.new(actor.rig)
  for part: PartDefinition in definition.parts:
@@ -231,18 +252,95 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
   actor.orbit_cd=0.0
   actor.fire_cd=0.0
   actor.erase("beam_contact")
- var old: Dictionary={}
- for gun: Dictionary in actor.get("guns",[]):
-  gun.erase("collider")
-  old[str(gun.id)]=gun
+ _configure_parts(actor,old_hp,old_attached,old_cd,old_egg,old_aim,old_share,reset)
+ _rebuild_part_views(actor)
+## Per-circle HP rule (spec §14/§16): the core's toughness is unchanged -
+## it mirrors `actor.hp`/`actor.max_hp` exactly as before. A peripheral
+## circle uses its authored `PartDefinition.hp` where the generator set one
+## (elite/boss weapon and sub-core circles); an unauthored circle (ordinary
+## structural/mount circles on every hull, ordinary enemy weapon mounts)
+## derives armour from its radius and tier: `radius*(4+3*tier)`, chosen to
+## sit in the same order of magnitude as the authored elite weapon curve
+## (`24+15*tier` at radius 6 -> ~4+2.5*tier per radius unit) so giving every
+## circle HP does not multiply total fight length - see tasks/todo.md P4a
+## review for the measured before/after time-to-kill.
+func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dictionary, old_cd: Dictionary, old_egg: Dictionary, old_aim: Dictionary, old_share: Dictionary, reset: bool) -> void:
+ var rig: ShipMotion.ShipRig=actor.rig
+ var n: int=rig.ids.size()
+ var part_hp: PackedFloat32Array=PackedFloat32Array()
+ var part_max_hp: PackedFloat32Array=PackedFloat32Array()
+ var part_cd: PackedFloat32Array=PackedFloat32Array()
+ var part_egg: PackedFloat32Array=PackedFloat32Array()
+ var part_aim: PackedVector2Array=PackedVector2Array()
+ var part_attached: PackedByteArray=PackedByteArray()
+ part_hp.resize(n)
+ part_max_hp.resize(n)
+ part_cd.resize(n)
+ part_egg.resize(n)
+ part_aim.resize(n)
+ part_attached.resize(n)
+ var mount_index: Dictionary={}
+ var gun_indices: PackedInt32Array=PackedInt32Array()
+ for i: int in range(n):
+  var pid: String=rig.ids[i]
+  var max_hp: float=float(actor.max_hp) if i==0 else (rig.authored_hp[i] if rig.authored_hp[i]>0.0 else rig.radius[i]*(4.0+3.0*float(actor.tier)))
+  part_max_hp[i]=max_hp
+  part_hp[i]=float(old_hp[pid]) if old_hp.has(pid) else max_hp
+  part_attached[i]=(1 if bool(old_attached[pid]) else 0) if old_attached.has(pid) else 1
+  part_cd[i]=float(old_cd[pid]) if old_cd.has(pid) else _rng.randf_range(0.2,1.2)
+  part_egg[i]=float(old_egg[pid]) if old_egg.has(pid) else 0.0
+  part_aim[i]=old_aim[pid] if old_aim.has(pid) else Vector2.DOWN
+  if not rig.mount_id[i].is_empty(): mount_index[rig.mount_id[i]]=i
+  if i>0 and not rig.ability_id[i].is_empty(): gun_indices.append(i)
+ part_hp[0]=float(actor.hp)
+ part_max_hp[0]=float(actor.max_hp)
+ part_attached[0]=1
+ actor.part_hp=part_hp
+ actor.part_max_hp=part_max_hp
+ actor.part_cd=part_cd
+ actor.part_egg_cd=part_egg
+ actor.part_aim=part_aim
+ actor.part_attached=part_attached
+ actor.mount_index=mount_index
+ actor.gun_indices=gun_indices
+ # Reward split (spec item 5): computed once at spawn, never re-derived on a
+ # later reconfigure (a mid-fight definition edit must not re-halve an
+ # already-halved pool) - remapped by id like every other per-circle array.
+ # Player (id 0) never carries a reward.
+ var share: PackedFloat32Array=PackedFloat32Array()
+ share.resize(n)
+ for i: int in range(n):
+  if old_share.has(rig.ids[i]): share[i]=float(old_share[rig.ids[i]])
+ if reset and int(actor.id)!=0 and not actor.has("_reward_split"):
+  actor._reward_split=true
+  var peripheral_sum: float=0.0
+  for i: int in range(1,n): peripheral_sum+=part_max_hp[i]
+  var total_reward: float=float(actor.get("reward_remaining",0.0))
+  var limb_pool: float=total_reward*0.5 if peripheral_sum>0.0 else 0.0
+  if peripheral_sum>0.0:
+   for i: int in range(1,n): share[i]=limb_pool*part_max_hp[i]/peripheral_sum
+  actor.reward_unpaid_limb=limb_pool
+  actor.reward_remaining=total_reward-limb_pool
+ actor.part_reward_share=share
+func _reward_multiplier(actor: Dictionary) -> float: return pow(1.5,maxi(0,int(actor.tier)-player_tier))
+## Single choke point for "what is currently visible on this hull" -
+## rebuilt from the packed per-circle arrays instead of scanned every tick
+## (see `_sync_visuals`, which previously rebuilt this every physics frame).
+func _rebuild_part_views(actor: Dictionary) -> void:
+ var rig: ShipMotion.ShipRig=actor.get("rig")
+ if rig==null: return
  var guns: Array=[]
- for part: PartDefinition in definition.parts:
-  if part.hp<=0.0: continue
-  var gun: Dictionary=old.get(part.id,{"id":part.id,"mount":part.mount_id,"ability":part.ability_id,"hp":part.hp,"max_hp":part.hp,"cd":_rng.randf_range(0.2,1.2),"aim":Vector2.DOWN,"egg_cd":0.0})
-  gun.offset=part.position
-  gun.radius=part.radius
-  guns.append(gun)
+ for i: int in actor.gun_indices:
+  guns.append({"index":i,"id":rig.ids[i],"mount":rig.mount_id[i],"ability":rig.ability_id[i],"hp":actor.part_hp[i],"max_hp":actor.part_max_hp[i],"cd":actor.part_cd[i],"aim":actor.part_aim[i],"egg_cd":actor.part_egg_cd[i],"offset":rig.rest[i],"radius":rig.radius[i]})
  actor.guns=guns
+ var hidden: PackedStringArray=PackedStringArray()
+ for i: int in range(1,rig.ids.size()):
+  if not bool(actor.part_attached[i]): hidden.append(rig.ids[i])
+ for k: int in range(rig.line_from.size()):
+  var lf: int=rig.line_from[k]
+  var lt: int=rig.line_to[k]
+  if (lf>0 and not bool(actor.part_attached[lf])) or (lt>0 and not bool(actor.part_attached[lt])): hidden.append(rig.line_ids[k])
+ actor.hidden_ids=hidden
 func _update_visual(actor: Dictionary, animate: bool = false) -> void:
  if not visuals_enabled: return
  var definition: ShipDefinition=actor.get("definition")
@@ -268,7 +366,9 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   sector_cache.clear()
   encounter_records.clear()
   encounter_epoch=epoch
- elif not sector.is_empty(): CombatPersistence.cache_encounter(self,_sector_key(sector),CombatPersistence.encounter_snapshot(self,false))
+ elif not sector.is_empty():
+  _flush_debris() # so a mid-fade limb's light lands in the cached encounter, not nowhere
+  CombatPersistence.cache_encounter(self,_sector_key(sector),CombatPersistence.encounter_snapshot(self,false))
  _clear_encounter()
  sector=description.duplicate(true)
  _rng.seed=int(sector.get("encounter_seed",734927))
@@ -364,6 +464,7 @@ func _physics_process(delta: float) -> void:
   section_ms.drones_pickups_cleanup=(Time.get_ticks_usec()-section_start)/1000.0
   section_start=Time.get_ticks_usec()
  _update_effects(dt)
+ _update_debris(dt)
  _sync_visuals()
  player_position=player.pos
  player.hp=light_total
@@ -406,9 +507,9 @@ func _tick_cooldowns(actor: Dictionary, dt: float) -> void:
  actor.shield=maxf(0.0,float(actor.shield)-dt)
  actor.blockers=maxf(0.0,float(actor.blockers)-dt)
  actor.orbit_cd=maxf(0.0,float(actor.orbit_cd)-dt)
- for gun: Dictionary in actor.guns:
-  gun.cd=maxf(0.0,float(gun.cd)-dt)
-  gun.egg_cd=maxf(0.0,float(gun.egg_cd)-dt)
+ for i: int in range(actor.get("part_cd",PackedFloat32Array()).size()):
+  actor.part_cd[i]=maxf(0.0,float(actor.part_cd[i])-dt)
+  actor.part_egg_cd[i]=maxf(0.0,float(actor.part_egg_cd[i])-dt)
 func _update_ai(actor: Dictionary, dt: float) -> void:
  _tick_cooldowns(actor,dt)
  actor.age=float(actor.age)+dt
@@ -484,7 +585,14 @@ func _nearest(source: Dictionary, at: Vector2, excluded: Array = []) -> Dictiona
    distance=d
  return best
 
+func _mount_alive(actor: Dictionary, mount: String) -> bool:
+ # A destroyed circle's weapon never fires again (spec §14/§19). The player
+ # has no per-circle hitbox (§16), so its mounts are never marked destroyed.
+ var index: int=int(actor.get("mount_index",{}).get(mount,-1))
+ if index<=0: return true
+ return bool(actor.part_attached[index]) and float(actor.part_hp[index])>0.0
 func _fire_primary(actor: Dictionary, dt: float) -> void:
+ if not _mount_alive(actor,"primary"): return
  var id: String=str(actor.primary)
  if id in ["beam","homing_beam"]:
   _beam(actor,id,dt,_muzzle(actor,"primary"),actor.aim)
@@ -502,6 +610,7 @@ func _use_secondary(actor: Dictionary, index: int = 0) -> void:
  if index<0 or index>=actor.secondaries.size(): return
  var id: String=str(actor.secondaries[index])
  var key: String="secondary_%d" % index
+ if not _mount_alive(actor,key): return
  if float(actor.cooldowns.get(key,0.0))>0.0: return
  actor.cooldowns[key]=_ability(id).cooldown
  actor.secondary_cd=_ability(id).cooldown
@@ -590,17 +699,49 @@ func _beam(actor: Dictionary, id: String, dt: float, origin: Vector2 = Vector2.I
 func _damage_segment(source: Dictionary, from: Vector2, to: Vector2, amount: float, hit_ids: Dictionary) -> void:
  for target: Dictionary in actors_by_id.values():
   if not _hostile(source,target): continue
-  for gun: Dictionary in target.guns:
-   var key: String="%d:%s" % [target.id,gun.id]
-   if float(gun.hp)>0.0 and not hit_ids.has(key) and Pool.segment_circle_t(from,to,_gun_position(target,gun),float(gun.radius)+2.0)>=0.0:
-    _damage_gun(target,gun,amount,source)
-    hit_ids[key]=true
-  var key: String=str(target.id)
-  if not hit_ids.has(key) and Pool.segment_circle_t(from,to,target.pos,5.0)>=0.0:
+  var rig: ShipMotion.ShipRig=target.get("rig")
+  if rig!=null and int(target.id)!=0:
+   for i: int in range(1,rig.ids.size()):
+    if float(target.part_hp[i])<=0.0: continue
+    var key: String="%d:%d" % [target.id,i]
+    if not hit_ids.has(key) and Pool.segment_circle_t(from,to,_part_position(target,i),float(rig.radius[i])+2.0)>=0.0:
+     _damage_part(target,i,amount,source)
+     hit_ids[key]=true
+  var core_key: String=str(target.id)
+  if not hit_ids.has(core_key) and Pool.segment_circle_t(from,to,target.pos,5.0)>=0.0:
    _damage_actor(target,amount,int(source.id),int(source.faction))
-   hit_ids[key]=true
-func _gun_position(actor: Dictionary, gun: Dictionary) -> Vector2:
- return Vector2(actor.pos)+_local_position(actor,str(gun.id),Vector2(gun.offset)).rotated(Vector2(actor.aim).angle()+PI/2.0)
+   hit_ids[core_key]=true
+func _part_position(actor: Dictionary, index: int) -> Vector2:
+ var pose: ShipMotion.ShipPose=actor.get("pose")
+ var local: Vector2=pose.local[index] if pose!=null and index>=0 and index<pose.local.size() else Vector2.ZERO
+ return Vector2(actor.pos)+local.rotated(Vector2(actor.aim).angle()+PI/2.0)
+func _gun_position(actor: Dictionary, gun: Dictionary) -> Vector2: return _part_position(actor,int(gun.get("index",-1)))
+## Narrow phase for the broadphase's one-collider-per-enemy bound: returns the rig index of the
+## earliest alive circle the swept segment touches (leaving its t in `_narrow_t`), or 0 for none.
+## Circle positions come from the POSE, the same source the renderer and the muzzles use, so a
+## hitbox can never sit where the circle is not drawn. The rotation basis is computed once here
+## rather than per circle.
+var _narrow_t: float=0.0
+func _narrow_to_circle(actor: Dictionary, from: Vector2, to: Vector2, bullet_radius: float, limit: float) -> int:
+ var rig: ShipMotion.ShipRig=actor.get("rig")
+ if rig==null: return 0
+ var pose: ShipMotion.ShipPose=actor.get("pose")
+ var hp: PackedFloat32Array=actor.part_hp
+ var angle: float=Vector2(actor.aim).angle()+PI/2.0
+ var ca: float=cos(angle)
+ var sa: float=sin(angle)
+ var origin: Vector2=actor.pos
+ var best: int=0
+ var best_t: float=limit
+ for i: int in range(1,rig.ids.size()):
+  if hp[i]<=0.0: continue
+  var l: Vector2=pose.local[i] if pose!=null and i<pose.local.size() else rig.rest[i]
+  var t: float=Pool.segment_circle_t(from,to,origin+Vector2(l.x*ca-l.y*sa,l.x*sa+l.y*ca),rig.radius[i]+bullet_radius)
+  if t>=0.0 and t<best_t:
+   best_t=t
+   best=i
+ if best>0: _narrow_t=best_t
+ return best
 func _step_motion(actor: Dictionary) -> void:
  var rig: ShipMotion.ShipRig=actor.get("rig")
  var pose: ShipMotion.ShipPose=actor.get("pose")
@@ -616,30 +757,96 @@ func _local_position(actor: Dictionary, id: String, fallback: Vector2) -> Vector
  var index: int=rig.index_of(id)
  return pose.local[index] if index>=0 else fallback
 func _update_guns(actor: Dictionary, dt: float) -> void:
- for gun: Dictionary in actor.guns:
-  if float(gun.hp)<=0.0: continue
-  var at: Vector2=_gun_position(actor,gun)
+ var rig: ShipMotion.ShipRig=actor.rig
+ for index: int in actor.gun_indices:
+  if float(actor.part_hp[index])<=0.0: continue
+  var at: Vector2=_part_position(actor,index)
   var target: Dictionary=_nearest(actor,at)
   if target.is_empty(): continue
-  gun.aim=(Vector2(target.pos)-at).normalized()
-  var id: String=str(gun.ability)
+  actor.part_aim[index]=(Vector2(target.pos)-at).normalized()
+  var id: String=rig.ability_id[index]
   if id in ["beam","homing_beam"]:
    # Enemy continuous beams pulse between readable windows.
-   if fmod(float(actor.age)+float(gun.max_hp),3.0)<0.7: _beam(actor,id,dt,at,gun.aim)
-  elif float(gun.cd)<=0.0:
-   gun.cd=maxf(0.55,_ability(id).cooldown*(2.5 if _ability(id).slot_kind=="primary" else 1.0))
-   _activate_component(actor,id,at,gun.aim,str(gun.id))
-func _damage_gun(actor: Dictionary, gun: Dictionary, amount: float, source: Dictionary) -> void:
- if amount<=0.0 or float(gun.hp)<=0.0: return
- if gun.ability=="egg" and float(gun.egg_cd)<=0.0:
-  gun.egg_cd=2.0
-  for i: int in range(7): _shoot(actor,Vector2(gun.aim).rotated((i-3)*0.25),330.0,15.0,-1.0,Pool.HOMING,_gun_position(actor,gun))
- gun.hp=maxf(0.0,float(gun.hp)-amount)
- if float(gun.hp)<=0.0:
-  _drop_pickup(_gun_position(actor,gun),str(actor.element),20)
+   if fmod(float(actor.age)+float(actor.part_max_hp[index]),3.0)<0.7: _beam(actor,id,dt,at,actor.part_aim[index])
+  elif float(actor.part_cd[index])<=0.0:
+   actor.part_cd[index]=maxf(0.55,_ability(id).cooldown*(2.5 if _ability(id).slot_kind=="primary" else 1.0))
+   _activate_component(actor,id,at,actor.part_aim[index],rig.ids[index])
+## Single choke point (spec item 3): damages one circle, and on death removes
+## its collider, snaps its lines and detaches its subtree as one debris
+## record via `_destroy_part`. Called from bullet/beam/radial damage and from
+## the `_damage_gun` compatibility wrapper kept for existing call sites.
+func _damage_part(actor: Dictionary, index: int, amount: float, source: Dictionary) -> void:
+ if amount<=0.0 or index<=0 or index>=actor.part_hp.size() or float(actor.part_hp[index])<=0.0: return
+ var rig: ShipMotion.ShipRig=actor.rig
+ if rig.ability_id[index]=="egg" and float(actor.part_egg_cd[index])<=0.0:
+  actor.part_egg_cd[index]=2.0
+  var aim: Vector2=actor.part_aim[index]
+  for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.25),330.0,15.0,-1.0,Pool.HOMING,_part_position(actor,index))
+ actor.part_hp[index]=maxf(0.0,float(actor.part_hp[index])-amount)
+ if float(actor.part_hp[index])<=0.0:
   for i: int in range(telegraphs.size()-1,-1,-1):
-   if int(telegraphs[i].owner)==int(actor.id) and str(telegraphs[i].mount)==str(gun.id): telegraphs.remove_at(i)
-  _add_effect("gun_destroyed",_gun_position(actor,gun),_actor_color(actor),0.4,float(gun.radius))
+   if int(telegraphs[i].owner)==int(actor.id) and str(telegraphs[i].mount)==str(rig.ids[index]): telegraphs.remove_at(i)
+  _add_effect("gun_destroyed",_part_position(actor,index),_actor_color(actor),0.4,float(rig.radius[index]))
+  _destroy_part(actor,index,source)
+func _damage_gun(actor: Dictionary, gun: Dictionary, amount: float, source: Dictionary) -> void:
+ # Compatibility wrapper: `gun` is a snapshot Dictionary from `actor.guns`
+ # (see `_rebuild_part_views`); the packed arrays remain the source of truth.
+ var index: int=int(gun.get("index",-1))
+ if index<0: return
+ _damage_part(actor,index,amount,source)
+ gun.hp=float(actor.part_hp[index]) if index<actor.part_hp.size() else 0.0
+## Detachment (spec §14/§19). The whole subtree rooted at `index` is a
+## contiguous rig range (`ShipMotion.ShipRig.subtree_size`), so this is a
+## range operation, not a second graph walk. Anything in the range still
+## attached detaches as ONE debris record; its light is the sum of the
+## per-circle reward shares reserved for those circles at spawn.
+func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
+ var rig: ShipMotion.ShipRig=actor.rig
+ if index<=0 or index>=rig.ids.size() or not bool(actor.part_attached[index]): return
+ var last: int=index+rig.subtree_size[index]
+ var hidden: PackedStringArray=actor.get("hidden_ids",PackedStringArray())
+ var offsets: PackedVector2Array=PackedVector2Array()
+ var radii: PackedFloat32Array=PackedFloat32Array()
+ var light: float=0.0
+ var pose: ShipMotion.ShipPose=actor.pose
+ for i: int in range(index,last):
+  if not bool(actor.part_attached[i]): continue
+  actor.part_attached[i]=0
+  actor.part_hp[i]=0.0
+  hidden.append(rig.ids[i])
+  offsets.append(pose.local[i] if pose!=null and i<pose.local.size() else rig.rest[i])
+  radii.append(rig.radius[i])
+  if i<actor.part_reward_share.size(): light+=float(actor.part_reward_share[i])
+ for k: int in range(rig.line_from.size()):
+  var lf: int=rig.line_from[k]
+  var lt: int=rig.line_to[k]
+  if (lf>=index and lf<last) or (lt>=index and lt<last): hidden.append(rig.line_ids[k])
+ actor.hidden_ids=hidden
+ if offsets.is_empty(): return
+ actor.reward_unpaid_limb=maxf(0.0,float(actor.get("reward_unpaid_limb",0.0))-light)
+ # The debris payout applies the same tier-gap multiplier a core kill does
+ # (_kill_reward), so total light emitted does not depend on whether a limb
+ # was paid out early (debris) or folded into the core-kill pool (spec item
+ # 5/conservation). `reward_unpaid_limb` above stays in unmultiplied terms.
+ var paid_light: float=light*_reward_multiplier(actor)
+ debris.append({"offsets":offsets,"radii":radii,"color":_actor_color(actor),"element":str(actor.element),"position":Vector2(actor.pos),"velocity":Vector2(actor.vel),"angle":Vector2(actor.aim).angle()+PI/2.0,"spin":_rng.randf_range(-1.2,1.2),"age":0.0,"life":1.0,"light":paid_light})
+func _update_debris(dt: float) -> void:
+ for i: int in range(debris.size()-1,-1,-1):
+  var d: Dictionary=debris[i]
+  d.age=float(d.age)+dt
+  d.position=Vector2(d.position)+Vector2(d.velocity)*dt
+  d.angle=float(d.angle)+float(d.spin)*dt
+  if float(d.age)>=float(d.life):
+   _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))))
+   debris.remove_at(i)
+## Debris must not silently lose light on a node exit mid-fade: whatever has
+## not finished its 1s fade yet pays out immediately as a pickup. Called
+## before a sector is cleared/cached and before every snapshot, so light is
+## conserved whether the fight continues, is saved, or the node is left.
+func _flush_debris() -> void:
+ for d: Dictionary in debris:
+  _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))))
+ debris.clear()
 func _passives(actor: Dictionary, dt: float) -> void:
  if _has_ability(actor,"orbital_seekers"):
   if float(actor.orbit_cd)<=0.0 and int(actor.orbit_stock)<3:
@@ -718,8 +925,10 @@ func _update_telegraphs(dt: float) -> void:
 func _radial_damage(actor: Dictionary, at: Vector2, radius: float, amount: float) -> void:
  for target: Dictionary in _hostiles(actor):
   if Vector2(target.pos).distance_to(at)<=radius: _damage_actor(target,amount,int(actor.id),int(actor.faction))
-  for gun: Dictionary in target.guns:
-   if float(gun.hp)>0.0 and _gun_position(target,gun).distance_to(at)<=radius: _damage_gun(target,gun,amount,actor)
+  var rig: ShipMotion.ShipRig=target.get("rig")
+  if rig!=null and int(target.id)!=0:
+   for i: int in range(1,rig.ids.size()):
+    if float(target.part_hp[i])>0.0 and _part_position(target,i).distance_to(at)<=radius: _damage_part(target,i,amount,actor)
 func _spawn_drones(actor: Dictionary, count: int, damage: float = 24.0, at: Vector2 = Vector2.INF) -> void:
  for i: int in range(count):
   if drones.size()>=MAX_DRONES: break
@@ -785,23 +994,26 @@ func _update_bullets(dt: float) -> void:
    if not wall.is_empty(): to=wall.point
    var nearest: float=INF
    var hit: Dictionary={}
+   var hit_part: int=0
    for c: Dictionary in _broadphase.query_segment(from,to,bullets.radii[index]):
     var faction: int=int(c.drone.faction) if not c.drone.is_empty() else int(c.actor.faction)
     if faction==bullets.factions[index]: continue
     if not c.actor.is_empty() and bool(c.actor.dead): continue
-    if not c.gun.is_empty() and float(c.gun.hp)<=0.0: continue
     if bool(c.get("void_eater",false)) and (from-Vector2(c.actor.pos)).dot(Vector2(c.actor.aim))<0.0: continue
     var t: float=Pool.segment_circle_t(from,to,c.pos,float(c.radius)+bullets.radii[index])
-    if t>=0.0 and t<nearest:
+    if t<0.0: continue
+    if int(c.get("part_index",0))>0 and float(c.actor.part_hp[int(c.part_index)])<=0.0: continue
+    if t<nearest:
      nearest=t
      hit=c
+     hit_part=int(c.get("part_index",0))
    if not hit.is_empty():
     _prepare_shot_source(index)
     if not hit.drone.is_empty(): hit.drone.hp=float(hit.drone.hp)-bullets.damages[index]
     elif bool(hit.get("blocker",false)):
      hit.actor.blocker_hits=maxi(0,int(hit.actor.blocker_hits)-1)
     elif float(hit.actor.shield)>0.0 or bool(hit.get("void_eater",false)): pass
-    elif not hit.gun.is_empty(): _damage_gun(hit.actor,hit.gun,bullets.damages[index],source)
+    elif hit_part>0: _damage_part(hit.actor,hit_part,bullets.damages[index],source)
     else:
      _damage_actor(hit.actor,bullets.damages[index],bullets.owners[index],bullets.factions[index])
      if (flag & Pool.INFECT)!=0: _infect(hit.actor,source,3.0,3.0)
@@ -857,14 +1069,13 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
    player_regressed.emit(previous,surviving)
   _add_effect("hit",actor.pos,Color.WHITE,0.15,8.0)
   return
+ # P4a: the armoured-core rule ("reduced damage until half the guns are
+ # destroyed") is REMOVED per spec §28 - the core is the kill target and
+ # takes full damage from tick 0, regardless of surviving limbs.
  var damage: float=amount/maxf(0.1,float(actor.hp_buffer))
- if bool(actor.elite):
-  var destroyed: int=0
-  for gun: Dictionary in actor.guns:
-   if float(gun.hp)<=0.0: destroyed+=1
-  if destroyed<ceili(actor.guns.size()*0.5): damage*=0.15
  var actual: float=minf(float(actor.hp),damage)
  actor.hp=maxf(0.0,float(actor.hp)-damage)
+ if actor.has("part_hp") and actor.part_hp.size()>0: actor.part_hp[0]=actor.hp
  actor.reward_damage=float(actor.reward_damage)+actual
  while float(actor.reward_damage)>=18.0 and int(actor.reward_remaining)>0:
   actor.reward_damage=float(actor.reward_damage)-18.0
@@ -874,8 +1085,14 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
   actor.dead=true
   _kill_reward(actor,source_id,source_faction)
 func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -999) -> void:
- var reward: int=roundi(int(actor.reward_remaining)*pow(1.5,maxi(0,int(actor.tier)-player_tier)))
+ # Killing the core kills the enemy regardless of surviving limbs (spec
+ # §14/§28); any limb reward share never paid because its circle was still
+ # attached when the core died is folded in here so total light emitted is
+ # the same whether the enemy is killed limb-by-limb or core-first.
+ var pool: float=float(actor.reward_remaining)+float(actor.get("reward_unpaid_limb",0.0))
+ var reward: int=roundi(pool*_reward_multiplier(actor))
  actor.reward_remaining=0
+ actor.reward_unpaid_limb=0.0
  while reward>0:
   var size: int=20 if reward>=20 else (5 if reward>=5 else 1)
   _drop_pickup(Vector2(actor.pos)+Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(3,30),str(actor.element),size)
@@ -952,7 +1169,7 @@ func _break_actor_cycles(actor: Dictionary) -> void:
  actor.erase("core_collider")
  actor.erase("mouth_collider")
  for i: int in range(3): actor.erase("blocker_%d" % i)
- for gun: Dictionary in actor.get("guns",[]): gun.erase("collider")
+ actor.erase("part_colliders")
 func remaining_enemies() -> int:
  var count: int=0
  for actor: Dictionary in enemies:
@@ -973,14 +1190,7 @@ func _sync_visuals() -> void:
   renderer.position=actor.pos
   renderer.rotation=Vector2(actor.aim).angle()+PI/2.0
   renderer.set_motion_tick(tick)
-  var hidden: Array[String]=[]
-  for gun: Dictionary in actor.guns:
-   if float(gun.hp)<=0.0:
-    hidden.append(str(gun.id))
-    var definition: ShipDefinition=actor.definition
-    for part: PartDefinition in definition.parts:
-     if part.to_id==str(gun.id) or part.from_id==str(gun.id): hidden.append(part.id)
-  renderer.hidden_part_ids=PackedStringArray(hidden)
+  renderer.hidden_part_ids=actor.get("hidden_ids",PackedStringArray())
 func _actor_color(actor: Dictionary) -> Color:
  return PLAYER_COLOR if int(actor.id)==0 else COLORS[maxi(0,ELEMENTS.find(str(actor.element)))]
 func _add_effect(kind: String, at: Vector2, color: Color, duration: float, radius: float) -> void:
@@ -1009,9 +1219,11 @@ func _clear_encounter() -> void:
  viruses.clear()
  clouds.clear()
  beams.clear()
+ debris.clear()
  _broadphase.clear()
  contact_timer=0.0
 func _exit_tree() -> void:
+ _flush_debris()
  for actor: Dictionary in actors_by_id.values(): _break_actor_cycles(actor)
  for drone: Dictionary in drones: drone.erase("collider")
  _broadphase.clear()
@@ -1023,7 +1235,7 @@ func snapshot() -> Dictionary: return CombatPersistence.snapshot(self)
 func restore(data: Dictionary) -> void: CombatPersistence.restore(self,data)
 func debug_clear() -> void:
  for actor: Dictionary in enemies:
-  for gun: Dictionary in actor.guns: gun.hp=0.0
+  for i: int in actor.gun_indices: actor.part_hp[i]=0.0
   actor.invulnerable=0.0
   _damage_actor(actor,1000000.0,0,0)
  _cleanup_dead()
@@ -1041,9 +1253,11 @@ func benchmark(count: int) -> void:
   var actor: Dictionary=_spawn_elite(ELEMENTS[i%5],5,point) if i%4==0 else _spawn_enemy(ELEMENTS[i%5],4,point,false)
   actor.hp=10000000.0
   actor.max_hp=actor.hp
-  for gun: Dictionary in actor.guns:
-   gun.hp=10000000.0
-   gun.max_hp=10000000.0
+  actor.part_hp[0]=actor.hp
+  actor.part_max_hp[0]=actor.hp
+  for gi: int in actor.gun_indices:
+   actor.part_hp[gi]=10000000.0
+   actor.part_max_hp[gi]=10000000.0
  sector_energy_remaining=10000
  for i: int in range(80): _drop_pickup(Vector2(_rng.randf_range(200,1500),_rng.randf_range(200,900)),ELEMENTS[i%5],1)
  _fill_benchmark(benchmark_target)
@@ -1088,6 +1302,17 @@ func _draw() -> void:
   for i: int in range(8):
    var p: Vector2=Vector2(cloud.pos)+Vector2.from_angle(i*TAU/8+elapsed*0.1)*float(cloud.radius)*0.6
    draw_arc(p,18.0,0,TAU,20,Color("45e06a",0.4),1.0,true)
+ for d: Dictionary in debris: _draw_debris(d)
+func _draw_debris(d: Dictionary) -> void:
+ var alpha: float=clampf(1.0-float(d.age)/float(d.life),0.0,1.0)
+ var color: Color=d.color
+ color.a=alpha
+ var angle: float=float(d.angle)
+ var offsets: PackedVector2Array=d.offsets
+ var radii: PackedFloat32Array=d.radii
+ for j: int in range(offsets.size()):
+  var p: Vector2=Vector2(d.position)+offsets[j].rotated(angle)
+  draw_circle(p,maxf(1.0,float(radii[j])*maxf(0.15,alpha)),color)
 func _draw_pickup(pickup: Dictionary) -> void:
  var color: Color=COLORS[maxi(0,ELEMENTS.find(str(pickup.element)))]
  var radius: float=3.0+(1.5 if float(pickup.value)>=5.0 else 0.0)+(1.5 if float(pickup.value)>=20.0 else 0.0)

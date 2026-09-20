@@ -4,10 +4,20 @@ const World = preload("res://scripts/combat/combat_world.gd")
 
 ## `-- --assert` turns the report into a gate. Budgets are milliseconds of headless simulation per
 ## tick on the development desktop: a regression detector, not Steam Deck qualification.
-## Measured at the v0.2 baseline over three runs: 1000 bullets mean 3.6-3.8 / p95 4.3-4.8,
-## 2000 bullets mean 6.0-6.9 / p95 7.8-9.3. Budgets sit about 1.3x above the worst of those.
 ## `-- --assert --budget-scale=0.01` is the negative control: it must exit 1.
-const BUDGETS: Dictionary = {1000: {"mean": 5.5, "p95": 7.0}, 2000: {"mean": 9.0, "p95": 12.0}}
+##
+## v0.2 baseline (3 runs): 1000 bullets mean 3.6-3.8 / p95 4.3-4.8; 2000 mean 6.0-6.9 / p95 7.8-9.3.
+## P4a restated the 1000-bullet budgets. Spec §16 gives every enemy circle its own hitbox, which is
+## 2-3x the colliders and lands on the bullet phase; after the broadphase work in
+## combat_broadphase.gd's header the measured cost is 1000 mean 4.66 / p95 7.03 and 2000 mean 6.92 /
+## p95 9.50. The old 1000-bullet p95 budget of 7.0 therefore sat exactly on the measurement and
+## would have flaked run to run. Budgets keep the ~1.3x-above-worst-measured convention.
+##
+## The number the spec actually names is "2000 live projectiles at 60 fps" (§23) and that case still
+## has margin. What this gate cannot see is the whole frame: v0.2 recorded a rendered p95 of 16.5 ms
+## against a 16.67 ms frame, so the render path - not the simulation - is the binding constraint, and
+## it is re-measured in P8. Neither number has been measured on a Steam Deck.
+const BUDGETS: Dictionary = {1000: {"mean": 6.0, "p95": 9.0}, 2000: {"mean": 9.0, "p95": 12.0}}
 
 func _initialize() -> void:
 	call_deferred("_run")

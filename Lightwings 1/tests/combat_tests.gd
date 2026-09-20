@@ -99,6 +99,15 @@ func test_arena_collision() -> void:
  check(w.bullets.velocities[idx].x<0 and w.arena.contains(w.bullets.positions[idx],3),"Ricochet reflects remaining movement inside wall")
  w.bullets.clear()
  var enemy: Dictionary=w._spawn_enemy("fire",1,Vector2(1000,500),false)
+ # P4a gives every enemy peripheral circle its own hitbox (spec §16), so an
+ # authored mount circle near this flight line can now legitimately absorb a
+ # shot before the core - that is the intended new behaviour, not tunnelling.
+ # These three checks isolate the core-only path they were written to test
+ # by detaching every peripheral circle first (a player's hitbox stays core-
+ # only regardless; per-circle enemy hits are covered by enemy_parts_test.gd).
+ for i: int in range(1,enemy.rig.ids.size()):
+  enemy.part_hp[i]=0.0
+  enemy.part_attached[i]=0
  var hp: float=enemy.hp
  w._rebuild_actor_grid()
  w.bullets.add(Vector2(800,500),Vector2(10000,0),-1,7,2,0,0,0)
@@ -119,20 +128,36 @@ func test_elites() -> void:
  var w: CombatWorld=make_world()
  var elite: Dictionary=w._spawn_elite("fire",3,Vector2(1100,500))
  check(elite.guns.size()>=3 and elite.guns.size()<=8,"Elite has independent authored weapon circles")
+ # P4a retired "Armored elite core takes reduced damage" and "Half the guns
+ # destroyed exposes core" (combat_tests.gd, formerly here): the armoured-
+ # core rule is removed per spec §28. Replacement: the core takes full
+ # damage from tick 0, unaffected by how many limbs survive, and killing
+ # the core kills the enemy even with limbs still attached.
  var hp: float=elite.hp
  w._damage_actor(elite,100,0,0)
- check(is_equal_approx(elite.hp,hp-15/float(elite.hp_buffer)),"Armored elite core takes reduced damage")
+ check(is_equal_approx(elite.hp,hp-100/float(elite.hp_buffer)),"Core takes full damage from tick 0 (no armoured-core rule)")
  var destroyed: int=ceili(elite.guns.size()*0.5)
  for i: int in range(destroyed): w._damage_gun(elite,elite.guns[i],10000,w.player)
  hp=elite.hp
  w._damage_actor(elite,100,0,0)
- check(is_equal_approx(elite.hp,hp-100/float(elite.hp_buffer)),"Half the guns destroyed exposes core")
+ check(is_equal_approx(elite.hp,hp-100/float(elite.hp_buffer)),"Core damage is identical whether limbs are alive or destroyed")
+ var remaining_alive: int=0
+ for gun: Dictionary in elite.guns:
+  if float(gun.hp)>0.0: remaining_alive+=1
+ check(remaining_alive>0,"Control: this elite still has surviving limbs before the core dies")
+ elite.hp=1.0
+ elite.part_hp[0]=1.0
+ w._damage_actor(elite,1000.0,0,0)
+ check(bool(elite.dead),"Killing the core kills the enemy regardless of surviving limbs")
+ var debris_count: int=w.debris.size()
  var pickups: int=w.pickups.size()
- w._damage_gun(elite,elite.guns[0],10000,w.player)
- check(w.pickups.size()==pickups,"Destroyed gun cannot drop light twice")
+ w._damage_gun(elite,elite.guns[-1],10000,w.player)
+ check(w.debris.size()==debris_count+1,"Destroying a gun creates exactly one debris record")
+ w._damage_gun(elite,elite.guns[-1],10000,w.player)
+ check(w.debris.size()==debris_count+1 and w.pickups.size()==pickups,"Destroyed gun cannot detach/drop light twice")
  w.bullets.clear()
  w.telegraphs.clear()
- for gun: Dictionary in elite.guns: gun.hp=0.0
+ for i: int in elite.gun_indices: w._damage_part(elite,i,10000.0,w.player)
  w._update_guns(elite,0.1)
  check(w.bullets.count()==0 and w.telegraphs.is_empty(),"Destroyed guns never fire")
  var saved: Dictionary=JSON.parse_string(JSON.stringify(w.snapshot()))
@@ -258,6 +283,11 @@ func test_regular_patterns() -> void:
   if element=="void":
    actor.blockers=0.0
    actor.shield=0.0
+   # P4a: isolate the core/mouth path from the new per-circle peripheral
+   # hitboxes (spec §16) - see the comment in test_arena_collision().
+   for i: int in range(1,actor.rig.ids.size()):
+    actor.part_hp[i]=0.0
+    actor.part_attached[i]=0
    w.bullets.clear()
    w._rebuild_actor_grid()
    var hp: float=actor.hp
@@ -288,6 +318,11 @@ func test_cold_cache() -> void:
  w._damage_gun(elite,elite.guns[0],10000.0,w.player)
  w._damage_gun(elite,elite.guns[1],11.0,w.player)
  var hp: float=elite.guns[1].hp
+ # P4a: destroying a gun now defers its light to a 1s-fading debris record
+ # instead of dropping a pickup immediately; that debris is paid out (flushed)
+ # the moment this sector is left/cached, same as it will be when revisited
+ # below. Flush now so the baseline matches the state that gets cached.
+ w._flush_debris()
  var reward: int=w.sector_energy_remaining
  var pickups: int=w.pickups.size()
  for i: int in range(1,42):
