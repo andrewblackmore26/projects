@@ -5,6 +5,22 @@ const WHITE := Color("efeee8")
 const MUTED := Color("9099a8")
 const GOLD := Color("ffd23f")
 const RIVAL_NAMES: Dictionary = {"fire":"PYRE", "lightning":"KERA", "void":"NOX", "corruption":"VERDANT", "companion":"ECHO", "plasma":"VESPER"}
+## Per-overlay-kind policy: whether opening it pauses the tree, and whether
+## Escape/ui_cancel is allowed to close it while it is open. "intro" is kept
+## for parity with the pre-refactor code even though no call site opens it
+## today. Default (kind not listed) matches today's blanket behaviour.
+const SCREEN_POLICY: Dictionary = {
+	"evolution": {"pauses": true, "escape_closes": true},
+	"map": {"pauses": true, "escape_closes": true},
+	"pause": {"pauses": true, "escape_closes": true},
+	"options": {"pauses": true, "escape_closes": true},
+	"death": {"pauses": true, "escape_closes": false},
+	"ending": {"pauses": true, "escape_closes": false},
+	"cloud": {"pauses": true, "escape_closes": true},
+	"confirm": {"pauses": true, "escape_closes": true},
+	"intro": {"pauses": true, "escape_closes": false},
+}
+const DEFAULT_SCREEN_POLICY: Dictionary = {"pauses": true, "escape_closes": true}
 
 var combat: CombatWorld
 var campaign: CampaignState
@@ -63,6 +79,7 @@ var sector_edges: SectorEdges
 var cloud_review: Dictionary = {}
 var cloud_sync_ready: bool = false
 var compositor: CombatCompositor
+var mode_config: ModeConfig = ModeConfig.from_demo(false)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -236,7 +253,7 @@ func _draw_radar() -> void:
 
 func _draw_tier_ticks() -> void:
 	if not is_instance_valid(combat): return
-	var capacity: float = GameTuning.capacity(combat.player_tier,3 if campaign.demo else 5)
+	var capacity: float = GameTuning.capacity(combat.player_tier,mode_config.max_tier())
 	for index: int in range(GameTuning.THRESHOLDS.size()):
 		var threshold: float = GameTuning.THRESHOLDS[index]
 		if threshold > capacity: continue
@@ -302,7 +319,8 @@ func _show_menu() -> void:
 
 func _new_game(is_demo: bool) -> void:
 	is_demo = is_demo or OS.has_feature("demo")
-	slot = "demo" if is_demo else "campaign"
+	mode_config = ModeConfig.from_demo(is_demo)
+	slot = mode_config.save_slot()
 	campaign = CampaignState.new()
 	campaign.configure(is_demo)
 	campaign.world_seed = randi() if not testing else 734927
@@ -314,7 +332,7 @@ func _new_game(is_demo: bool) -> void:
 	line_queue.clear()
 	_start_game_view()
 	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_SIZE*0.5)
-	combat.max_player_tier = 3 if is_demo else 5
+	combat.max_player_tier = mode_config.max_tier()
 	_queue_line("companion","Your first light","Your white core is your hitbox. Hollow light circles heal you and fill the same bar that grows your ship. Fly through an opening and find your first fight.","welcome_v2")
 	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_SIZE*0.5,false)
 
@@ -329,6 +347,7 @@ func _continue_game(save_slot: String) -> void:
 	slot = save_slot
 	campaign = CampaignState.new()
 	campaign.from_dict(snapshot.get("profile",{}))
+	mode_config = ModeConfig.from_demo(campaign.demo)
 	var run: Dictionary = snapshot.get("run",{})
 	pending_offers.assign(run.get("pending_offers",[]))
 	previous_offers.assign(run.get("previous_offers",[]))
@@ -336,7 +355,7 @@ func _continue_game(save_slot: String) -> void:
 	seen_lines = run.get("seen_lines",{}).duplicate(true)
 	line_queue.assign(run.get("line_queue",[]))
 	_start_game_view()
-	combat.max_player_tier = 3 if campaign.demo else 5
+	combat.max_player_tier = mode_config.max_tier()
 	if run.get("combat",{}).is_empty():
 		combat.setup_player("neutral",1,40,[],GameTuning.ARENA_SIZE*0.5)
 		_enter_sector(Vector2i.ZERO,GameTuning.ARENA_SIZE*0.5,false)
@@ -485,7 +504,7 @@ func _input(event: InputEvent) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not rebind_action.is_empty(): return
 	if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
-		if overlay_kind == "intro" or overlay_kind == "death" or overlay_kind == "ending":
+		if not overlay_kind.is_empty() and not bool(SCREEN_POLICY.get(overlay_kind,DEFAULT_SCREEN_POLICY).escape_closes):
 			return
 		if not overlay_kind.is_empty():
 			_close_overlay()
@@ -511,8 +530,8 @@ func _attempt_exit() -> void:
 func _refresh_hud() -> void:
 	if not is_instance_valid(combat) or campaign == null: return
 	var next: int = EvolutionRules.threshold(combat.player_tier)
-	var capped: bool = combat.player_tier >= (3 if campaign.demo else 5)
-	var capacity: float = GameTuning.capacity(combat.player_tier,3 if campaign.demo else 5)
+	var capped: bool = combat.player_tier >= mode_config.max_tier()
+	var capacity: float = GameTuning.capacity(combat.player_tier,mode_config.max_tier())
 	var ship: ShipDefinition = combat.player.get("definition")
 	if ship == null: return
 	var readout: bool = "health_readout" in ship.passives
@@ -552,7 +571,7 @@ func _on_attack_performed(element: String, ability: String) -> void:
 func _on_energy(_element: String, amount: float) -> void:
 	absorbed = combat.absorption
 	if amount >= 5 or fmod(elapsed_ui,0.3)<0.04: sound.play("pickup")
-	if combat.light_total >= EvolutionRules.threshold(combat.player_tier) and combat.player_tier < (3 if campaign.demo else 5):
+	if combat.light_total >= EvolutionRules.threshold(combat.player_tier) and combat.player_tier < mode_config.max_tier():
 		_queue_line("companion","Enough light to change","Press E or A to choose a complete new lightship. Its labelled weapons and passives are part of the hull. The choice follows the light you absorb.","first_threshold_v2")
 
 func _on_regression(from_tier: int, to_tier: int) -> void:
@@ -563,18 +582,21 @@ func _on_regression(from_tier: int, to_tier: int) -> void:
 func _on_shot_fired(at: Vector2, element: String, _ability: String) -> void:
 	sound.play_at(element,at-combat.player_position)
 
+func _achieve(id: String) -> void:
+	if mode_config.achievements_enabled(): platform.unlock_achievement(id)
+
 func _on_rival_reward(_component: String, _offered_root: String) -> void:
 	# Legacy signal adapter: rival rewards are light only.
-	if not campaign.demo: platform.unlock_achievement("FIRST_RIVAL")
+	_achieve("FIRST_RIVAL")
 
 func _on_core_defeated(core_id: String) -> void:
 	if core_id.is_empty(): return
 	var result: Dictionary = campaign.defeat_core(core_id)
 	if not str(result.get("core","")).is_empty():
 		_queue_line(core_id,"A rival yields",_defeat_line(core_id),"defeat_v2_"+core_id)
-		if not campaign.demo: platform.unlock_achievement("FIRST_RIVAL")
+		_achieve("FIRST_RIVAL")
 	if bool(result.get("completed",false)):
-		platform.unlock_achievement("CAMPAIGN_COMPLETE")
+		_achieve("CAMPAIGN_COMPLETE")
 		_show_ending(false)
 	elif bool(result.get("demo_completed",false)): _show_ending(true)
 	_save_game()
@@ -586,18 +608,18 @@ func _on_sector_clear() -> void:
 	_toast("NODE CLEAR · "+CampaignState.coord_key(campaign.current_sector))
 	if str(sector.get("kind","")) in ["core","demo_core"]:
 		_queue_line(str(sector.element),"A rival yields",_defeat_line(str(sector.element)),"defeat_v2_"+str(sector.element))
-		if not campaign.demo: platform.unlock_achievement("FIRST_RIVAL")
+		_achieve("FIRST_RIVAL")
 	if bool(result.get("completed",false)):
 		if campaign.demo: _show_ending(true)
 		else:
-			platform.unlock_achievement("CAMPAIGN_COMPLETE")
+			_achieve("CAMPAIGN_COMPLETE")
 			_show_ending(false)
 	elif bool(result.get("demo_completed",false)): _show_ending(true)
 	_save_game()
 
 func _show_evolution() -> void:
 	if mode != "play" or not is_instance_valid(combat) or combat.light_total <= 0: return
-	if combat.player_tier >= (3 if campaign.demo else 5) or combat.light_total < EvolutionRules.threshold(combat.player_tier): return
+	if combat.player_tier >= mode_config.max_tier() or combat.light_total < EvolutionRules.threshold(combat.player_tier): return
 	if not overlay_kind.is_empty() and overlay_kind != "evolution": return
 	if pending_offers.is_empty():
 		pending_offers = EvolutionRules.offers(combat.player_element,combat.player_tier,combat.absorption,campaign.unlocked,previous_offers,campaign.world_seed+offer_serial)
@@ -636,7 +658,7 @@ func _choose_evolution(id: String) -> void:
 	absorbed = combat.absorption
 	_close_overlay()
 	sound.play("evolve")
-	if not campaign.demo: platform.unlock_achievement("FIRST_EVOLUTION")
+	_achieve("FIRST_EVOLUTION")
 	_queue_line("companion","A different kind of you","Each visible part belongs to your new build. Follow another dialect's light when you want a different future.","first_evolution_v2")
 	_save_game()
 
@@ -873,7 +895,7 @@ func _save_game() -> void:
 	if combat.light_total <= 0.0: run = {"seen_lines":seen_lines,"previous_offers":previous_offers,"offer_serial":offer_serial}
 	var error: Error = SaveService.save_snapshot(campaign.to_dict(),run,slot)
 	if error != OK: _toast("Save failed: "+error_string(error))
-	elif platform.online and cloud_sync_ready and not campaign.demo:
+	elif platform.online and cloud_sync_ready and mode_config.cloud_enabled():
 		platform.save_cloud(SaveService.encode_snapshot({"profile":campaign.to_dict(),"run":run}),slot)
 
 func _show_cloud_review() -> void:
@@ -980,7 +1002,8 @@ func _open_overlay(kind: String) -> void:
 	shade.size = Vector2(1280,800)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.add_child(shade)
-	get_tree().paused = mode == "play"
+	var policy: Dictionary = SCREEN_POLICY.get(kind,DEFAULT_SCREEN_POLICY)
+	get_tree().paused = mode == "play" and bool(policy.pauses)
 	dialogue.visible = false
 
 func _close_overlay() -> void:
@@ -1070,68 +1093,25 @@ func _component_controls() -> String:
 static func _defeat_line(root: String) -> String:
 	return {"fire":"So. You can carry the fire without becoming ash.","lightning":"An error in my prediction. An interesting one.","void":"Even emptiness leaves something behind.","corruption":"A piece of me goes with you. We will meet again.","plasma":"Our orbits crossed. Yours continues."}.get(root,"Keep the code. Remember the cost.")
 
+## The following are thin forwarders to UiKit; kept so the many existing
+## call sites in this file (and any external caller) keep working unchanged.
 static func group(parent: Node) -> Control:
-	var result := Control.new()
-	result.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	result.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(result)
-	return result
+	return UiKit.group(parent)
 
 static func clear(parent: Node) -> void:
-	if parent == null: return
-	for child: Node in parent.get_children():
-		parent.remove_child(child)
-		child.queue_free()
+	UiKit.clear(parent)
 
 static func box(fill: Color, border: Color, width: int = 1) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.set_border_width_all(width)
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	return style
+	return UiKit.box(fill,border,width)
 
 static func panel(parent: Node, rect: Rect2, fill: Color, border: Color) -> Panel:
-	var result := Panel.new()
-	result.position = rect.position
-	result.size = rect.size
-	result.add_theme_stylebox_override("panel",box(fill,border))
-	result.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(result)
-	return result
+	return UiKit.panel(parent,rect,fill,border)
 
 static func label(parent: Node, text: String, position: Vector2, size: Vector2, font_size: int = 16, color: Color = Color.WHITE) -> Label:
-	var result := Label.new()
-	result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	result.text = text
-	result.position = position
-	result.size = size
-	result.add_theme_font_size_override("font_size",font_size)
-	result.add_theme_color_override("font_color",color)
-	result.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(result)
-	return result
+	return UiKit.label(parent,text,position,size,font_size,color)
 
 func button(parent: Node, text: String, rect: Rect2, action: Callable) -> Button:
-	var result := Button.new()
-	result.clip_text = true
-	result.text = text
-	result.position = rect.position
-	result.size = rect.size
-	result.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	parent.add_child(result)
-	result.pressed.connect(func() -> void: sound.play("click"); action.call())
-	return result
+	return UiKit.button(parent,text,rect,action,sound.play.bind("click"))
 
 static func progress(parent: Node, rect: Rect2, color: Color) -> ProgressBar:
-	var result := ProgressBar.new()
-	result.position = rect.position
-	result.size = rect.size
-	result.show_percentage = false
-	result.add_theme_font_size_override("font_size",1)
-	result.add_theme_stylebox_override("background",box(Color("1a202a"),Color(0,0,0,0),0))
-	result.add_theme_stylebox_override("fill",box(color,Color(0,0,0,0),0))
-	parent.add_child(result)
-	result.size = rect.size
-	return result
+	return UiKit.progress(parent,rect,color)

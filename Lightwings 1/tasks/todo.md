@@ -26,16 +26,18 @@ Mandatory stop for hands-on review: **after P7**. Non-blocking checkpoint: roste
 - [x] Exports verified (`gates.ps1 -GPU -Exports`: 8/8 ok in 55.6 s; both Windows packages rebuilt and 178/178 in-package checks each); commit
 
 ## P1 — Seams (no behaviour change, no test edits)
-- [ ] `scripts/ui/ui_kit.gd`
-- [ ] `scripts/world/mode_config.gd` answering exactly as v0.2
-- [ ] Screen-policy table replacing the unconditional pause and the escape block
-- [ ] `scripts/ui/hud.gd`
-- [ ] `scripts/world/run_controller.gd` with one `_achieve(id)` guard
-- [ ] `scripts/combat/combat_persistence.gd`
-- [ ] `scripts/combat/combat_broadphase.gd` with integer handles
-- [ ] Integer sim `tick`; separate FX RNG; delete `collision_actor.gd`
-- [ ] `tests/facade_contract_test.gd` + negative control
-- [ ] Proof: counts identical to P0, no diff under `tests/` or in `package_validation.gd`, golden trace identical, exports verified; commit
+- [x] `scripts/ui/ui_kit.gd` (static builders; main.gd keeps one-line forwarders)
+- [x] `scripts/world/mode_config.gd` answering exactly as v0.2 (`save_slot`, `max_tier`, `achievements_enabled`, `cloud_enabled`); replaces the `3 if campaign.demo else 5` literals in main.gd
+- [x] `SCREEN_POLICY` table in main.gd (`pauses`, `escape_closes` per overlay kind) replacing the unconditional pause and the escape block
+- [x] One `_achieve(id)` guard in main.gd (6 call sites)
+- [→ P5] `scripts/ui/hud.gd` — **re-sequenced.** A pure move of UI-building code cannot be proven neutral today: no instrument measures HUD layout. It is extracted in P5 together with `MinimapModel`, where it gets model-based tests
+- [→ P5–P7] `scripts/world/run_controller.gd` — **re-sequenced** for the same reason: the run/transition/death flows are rewritten in P5 (modes, levels), P6 (warp, save scheduling) and P7 (death card); each extraction lands with the tests for its new behaviour
+- [x] `scripts/combat/combat_persistence.gd` (snapshot output byte-identical; static functions taking the world)
+- [x] `scripts/combat/combat_broadphase.gd` — a pure move in P1. Integer handles / SoA move to P4, where per-circle registration needs them; changing collider identity here could not be proven behaviour-neutral
+- [x] Integer sim `tick` member (NOT in the snapshot until P2: a new snapshot field would change the golden-trace fingerprint); deleted `collision_actor.gd` (zero references)
+- [x] FX RNG: checked 2026-09-20 — every `_rng` call in `combat_world.gd` is sim-side, no visual draws from it. Nothing to separate yet; the rule "FX and trails use their own RNG" applies from P6/P8, with a test that sim state is identical with visuals on and off
+- [x] `tests/facade_contract_test.gd` + negative control
+- [x] Proof: counts identical to P0, no diff under `tests/` or in `package_validation.gd`, golden trace identical, exports verified; commit
 
 ## P2 — Ship model: two primitives, graph, groups, six tiers, 101 hulls
 - [ ] Schema v3 on `PartDefinition` / `ShipDefinition`; `group_definition.gd`
@@ -72,7 +74,8 @@ Mandatory stop for hands-on review: **after P7**. Non-blocking checkpoint: roste
 - [ ] Starter pickups from the descriptor; unlock on absorb
 - [ ] ModeConfig rows campaign / dev / demo; menu; level select; dev evolution tabs; `dev_console.gd`
 - [ ] Level-complete flow
-- [ ] `MinimapModel`; minimap; map screen
+- [ ] `MinimapModel`; minimap; map screen; extract `scripts/ui/hud.gd` here (moved from P1) with `tests/hud_model_test.gd`
+- [ ] Extract `scripts/world/run_controller.gd` here (moved from P1) as the new/continue/enter/level flows are rewritten; the warp and save scheduling join it in P6, the death card in P7
 - [ ] Save schema 4; v3 → v4 migration; slots; dev never cloud-synced; demo import
 - [ ] Remove `V02-ADAPTER` (token count 0)
 - [ ] New tests: world generation (200 seeds × 5 levels, 4 mutants), mode isolation, unlock/offers, HUD model
@@ -134,6 +137,23 @@ No game code changed in P0. Everything below was measured on the untouched v0.2 
 **Plan correction found by measuring.** The plan's P8 budget "sim mean ≤ 4.5 ms at 2000 bullets" is below the v0.2 baseline (5.9–6.9 ms) and was never measured; it came from a design estimate. The P0 gate uses budgets derived from the measurements above. Before P8 the target must be re-derived: either the perf reclaimers in P1–P4 (integer broadphase, analytic arena, no per-tick allocation in `_sync_visuals`) are shown by measurement to reach it, or the budget is restated from what the frame actually has to spare. The rendered-frame p95 (16.5 ms in `docs/VALIDATION.md`) has not been re-measured in P0.
 
 **Not verified in P0:** Linux exports (need Docker), rendered-frame benchmark (`main.gd --benchmark`), anything about v0.3 behaviour.
+
+## Review — P1 (seams; no behaviour change)
+
+| What | Measured |
+|---|---|
+| `combat_world.gd` | 1346 → 1143 lines. Persistence and broadphase moved verbatim; forwarders kept for `snapshot`, `restore`, `_rebuild_actor_grid` (used by tests, main.gd, package_validation); `sector_cache` / `encounter_records` stay members because tests read them |
+| `main.gd` | 1138 → 1117 lines. UiKit, ModeConfig, SCREEN_POLICY, `_achieve` |
+| Suite counts vs P0 | identical: campaign 157 · combat 138 · meshes 5362 · reshapes 5874 · ships 5324 · UI 32 · platform 31 · world rules 164 |
+| Golden trace | unchanged fingerprints at all 11 steps (mode, overlay, paused flag, hull, tier, light, offers, profile, snapshot, dialogue); recorded file not touched |
+| Files changed under `tests/`, `scripts/platform/` | none, except the new `tests/facade_contract_test.gd` |
+| Facade contract | 78 checks, 0 failures; control "a name main.gd does not define" caught |
+| `gates.ps1 -GPU -Exports` | 8/8 ok in 55.7 s; 17 tests; both Windows packages rebuilt, 178/178 in-package checks each; benchmark within budget |
+| CAMPAIGN_COMPLETE now behind `_achieve` | neutral: `CampaignState.defeat_core` only sets `completed` in the non-demo branch, so a demo campaign can never reach those sites |
+
+Left alone on purpose (not ModeConfig questions): menu-time `OS.has_feature("demo")` button and preview gating, the "DEMO"/"CAMPAIGN" sector label, the demo ending branch, the demo minimap filter. They are rewritten in P5.
+
+Noted, not fixed: `SCREEN_POLICY["intro"]` and `_show_rival_intro` are dead code in main.gd (no caller). `_gun_position` is called across files from the broadphase; it goes away with integer handles in P4.
 
 ## Retired assertions
 

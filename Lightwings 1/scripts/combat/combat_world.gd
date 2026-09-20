@@ -18,7 +18,6 @@ const Arena = preload("res://scripts/combat/rounded_arena.gd")
 const ELEMENTS: Array[String] = ["fire","lightning","void","corruption","plasma"]
 const COLORS: Array[Color] = [Color("ff5436"),Color("ffd23f"),Color("9aa3b3"),Color("45e06a"),Color("a97dff")]
 const PLAYER_COLOR: Color = Color("6fd3ff")
-const CELL_SIZE: float = 96.0
 const MAX_PICKUPS: int = 400
 const MAX_ACTORS: int = 100
 const MAX_DRONES: int = 80
@@ -64,11 +63,12 @@ var sector: Dictionary = {}
 var player: Dictionary = {}
 var bullets: LightBulletPool = Pool.new()
 var command: ShipCommand = ShipCommand.new()
-var actor_grid: Dictionary = {}
+var _broadphase: CombatBroadphase = CombatBroadphase.new()
 var actors_by_id: Dictionary = {}
 var next_actor_id: int = 1
 var cleared_emitted: bool = false
 var contact_timer: float = 0.0
+var tick: int = 0
 var benchmark_mode: bool = false
 var benchmark_target: int = 0
 var benchmark_stats: Dictionary = {}
@@ -85,16 +85,13 @@ var encounter_epoch: int = -1
 var _ability_cache: Dictionary = {}
 var _bullet_canvas: Node2D
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
-var _colliders: Array = []
-var _query_results: Array = []
-var _empty_colliders: Array = []
 var _pickup_collectors: Array = []
-var _query_serial: int = 0
 var _shot_source: Dictionary={"id":-1,"faction":-1,"element":"fire"}
 var _last_dt: float = 1.0/60.0
 
 func _ready() -> void:
  _rng.seed=734927
+ _broadphase.world=self
  _ensure_canvas()
  if player.is_empty(): setup_player("neutral",1,40,[],arena.bounds.get_center())
 func _ensure_canvas() -> void:
@@ -262,7 +259,7 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   sector_cache.clear()
   encounter_records.clear()
   encounter_epoch=epoch
- elif not sector.is_empty(): _cache_encounter(_sector_key(sector),encounter_snapshot(false))
+ elif not sector.is_empty(): CombatPersistence.cache_encounter(self,_sector_key(sector),CombatPersistence.encounter_snapshot(self,false))
  _clear_encounter()
  sector=description.duplicate(true)
  _rng.seed=int(sector.get("encounter_seed",734927))
@@ -274,7 +271,7 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
  if not fresh: return
  var key: String=_sector_key(sector)
  if encounter_records.has(key) or sector_cache.has(key):
-  restore_encounter(_read_cached_encounter(key))
+  CombatPersistence.restore_encounter(self,CombatPersistence.read_cached_encounter(self,key))
   return
  var kind: String=str(sector.get("kind","regular"))
  if kind=="origin":
@@ -301,6 +298,7 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
 
 func _physics_process(delta: float) -> void:
  if not active or player.is_empty(): return
+ tick+=1
  var began: int=Time.get_ticks_usec()
  var dt: float=minf(delta,0.05)
  _last_dt=dt
@@ -714,76 +712,7 @@ func _update_drones(dt: float) -> void:
     drone.hp=0.0
   if float(drone.time)<=0.0 or float(drone.hp)<=0.0: drones.remove_at(i)
 
-func _rebuild_actor_grid() -> void:
- for occupants: Array in actor_grid.values(): occupants.clear()
- _colliders.clear()
- for actor: Dictionary in actors_by_id.values():
-  if bool(actor.dead): continue
-  var c: Dictionary=actor.get("core_collider",{})
-  if c.is_empty():
-   c={"actor":actor,"gun":{},"drone":{},"query":-1,"radius":3.0}
-   actor.core_collider=c
-  c.pos=actor.pos
-  c.radius=65.0 if float(actor.shield)>0.0 else 3.0
-  c.void_eater=false
-  _insert_collider(c)
-  if actor.get("body_features",{}).has("bullet_eater"):
-   var mouth: Dictionary=actor.get("mouth_collider",{})
-   if mouth.is_empty():
-    mouth={"actor":actor,"gun":{},"drone":{},"query":-1,"radius":9.0,"void_eater":true}
-    actor.mouth_collider=mouth
-   mouth.radius=float(actor.body_features.bullet_eater.value)
-   mouth.pos=Vector2(actor.pos)+Vector2(actor.body_features.bullet_eater.offset).rotated(Vector2(actor.aim).angle()+PI/2.0)
-   _insert_collider(mouth)
-  for gun: Dictionary in actor.guns:
-   if float(gun.hp)<=0.0: continue
-   var g: Dictionary=gun.get("collider",{})
-   if g.is_empty():
-    g={"actor":actor,"gun":gun,"drone":{},"query":-1}
-    gun.collider=g
-   g.pos=_gun_position(actor,gun)
-   g.radius=gun.radius
-   _insert_collider(g)
-  if float(actor.blockers)>0.0 and int(actor.blocker_hits)>0:
-   for i: int in range(3):
-    var key: String="blocker_%d" % i
-    var blocker: Dictionary=actor.get(key,{})
-    if blocker.is_empty():
-     blocker={"actor":actor,"gun":{},"drone":{},"query":-1,"radius":7.0,"blocker":true}
-     actor[key]=blocker
-    blocker.pos=Vector2(actor.pos)+Vector2.from_angle(elapsed*2.0+TAU*i/3.0)*60.0
-    _insert_collider(blocker)
- for drone: Dictionary in drones:
-  var c: Dictionary=drone.get("collider",{})
-  if c.is_empty():
-   c={"actor":{},"gun":{},"drone":drone,"query":-1,"radius":9.0}
-   drone.collider=c
-  c.pos=drone.pos
-  _insert_collider(c)
-func _insert_collider(c: Dictionary) -> void:
- _colliders.append(c)
- var radius: float=float(c.radius)
- var p: Vector2=c.pos
- var lo: Vector2i=Vector2i(floori((p.x-radius)/CELL_SIZE),floori((p.y-radius)/CELL_SIZE))
- var hi: Vector2i=Vector2i(floori((p.x+radius)/CELL_SIZE),floori((p.y+radius)/CELL_SIZE))
- for y: int in range(lo.y,hi.y+1):
-  for x: int in range(lo.x,hi.x+1):
-   var key: Vector2i=Vector2i(x,y)
-   if not actor_grid.has(key): actor_grid[key]=[]
-   actor_grid[key].append(c)
-func _query_segment(from: Vector2, to: Vector2, radius: float) -> Array:
- var lo: Vector2i=Vector2i(floori((minf(from.x,to.x)-radius)/CELL_SIZE),floori((minf(from.y,to.y)-radius)/CELL_SIZE))
- var hi: Vector2i=Vector2i(floori((maxf(from.x,to.x)+radius)/CELL_SIZE),floori((maxf(from.y,to.y)+radius)/CELL_SIZE))
- if lo==hi: return actor_grid.get(lo,_empty_colliders)
- _query_results.clear()
- _query_serial+=1
- for y: int in range(lo.y,hi.y+1):
-  for x: int in range(lo.x,hi.x+1):
-   for c: Dictionary in actor_grid.get(Vector2i(x,y),_empty_colliders):
-    if int(c.query)!=_query_serial:
-     c.query=_query_serial
-     _query_results.append(c)
- return _query_results
+func _rebuild_actor_grid() -> void: _broadphase.rebuild()
 func _update_bullets(dt: float) -> void:
  for slot: int in range(bullets.active_indices.size()-1,-1,-1):
   var index: int=bullets.active_indices[slot]
@@ -831,7 +760,7 @@ func _update_bullets(dt: float) -> void:
    if not wall.is_empty(): to=wall.point
    var nearest: float=INF
    var hit: Dictionary={}
-   for c: Dictionary in _query_segment(from,to,bullets.radii[index]):
+   for c: Dictionary in _broadphase.query_segment(from,to,bullets.radii[index]):
     var faction: int=int(c.drone.faction) if not c.drone.is_empty() else int(c.actor.faction)
     if faction==bullets.factions[index]: continue
     if not c.actor.is_empty() and bool(c.actor.dead): continue
@@ -1054,128 +983,18 @@ func _clear_encounter() -> void:
  viruses.clear()
  clouds.clear()
  beams.clear()
- actor_grid.clear()
- _colliders.clear()
- _query_results.clear()
+ _broadphase.clear()
  contact_timer=0.0
 func _exit_tree() -> void:
  for actor: Dictionary in actors_by_id.values(): _break_actor_cycles(actor)
  for drone: Dictionary in drones: drone.erase("collider")
- actor_grid.clear()
- _colliders.clear()
- _query_results.clear()
+ _broadphase.clear()
 func _sector_key(description: Dictionary) -> String:
  if description.has("id"): return str(description.id)
  var coord: Vector2i=description.get("coord",Vector2i.ZERO)
  return "%d,%d" % [coord.x,coord.y]
-func _actor_snapshot(actor: Dictionary) -> Dictionary:
- var copy: Dictionary={}
- for key: String in actor:
-  if key in ["renderer","definition","core_collider","mouth_collider","blocker_0","blocker_1","blocker_2","guns"]: continue
-  copy[key]=actor[key]
- var guns: Array=[]
- for gun: Dictionary in actor.get("guns",[]):
-  var g: Dictionary={}
-  for key: String in gun:
-   if key!="collider": g[key]=gun[key]
-  guns.append(g)
- copy.guns=guns
- return _json_value(copy)
-func _drone_snapshots() -> Array:
- var result: Array=[]
- for drone: Dictionary in drones:
-  var copy: Dictionary={}
-  for key: String in drone:
-   if key!="collider": copy[key]=drone[key]
-  result.append(_json_value(copy))
- return result
-func encounter_snapshot(include_transients: bool = true) -> Dictionary:
- var actors: Array=[]
- for actor: Dictionary in enemies: actors.append(_actor_snapshot(actor))
- return {"enemies":actors,"pickups":_json_value(pickups),"drones":_drone_snapshots() if include_transients else [],"telegraphs":_json_value(telegraphs) if include_transients else [],"viruses":_json_value(viruses) if include_transients else [],"clouds":_json_value(clouds) if include_transients else [],"bullets":bullets.to_array() if include_transients else [],"cleared":cleared_emitted,"resource_remaining":sector_energy_remaining,"resource_paid":sector_energy_paid}
-func restore_encounter(data: Dictionary) -> void:
- _clear_encounter()
- for item: Variant in Array(data.get("enemies",[])).slice(0,MAX_ACTORS):
-  if not item is Dictionary: continue
-  var actor: Dictionary=_decode_value(item)
-  actor.renderer=null
-  var definition: ShipDefinition=ShipCatalog.get_ship(str(actor.get("hull_id","")))
-  if definition==null: continue
-  _configure_actor(actor,definition,false)
-  enemies.append(actor)
-  actors_by_id[int(actor.id)]=actor
-  next_actor_id=maxi(next_actor_id,int(actor.id)+1)
-  _update_visual(actor)
- pickups=_decode_value(data.get("pickups",[]))
- drones=_decode_value(data.get("drones",[]))
- telegraphs=_decode_value(data.get("telegraphs",[]))
- viruses=_decode_value(data.get("viruses",[]))
- clouds=_decode_value(data.get("clouds",[]))
- bullets.from_array(data.get("bullets",[]))
- cleared_emitted=bool(data.get("cleared",false))
- sector_energy_remaining=int(data.get("resource_remaining",0))
- sector_energy_paid=int(data.get("resource_paid",0))
- bullet_count=bullets.count()
-func snapshot() -> Dictionary:
- var result: Dictionary=encounter_snapshot()
- result.merge({"version":2,"light_total":light_total,"hull_id":hull_id,"hull_history":hull_history,"absorption":absorption,"player":_actor_snapshot(player),"position":[player_position.x,player_position.y],"element":player_element,"tier":player_tier,"energy":light_total,"hp":light_total,"stolen":[],"elapsed":elapsed,"sector":_json_value(sector),"encounter_records":encounter_records,"encounter_epoch":encounter_epoch,"next_actor_id":next_actor_id,"player_invulnerable":player_invulnerable,"reshape_remaining":reshape_remaining,"rng_state":str(_rng.state),"active":active,"max_player_tier":max_player_tier})
- return result
-func restore(data: Dictionary) -> void:
- if int(data.get("version",0))<2: return
- _clear_encounter()
- max_player_tier=clampi(int(data.get("max_player_tier",5)),1,5)
- var pos: Array=data.get("position",[896,560])
- setup_player("neutral",1,float(data.get("light_total",40.0)),[],Vector2(float(pos[0]),float(pos[1])))
- set_player_hull(str(data.get("hull_id","player_seed")))
- hull_history.assign(data.get("hull_history",["player_seed"]))
- absorption=data.get("absorption",{}).duplicate(true)
- var restored: Dictionary=_decode_value(data.get("player",{}))
- for key: String in restored:
-  if key not in ["definition","renderer","core_collider"]: player[key]=restored[key]
- _configure_actor(player,ShipCatalog.get_ship(hull_id),false)
- light_total=float(data.get("light_total",40.0))
- player.hp=light_total
- player_position=player.pos
- elapsed=float(data.get("elapsed",0.0))
- sector=_decode_value(data.get("sector",{}))
- _configure_arena_exits()
- sector_cache.clear()
- encounter_records=data.get("encounter_records",{}).duplicate(true)
- # Early v2 saves used full dictionaries. Upgrade losslessly on restore.
- for key: String in data.get("sector_cache",{}):
-  _cache_encounter(key,data.sector_cache[key])
- encounter_epoch=int(data.get("encounter_epoch",0))
- restore_encounter(data)
- next_actor_id=maxi(next_actor_id,int(data.get("next_actor_id",1)))
- player_invulnerable=float(data.get("player_invulnerable",0.0))
- reshape_remaining=float(data.get("reshape_remaining",0.0))
- _rng.state=int(str(data.get("rng_state","1")))
- active=bool(data.get("active",true)) and light_total>0.0
- benchmark_mode=false
-func _json_value(value: Variant) -> Variant:
- if value is Vector2: return {"$v2":[value.x,value.y]}
- if value is Vector2i: return {"$v2i":[value.x,value.y]}
- if value is Dictionary:
-  var result: Dictionary={}
-  for key: Variant in value: result[str(key)]=_json_value(value[key])
-  return result
- if value is Array:
-  var result: Array=[]
-  for item: Variant in value: result.append(_json_value(item))
-  return result
- return value
-func _decode_value(value: Variant) -> Variant:
- if value is Dictionary:
-  if value.has("$v2"): return Vector2(float(value["$v2"][0]),float(value["$v2"][1]))
-  if value.has("$v2i"): return Vector2i(int(value["$v2i"][0]),int(value["$v2i"][1]))
-  var result: Dictionary={}
-  for key: Variant in value: result[key]=_decode_value(value[key])
-  return result
- if value is Array:
-  var result: Array=[]
-  for item: Variant in value: result.append(_decode_value(item))
-  return result
- return value
+func snapshot() -> Dictionary: return CombatPersistence.snapshot(self)
+func restore(data: Dictionary) -> void: CombatPersistence.restore(self,data)
 func debug_clear() -> void:
  for actor: Dictionary in enemies:
   for gun: Dictionary in actor.guns: gun.hp=0.0
@@ -1314,28 +1133,6 @@ func _configure_arena_exits() -> void:
  for direction: Variant in sector.get("exits",[Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]):
   if direction is Vector2i: arena.exits.append(direction)
   elif direction is Array and direction.size()==2: arena.exits.append(Vector2i(int(direction[0]),int(direction[1])))
-
-func _cache_encounter(key: String, data: Dictionary) -> void:
- var compressed: PackedByteArray=var_to_bytes(data).compress(FileAccess.COMPRESSION_DEFLATE)
- encounter_records[key]=Marshalls.raw_to_base64(compressed)
- _remember_decoded(key,data)
-func _remember_decoded(key: String, data: Dictionary) -> void:
- sector_cache.erase(key)
- sector_cache[key]=data
- while sector_cache.size()>DECODED_CACHE_LIMIT: sector_cache.erase(sector_cache.keys()[0])
-func _read_cached_encounter(key: String) -> Dictionary:
- if sector_cache.has(key):
-  var data: Dictionary=sector_cache[key]
-  _remember_decoded(key,data)
-  return data
- var compressed: PackedByteArray=Marshalls.base64_to_raw(str(encounter_records.get(key,"")))
- var raw: PackedByteArray=compressed.decompress_dynamic(8*1024*1024,FileAccess.COMPRESSION_DEFLATE)
- var value: Variant=bytes_to_var(raw) if not raw.is_empty() else null
- if not value is Dictionary:
-  push_error("Encounter record could not be decoded: "+key)
-  return {"cleared":true,"enemies":[],"pickups":[],"resource_remaining":0,"resource_paid":0}
- _remember_decoded(key,value)
- return value
 
 func _muzzle(actor: Dictionary, mount: String) -> Vector2:
  return Vector2(actor.pos)+Vector2(actor.get("mounts",{}).get(mount,Vector2.ZERO)).rotated(Vector2(actor.aim).angle()+PI/2.0)
