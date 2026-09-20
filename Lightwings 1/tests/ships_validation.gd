@@ -109,6 +109,69 @@ func _initialize() -> void:
 	broken = ShipCatalog.get_ship("enemy_fire_t3")
 	broken.parts[0].color_role = "player"
 	_check(not ShipCatalog.validate(broken).is_empty(), "Enemy player-blue rejected")
+	# --- Group negative controls (P2a-2) ---
+	var grouped: ShipDefinition = ShipCatalog.get_ship("player_corruption_t2_standard_a")
+	_check(not grouped.groups.is_empty(), "Fixture actually carries a group to sabotage")
+	broken = grouped.duplicate(true)
+	broken.groups[0].root_id = "does_not_exist"
+	_check(not ShipCatalog.validate(broken).is_empty(), "Group root naming a nonexistent circle rejected")
+	broken = grouped.duplicate(true)
+	broken.groups.append(broken.groups[0].duplicate())
+	_check(not ShipCatalog.validate(broken).is_empty(), "More than one group per root rejected")
+	broken = grouped.duplicate(true)
+	broken.groups[0].orbit_speed = 5.0
+	_check(not ShipCatalog.validate(broken).is_empty(), "orbit_speed above +/-3 rad/s rejected")
+	broken = grouped.duplicate(true)
+	broken.groups[0].breathe_amp = 0.5
+	_check(not ShipCatalog.validate(broken).is_empty(), "breathe_amp above 0.08 rejected")
+	broken = grouped.duplicate(true)
+	broken.groups[0].drift_amp = 50.0
+	_check(not ShipCatalog.validate(broken).is_empty(), "drift_amp above the allowed amplitude rejected")
+	broken = grouped.duplicate(true)
+	broken.groups[0].chain_mode = "diagonal"
+	_check(not ShipCatalog.validate(broken).is_empty(), "Unknown chain_mode rejected")
+	broken = grouped.duplicate(true)
+	for group: GroupDefinition in broken.groups:
+		if group.root_id == "lobe_0_l": group.orbit_speed = absf(group.orbit_speed)
+		if group.root_id == "lobe_0_r": group.orbit_speed = absf(group.orbit_speed)
+	_check(not ShipCatalog.validate(broken).is_empty(), "Mirrored group roots spinning the same way rejected")
+	var whip_source: ShipDefinition = ShipCatalog.get_ship("player_corruption_t4_standard_a")
+	broken = whip_source.duplicate(true)
+	for part: PartDefinition in broken.parts:
+		# Give lobe_0_l two children (lobe_1_l and lobe_2_l): a branch, not a chain.
+		if part.id == "lobe_1_l" or part.id == "lobe_2_l": part.parent_id = "lobe_0_l"
+	var kept_groups: Array[GroupDefinition] = []
+	for group: GroupDefinition in broken.groups:
+		if group.root_id != "lobe_0_l": kept_groups.append(group)
+	broken.groups = kept_groups
+	var whip_group: GroupDefinition = GroupDefinition.new()
+	whip_group.root_id = "lobe_0_l"
+	whip_group.chain_mode = "whip"
+	broken.groups.append(whip_group)
+	_check(not ShipCatalog.validate(broken).is_empty(), "A whip/sway subtree that branches (a tree, not a chain) rejected")
+	var overflow: ShipDefinition = ShipCatalog.get_ship("elite_plasma_t5")
+	broken = overflow.duplicate(true)
+	var overflow_group: GroupDefinition = GroupDefinition.new()
+	overflow_group.root_id = "core"
+	overflow_group.reach_ring = true
+	overflow_group.orbit_radius = 40.0
+	broken.groups.append(overflow_group)
+	var existing_circles: int = 0
+	for part: PartDefinition in broken.parts:
+		if part.shape == "circle": existing_circles += 1
+	var to_add: int = ShipCatalog.MAX_PARTS - existing_circles + 2
+	for i: int in range(maxi(0, to_add)):
+		ShipCatalog.add_part(broken, "extra_%d" % i, "circle", Vector2(i + 1, 0), 1.0, "chassis", "structure", 3, false, "core")
+	_check(not ShipCatalog.validate(broken).is_empty(), "128 circles plus a synthesized reach ring over budget rejected")
+	overflow = ShipCatalog.get_ship("player_seed")
+	broken = overflow.duplicate(true)
+	var line_count: int = 0
+	for part: PartDefinition in broken.parts:
+		if part.shape == "line": line_count += 1
+	while line_count <= ShipCatalog.MAX_LINES:
+		ShipCatalog.add_line(broken, "extra_line_%d" % line_count, "core", "primary")
+		line_count += 1
+	_check(not ShipCatalog.validate(broken).is_empty(), "512 lines over budget rejected")
 	var portable: Dictionary = ShipAuthoring.from_json(ShipAuthoring.to_json(ship))
 	_check(portable.errors.is_empty() and portable.ship.parts.size() == ship.parts.size() and portable.ship.id == ship.id, "Portable JSON roundtrip")
 	_check(not ShipAuthoring.from_json('{"schema_version":99,"parts":[]}').errors.is_empty(), "Future schema rejected")

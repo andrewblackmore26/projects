@@ -14,6 +14,11 @@ var show_core: bool = true
 var evolution_ready: bool = false
 var part_position_overrides: Dictionary = {}
 var hidden_part_ids: PackedStringArray = []
+var rig: ShipMotion.ShipRig
+var pose: ShipMotion.ShipPose
+var motion_tick: int = 0
+var _tick_driven: bool = false
+var _pose_hash: int = -2
 var _source: ShipDefinition
 var _contours: Dictionary = {}
 var _draw_cache: Dictionary = {}
@@ -45,10 +50,13 @@ func set_ship(ship: ShipDefinition, animate: bool = false) -> void:
 	_source = definition
 	_old_hull = definition.hull_radius if definition != null else 0.0
 	definition = ship
-	reshape_remaining = 0.8 if animate and _source != null else 0.0
+	reshape_remaining = GameTuning.RESHAPE_SECONDS if animate and _source != null else 0.0
 	_contours.clear()
 	_draw_cache.clear()
 	_display_parts.clear()
+	rig = ShipMotion.get_rig(definition) if definition != null else null
+	pose = ShipMotion.ShipPose.new(rig) if rig != null else null
+	_pose_hash = -2
 	if definition != null:
 		for part: PartDefinition in definition.parts:
 			_display_parts.append(part)
@@ -97,10 +105,24 @@ func _process(delta: float) -> void:
 			if _last_evolution_ready != evolution_ready:
 				_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)
 				_last_evolution_ready = evolution_ready
+			if pose != null:
+				# Geometry motion always comes from an integer tick, never a wall
+				# clock. Owners with a real sim (CombatWorld) drive `motion_tick`
+				# every physics frame via `set_motion_tick`, so it freezes exactly
+				# when the sim pauses; standalone previews (editor, menus) fall
+				# back to the renderer's own always-on clock.
+				if not _tick_driven: motion_tick = int(animation_time * 60.0)
+				ShipMotion.step(rig, pose, motion_tick)
 			_sync_part_offsets()
 
+func set_motion_tick(tick: int) -> void:
+	motion_tick = tick
+	_tick_driven = true
+
 func _body_scale() -> float:
-	return visual_scale * (1.025 - 0.025 * cos((animation_time + _phase) * PI) if definition != null and definition.breathes else 1.0)
+	# Whole-hull breathing is gone: a group's breathe_amp scales only its own
+	# subtree, through the pose, not the entire ship uniformly (spec §18).
+	return visual_scale
 
 func _build_mesh() -> void:
 	if definition == null or hull_only:
@@ -119,7 +141,7 @@ func _build_mesh() -> void:
 	_mesh_material.set_shader_parameter("light_parameters", _mesh_builder.parameters)
 	_mesh_material.set_shader_parameter("part_centers", _mesh_builder.centers)
 	_mesh_material.set_shader_parameter("part_geometry", _mesh_builder.geometries)
-	_mesh_material.set_shader_parameter("motion_signature", ["smooth", "flicker", "snap", "inward", "breathe", "counter_rotate"].find(definition.motion_signature))
+	_mesh_material.set_shader_parameter("motion_signature", ["smooth", "flicker", "snap", "counter_rotate"].find(definition.motion_signature))
 	_mesh_material.set_shader_parameter("core_color", Color.WHITE if definition.is_player else ShipCatalog.get_color(definition.element))
 	_mesh_material.set_shader_parameter("core_radius", definition.core_radius)
 	_mesh_material.set_shader_parameter("show_core", show_core)
@@ -131,21 +153,34 @@ func _build_mesh() -> void:
 	_mesh_material.set_shader_parameter("visual_time", animation_time)
 	_override_hash = -1
 	_hidden_hash = -1
+	_pose_hash = -2
 	_sync_part_offsets()
 
 func _sync_part_offsets() -> void:
 	var overrides: int = hash(part_position_overrides)
 	var hidden: int = hash(hidden_part_ids)
-	if overrides == _override_hash and hidden == _hidden_hash: return
+	var pose_tick: int = motion_tick if pose != null else -1
+	if overrides == _override_hash and hidden == _hidden_hash and pose_tick == _pose_hash: return
 	_override_hash = overrides
 	_hidden_hash = hidden
+	_pose_hash = pose_tick
 	_mesh_offsets.resize(ShipMesh.MAX_PARTS)
 	_mesh_offsets.fill(Vector4(0, 0, 1, 0))
+	# Groups move a circle's pose away from its authored rest position; that
+	# delta (and any breathing radius scale) is the base offset every circle
+	# uploads. Manual overrides (editor drag, CPU reshape) win over it below.
+	if pose != null and rig != null:
+		for i: int in range(rig.ids.size()):
+			var id: String = rig.ids[i]
+			if not _mesh_builder.part_indices.has(id): continue
+			var index: int = _mesh_builder.part_indices[id]
+			var offset: Vector2 = pose.local[i] - rig.rest[i]
+			_mesh_offsets[index] = Vector4(offset.x, offset.y, pose.scale[i], pose.flare[i])
 	for id: String in part_position_overrides:
 		if _mesh_builder.part_indices.has(id):
 			var index: int = _mesh_builder.part_indices[id]
 			var offset: Vector2 = Vector2(part_position_overrides[id]) - _mesh_builder.centers[index]
-			_mesh_offsets[index] = Vector4(offset.x, offset.y, 1, 0)
+			_mesh_offsets[index] = Vector4(offset.x, offset.y, _mesh_offsets[index].z, _mesh_offsets[index].w)
 	for id: String in hidden_part_ids:
 		if _mesh_builder.part_indices.has(id):
 			var index: int = _mesh_builder.part_indices[id]
@@ -164,18 +199,18 @@ func _morph(part: PartDefinition) -> Dictionary:
 	if part_position_overrides.has(part.id): pos = part_position_overrides[part.id]
 	var radius: float = part.radius
 	if reshape_remaining > 0:
-		var amount: float = smoothstep(0.0, 1.0, 1.0 - reshape_remaining / 0.8)
+		var amount: float = smoothstep(0.0, 1.0, 1.0 - reshape_remaining / GameTuning.RESHAPE_SECONDS)
 		var before: PartDefinition = _find(_source, part.id)
 		var after: PartDefinition = _find(definition, part.id)
 		if before != null and after != null:
-			pos = before.position.lerp(after.position, amount)
-			radius = lerpf(before.radius, after.radius, amount)
+			pos = ShipMotion.reshape_local(before.position, after.position, amount)
+			radius = ShipMotion.reshape_radius(before.radius, after.radius, amount)
 		elif after != null:
-			pos *= amount
-			radius *= maxf(0.001, amount)
+			pos = ShipMotion.reshape_local(Vector2.ZERO, pos, amount)
+			radius = ShipMotion.reshape_radius(0.0, radius, amount)
 		else:
-			pos *= 1.0 - amount
-			radius *= maxf(0.001, 1.0 - amount)
+			pos = ShipMotion.reshape_local(pos, Vector2.ZERO, amount)
+			radius = ShipMotion.reshape_radius(radius, 0.0, amount)
 	return {"position": pos, "radius": radius}
 
 func _draw() -> void:
@@ -186,7 +221,7 @@ func _draw() -> void:
 	var factor: float = _body_scale()
 	var hull: float = definition.hull_radius
 	if reshape_remaining > 0:
-		hull = lerpf(_old_hull, hull, smoothstep(0, 1, 1.0 - reshape_remaining / 0.8))
+		hull = lerpf(_old_hull, hull, smoothstep(0, 1, 1.0 - reshape_remaining / GameTuning.RESHAPE_SECONDS))
 	if draw_hull and hull > 0:
 		draw_circle(Vector2.ZERO, hull * factor, Color.BLACK, true, -1, true)
 	if hull_only:
@@ -231,9 +266,6 @@ func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> voi
 		if from == null or to == null: return
 		var from_data: Dictionary = _morph(from)
 		var to_data: Dictionary = _morph(to)
-		if definition.motion_signature == "inward":
-			from_data.position *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
-			to_data.position *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
 		points = ShipGeometry.clipped_line(from_data, to_data)
 		for index: int in range(points.size()): points[index] *= factor
 	else:
@@ -249,7 +281,6 @@ func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> voi
 		else:
 			points = ShipGeometry.outline(part.shape, radius)
 			if reshape_remaining <= 0: _contours[key] = points
-		if definition.motion_signature == "inward": pos *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
 		var transformed: PackedVector2Array = []
 		for point: Vector2 in points:
 			transformed.append((point + pos) * factor)

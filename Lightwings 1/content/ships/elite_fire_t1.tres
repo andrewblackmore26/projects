@@ -1,18 +1,19 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_dnq04"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_v2j5c"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_v2j5c"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_6xra8"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_rh6p3"]
 
-[sub_resource type="Resource" id="Resource_6xra8"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_1mepr"]
+script = ExtResource("2_6xra8")
 id = "core"
 radius = 30.799999999999997
 stat_id = "speed"
 tp_cost = 1.75
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_rh6p3"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_mgdw0"]
+script = ExtResource("2_6xra8")
 id = "primary"
 position = Vector2(0, -21.56)
 radius = 11.0
@@ -25,8 +26,8 @@ mount_id = "primary"
 tp_cost = 0.0
 hp = 39.0
 
-[sub_resource type="Resource" id="Resource_1mepr"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_pbweg"]
+script = ExtResource("2_6xra8")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -37,8 +38,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_mgdw0"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_hkf50"]
+script = ExtResource("2_6xra8")
 id = "elite_weapon_0"
 position = Vector2(49.28, 0)
 radius = 11.0
@@ -51,8 +52,8 @@ mount_id = "elite_weapon_0"
 tp_cost = 0.0
 hp = 39.0
 
-[sub_resource type="Resource" id="Resource_pbweg"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_let0c"]
+script = ExtResource("2_6xra8")
 id = "elite_weapon_0_link"
 shape = "line"
 radius = 1.0
@@ -63,8 +64,8 @@ to_id = "elite_weapon_0"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_hkf50"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_0r5j0"]
+script = ExtResource("2_6xra8")
 id = "elite_weapon_1"
 position = Vector2(-24.640003, 42.67773)
 radius = 11.0
@@ -77,8 +78,8 @@ mount_id = "elite_weapon_1"
 tp_cost = 0.0
 hp = 39.0
 
-[sub_resource type="Resource" id="Resource_let0c"]
-script = ExtResource("1_dnq04")
+[sub_resource type="Resource" id="Resource_r45o1"]
+script = ExtResource("2_6xra8")
 id = "elite_weapon_1_link"
 shape = "line"
 radius = 1.0
@@ -89,11 +90,11 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_v2j5c")
+script = ExtResource("3_rh6p3")
 id = "elite_fire_t1"
 display_name = "Ember Heavy"
 element = "fire"
-parts = Array[ExtResource("1_dnq04")]([SubResource("Resource_6xra8"), SubResource("Resource_rh6p3"), SubResource("Resource_1mepr"), SubResource("Resource_mgdw0"), SubResource("Resource_pbweg"), SubResource("Resource_hkf50"), SubResource("Resource_let0c")])
+parts = Array[ExtResource("2_6xra8")]([SubResource("Resource_1mepr"), SubResource("Resource_mgdw0"), SubResource("Resource_pbweg"), SubResource("Resource_hkf50"), SubResource("Resource_let0c"), SubResource("Resource_0r5j0"), SubResource("Resource_r45o1")])
 abilities = Array[String](["flame_cone"])
 faction = "elite"
 family = "heavy"

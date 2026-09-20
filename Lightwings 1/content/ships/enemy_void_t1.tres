@@ -1,31 +1,36 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_prjyu"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_rj5kl"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_rj5kl"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_t87up"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_7fkfm"]
 
-[sub_resource type="Resource" id="Resource_t87up"]
-script = ExtResource("1_prjyu")
+[sub_resource type="Resource" id="Resource_8nvcb"]
+script = ExtResource("1_rj5kl")
+root_id = "reach"
+orbit_radius = 25.0
+reach_ring = true
+
+[sub_resource type="Resource" id="Resource_dilgb"]
+script = ExtResource("2_t87up")
 id = "core"
 radius = 16.0
 stat_id = "speed"
 tp_cost = 1.25
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_7fkfm"]
-script = ExtResource("1_prjyu")
+[sub_resource type="Resource" id="Resource_3vynq"]
+script = ExtResource("2_t87up")
 id = "reach"
-radius = 25.0
+radius = 1.0
 filled = false
 parent_id = "core"
-layer = 0
 light_phase = -0.7
 stat_id = "void_pull"
 tp_cost = 2.5
-dashed = true
 stat_value = 180.0
 
-[sub_resource type="Resource" id="Resource_8nvcb"]
-script = ExtResource("1_prjyu")
+[sub_resource type="Resource" id="Resource_t2dr0"]
+script = ExtResource("2_t87up")
 id = "maw"
 position = Vector2(0, -3.3)
 radius = 7.699999999999999
@@ -35,8 +40,8 @@ stat_id = "bullet_eater"
 tp_cost = 0.5
 stat_value = 9.0
 
-[sub_resource type="Resource" id="Resource_dilgb"]
-script = ExtResource("1_prjyu")
+[sub_resource type="Resource" id="Resource_6mlmr"]
+script = ExtResource("2_t87up")
 id = "maw_cover"
 position = Vector2(0, -6.534)
 radius = 6.467999999999999
@@ -47,8 +52,8 @@ light_period = 1.6
 stat_id = "structure"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_3vynq"]
-script = ExtResource("1_prjyu")
+[sub_resource type="Resource" id="Resource_legrs"]
+script = ExtResource("2_t87up")
 id = "primary"
 position = Vector2(0, -7.7)
 radius = 3.5
@@ -60,8 +65,8 @@ ability_id = "pulse_cannon"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_t2dr0"]
-script = ExtResource("1_prjyu")
+[sub_resource type="Resource" id="Resource_px3r2"]
+script = ExtResource("2_t87up")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -73,15 +78,15 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_rj5kl")
+script = ExtResource("3_7fkfm")
 id = "enemy_void_t1"
 display_name = "Null Standard A"
 element = "void"
 hull_radius = 16.0
-parts = Array[ExtResource("1_prjyu")]([SubResource("Resource_t87up"), SubResource("Resource_7fkfm"), SubResource("Resource_8nvcb"), SubResource("Resource_dilgb"), SubResource("Resource_3vynq"), SubResource("Resource_t2dr0")])
+parts = Array[ExtResource("2_t87up")]([SubResource("Resource_dilgb"), SubResource("Resource_3vynq"), SubResource("Resource_t2dr0"), SubResource("Resource_6mlmr"), SubResource("Resource_legrs"), SubResource("Resource_px3r2")])
+groups = Array[ExtResource("1_rj5kl")]([SubResource("Resource_8nvcb")])
 abilities = Array[String](["pulse_cannon"])
 faction = "enemy"
 footprint = 32.0
 magnet_radius = 90.0
-motion_signature = "inward"
 tp_used = 5.5

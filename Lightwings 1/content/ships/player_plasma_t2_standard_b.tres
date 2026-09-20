@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_7l5ir"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_sq4n1"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_sq4n1"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_slv63"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_yf4qj"]
 
-[sub_resource type="Resource" id="Resource_slv63"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_lhifj"]
+script = ExtResource("2_slv63")
 id = "core"
 radius = 15.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_yf4qj"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_31l1a"]
+script = ExtResource("2_slv63")
 id = "orbit_0"
 radius = 20.0
 filled = false
@@ -22,8 +23,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_lhifj"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_xulof"]
+script = ExtResource("2_slv63")
 id = "orbit_1"
 radius = 26.0
 filled = false
@@ -34,8 +35,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_31l1a"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_2g6vh"]
+script = ExtResource("2_slv63")
 id = "lobe_0_l"
 position = Vector2(-30, -10)
 radius = 9.0
@@ -47,8 +48,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_xulof"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_5dawl"]
+script = ExtResource("2_slv63")
 id = "lobe_0_r"
 position = Vector2(30, -10)
 radius = 9.0
@@ -60,8 +61,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_2g6vh"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_k2s16"]
+script = ExtResource("2_slv63")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -73,8 +74,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_5dawl"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_e2m6j"]
+script = ExtResource("2_slv63")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -85,8 +86,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_k2s16"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_eqvyb"]
+script = ExtResource("2_slv63")
 id = "primary"
 position = Vector2(0, -10.5)
 radius = 3.5
@@ -99,8 +100,8 @@ ability_id = "ricochet"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_e2m6j"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_oiko8"]
+script = ExtResource("2_slv63")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -111,8 +112,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_eqvyb"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_mh51v"]
+script = ExtResource("2_slv63")
 id = "secondary_0"
 position = Vector2(0, 22)
 radius = 3.5
@@ -123,8 +124,8 @@ ability_id = "seeker_missiles"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_oiko8"]
-script = ExtResource("1_7l5ir")
+[sub_resource type="Resource" id="Resource_e57er"]
+script = ExtResource("2_slv63")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -136,13 +137,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_sq4n1")
+script = ExtResource("3_yf4qj")
 id = "player_plasma_t2_standard_b"
 display_name = "Orbit Standard B"
 element = "plasma"
 tier = 2
 is_player = true
-parts = Array[ExtResource("1_7l5ir")]([SubResource("Resource_slv63"), SubResource("Resource_yf4qj"), SubResource("Resource_lhifj"), SubResource("Resource_31l1a"), SubResource("Resource_xulof"), SubResource("Resource_2g6vh"), SubResource("Resource_5dawl"), SubResource("Resource_k2s16"), SubResource("Resource_e2m6j"), SubResource("Resource_eqvyb"), SubResource("Resource_oiko8")])
+parts = Array[ExtResource("2_slv63")]([SubResource("Resource_lhifj"), SubResource("Resource_31l1a"), SubResource("Resource_xulof"), SubResource("Resource_2g6vh"), SubResource("Resource_5dawl"), SubResource("Resource_k2s16"), SubResource("Resource_e2m6j"), SubResource("Resource_eqvyb"), SubResource("Resource_oiko8"), SubResource("Resource_mh51v"), SubResource("Resource_e57er")])
 abilities = Array[String](["ricochet", "seeker_missiles"])
 family = "standard_b"
 footprint = 81.24555

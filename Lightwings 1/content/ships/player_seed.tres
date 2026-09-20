@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_wcj8q"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_di4gy"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_di4gy"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_4wrfq"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_rwxjk"]
 
-[sub_resource type="Resource" id="Resource_4wrfq"]
-script = ExtResource("1_wcj8q")
+[sub_resource type="Resource" id="Resource_i0cd2"]
+script = ExtResource("2_4wrfq")
 id = "core"
 radius = 11.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_rwxjk"]
-script = ExtResource("1_wcj8q")
+[sub_resource type="Resource" id="Resource_2ly1g"]
+script = ExtResource("2_4wrfq")
 id = "primary"
 position = Vector2(0, -7.7)
 radius = 3.5
@@ -23,8 +24,8 @@ ability_id = "pulse_cannon"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_i0cd2"]
-script = ExtResource("1_wcj8q")
+[sub_resource type="Resource" id="Resource_v5rup"]
+script = ExtResource("2_4wrfq")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -36,12 +37,12 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_di4gy")
+script = ExtResource("3_rwxjk")
 id = "player_seed"
 display_name = "Lumen"
 element = "neutral"
 is_player = true
-parts = Array[ExtResource("1_wcj8q")]([SubResource("Resource_4wrfq"), SubResource("Resource_rwxjk"), SubResource("Resource_i0cd2")])
+parts = Array[ExtResource("2_4wrfq")]([SubResource("Resource_i0cd2"), SubResource("Resource_2ly1g"), SubResource("Resource_v5rup")])
 abilities = Array[String](["pulse_cannon"])
 footprint = 22.4
 magnet_radius = 90.0

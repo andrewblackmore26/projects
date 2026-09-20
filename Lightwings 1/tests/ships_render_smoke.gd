@@ -4,12 +4,14 @@ var ticks: int = 0
 var screen: Node
 var capture: String = "user://ship_editor.png"
 var player_gallery: bool = false
+var enemy_gallery: bool = false
 
 func _initialize() -> void:
 	var scene: String = "res://scenes/ship_editor.tscn"
 	for argument: String in OS.get_cmdline_user_args():
 		if argument == "--gallery": scene = "res://scenes/gallery.tscn"
 		if argument == "--player": player_gallery = true
+		if argument == "--enemy": enemy_gallery = true
 		if argument.begins_with("--capture="): capture = argument.trim_prefix("--capture=")
 	root.size = Vector2i(1280, 800)
 	root.content_scale_size = Vector2i(1280, 800)
@@ -22,6 +24,9 @@ func _process(_delta: float) -> bool:
 	ticks += 1
 	if ticks == 3 and player_gallery:
 		screen.set("_player", true)
+		screen.call("_populate")
+	if ticks == 3 and enemy_gallery:
+		screen.set("_player", false)
 		screen.call("_populate")
 	if ticks == 20:
 		_capture.call_deferred()

@@ -347,8 +347,10 @@ func _ship_property(property: String, value: Variant) -> void:
 	if property == "faction": after.is_player = value == "player"
 	if property == "id": current_path = ""
 	if property == "element":
-		after.breathes = value == "corruption"
-		after.motion_signature = {"fire": "flicker", "lightning": "snap", "void": "inward", "corruption": "breathe", "plasma": "counter_rotate"}.get(value, "smooth")
+		# "inward"/"breathe" are retired: motion now comes from groups (see
+		# ShipMotion). This still drives only the running-light behaviour.
+		after.breathes = false
+		after.motion_signature = {"fire": "flicker", "lightning": "snap", "plasma": "counter_rotate"}.get(value, "smooth")
 	_commit(working, after, "Edit " + property)
 
 func _part_property(property: String, value: Variant) -> void:

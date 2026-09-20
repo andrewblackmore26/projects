@@ -1,10 +1,15 @@
 class_name ShipMesh
 extends RefCounted
 ## One painter-ordered surface: dark fills, constant-width outline ribbons, core.
-## CUSTOM0 holds the ribbon normal, stable part index and primitive kind.
-## CUSTOM1 holds the running-light color and optional tether endpoint indices.
+## CUSTOM0 holds, for a circle (primitive_kind <= 0.5): the ribbon normal, its
+## circle index (0..127) and primitive kind. For a line (primitive_kind > 0.5)
+## it instead holds period, phase and the authored (rest-pose) perimeter, so a
+## line never needs a slot in the 128-circle uniform arrays.
+## CUSTOM1 holds the running-light color and, for a line, its two endpoint
+## circle indices packed into one float.
 
 const MAX_PARTS: int = ShipCatalog.MAX_PARTS
+const MAX_LINES: int = ShipCatalog.MAX_LINES
 var vertices: PackedVector2Array = []
 var colors: PackedColorArray = []
 var uvs: PackedVector2Array = []
@@ -42,6 +47,11 @@ static func geometry_key(ship: ShipDefinition) -> PackedByteArray:
 	for part: PartDefinition in ship.parts:
 		# parent_id affects only the authoring graph, never geometry; excluded deliberately.
 		signature.append([part.id, part.shape, part.position, part.radius, part.filled, part.color_role, part.layer, part.light_period, part.light_phase, part.from_id, part.to_id, part.dashed])
+	# A reach ring is synthesized from the group, not authored; its geometry
+	# must be re-baked whenever a group's radius or reach flag changes, and an
+	# edited group must never reuse a stale mesh keyed only on `parts`.
+	for group: GroupDefinition in ship.groups:
+		signature.append(["group", group.root_id, group.orbit_radius, group.reach_ring, group.chain_mode])
 	return var_to_bytes(signature)
 
 func build(ship: ShipDefinition) -> ArrayMesh:
@@ -85,29 +95,50 @@ func _clear_geometry_buffers() -> void:
 func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 	_clear_geometry_buffers()
 	part_indices = {}
-	var parts: Array[PartDefinition] = ship.parts.duplicate()
-	parts.sort_custom(func(a: PartDefinition, b: PartDefinition) -> bool: return a.layer < b.layer)
+	# Circles alone occupy the 128 uniform slots (part_centers/part_geometry/
+	# part_offsets/light_parameters); lines carry their own period, phase and
+	# authored perimeter as per-vertex data (CUSTOM0), so a boss can carry
+	# ~100 circles and ~100 lines without overflowing those arrays.
+	var circles: Array[PartDefinition] = []
+	var lines: Array[PartDefinition] = []
+	for part: PartDefinition in ship.parts:
+		if part.shape == "line": lines.append(part)
+		else: circles.append(part)
+	assert(circles.size() <= MAX_PARTS, "Ship exceeds the supported 128 circles")
+	assert(lines.size() <= MAX_LINES, "Ship exceeds the supported 512 lines")
 	centers.resize(MAX_PARTS)
 	parameters.resize(MAX_PARTS)
 	geometries.resize(MAX_PARTS)
-	assert(parts.size() <= MAX_PARTS, "Ship exceeds the supported 128 authored parts")
-	for i: int in range(parts.size()):
-		part_indices[parts[i].id] = i
-		centers[i] = parts[i].position
-		geometries[i] = Vector4(parts[i].radius, parts[i].radius, 0, 0)
-	for i: int in range(parts.size()):
-		var part: PartDefinition = parts[i]
+	for i: int in range(circles.size()):
+		part_indices[circles[i].id] = i
+		centers[i] = circles[i].position
+		geometries[i] = Vector4(circles[i].radius, circles[i].radius, 0, 0)
+	# Reach rings are synthesized from groups, not authored parts, but they
+	# still occupy a circle slot (dashed, unfilled, painted first/underneath).
+	var synthetic_index: int = circles.size()
+	for group: GroupDefinition in ship.groups:
+		if not group.reach_ring: continue
+		if not part_indices.has(group.root_id): continue
+		var root_index: int = part_indices[group.root_id]
+		assert(synthetic_index < MAX_PARTS, "Ship exceeds the supported 128 circles (incl. reach rings)")
+		var ring_id: String = "__reach__" + group.root_id
+		part_indices[ring_id] = synthetic_index
+		centers[synthetic_index] = centers[root_index]
+		geometries[synthetic_index] = Vector4(group.orbit_radius, group.orbit_radius, 0, 0)
 		var points: PackedVector2Array = []
-		var endpoints: float = -1.0
-		if part.shape == "line":
-			if not part_indices.has(part.from_id) or not part_indices.has(part.to_id): continue
-			var from_index: int = part_indices[part.from_id]
-			var to_index: int = part_indices[part.to_id]
-			points = PackedVector2Array([centers[from_index], centers[to_index]])
-			endpoints = float(from_index + to_index * MAX_PARTS)
-		else:
-			for point: Vector2 in ShipGeometry.outline(part.shape, part.radius):
-				points.append(point + part.position)
+		for point: Vector2 in ShipGeometry.outline("circle", group.orbit_radius): points.append(point + centers[root_index])
+		var distances: PackedFloat32Array = ShipGeometry.lengths(points)
+		var role: String = "chassis"
+		var stroke: Color = ShipCatalog.get_color(ship.element if role == "chassis" else role) if not ship.is_player else ShipCatalog.get_color("player")
+		var light: Color = (ShipCatalog.LIGHTS.get(ship.element, Color.WHITE) if not ship.is_player else ShipCatalog.LIGHTS.get("player", Color.WHITE)).srgb_to_linear() * 1.8
+		parameters[synthetic_index] = Vector4(2.0, 0.0, distances[-1], 1.0)
+		_append_outline(points, distances, stroke, light, synthetic_index, -1.0)
+		synthetic_index += 1
+	for i: int in range(circles.size()):
+		var part: PartDefinition = circles[i]
+		var points: PackedVector2Array = []
+		for point: Vector2 in ShipGeometry.outline(part.shape, part.radius):
+			points.append(point + part.position)
 		if points.size() < 2: continue
 		var distances: PackedFloat32Array = ShipGeometry.lengths(points)
 		var role: String = part.color_role
@@ -118,11 +149,23 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 		var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
 		# Custom attributes do not receive Godot's automatic sRGB conversion.
 		light = light.srgb_to_linear() * 1.8
-		var style: float = 2.0 if part.shape == "line" else (1.0 if part.dashed or part.layer == 0 else 3.0 if not part.filled else 0.0)
+		var style: float = 1.0 if part.dashed or part.layer == 0 else 3.0 if not part.filled else 0.0
 		parameters[i] = Vector4(maxf(0.05, part.light_period), part.light_phase, distances[-1], style)
 		if part.layer != 0 and part.shape == "circle" and part.filled:
 			_append_fill(points, fill, i)
-		_append_outline(points, distances, stroke, light, i, endpoints)
+		_append_outline(points, distances, stroke, light, i, -1.0)
+	for part: PartDefinition in lines:
+		if not part_indices.has(part.from_id) or not part_indices.has(part.to_id): continue
+		var from_index: int = part_indices[part.from_id]
+		var to_index: int = part_indices[part.to_id]
+		var points: PackedVector2Array = PackedVector2Array([centers[from_index], centers[to_index]])
+		var distances: PackedFloat32Array = ShipGeometry.lengths(points)
+		if distances[-1] <= 0.0001: continue
+		var role: String = part.color_role
+		if role == "chassis": role = "player" if ship.is_player else ship.element
+		var stroke: Color = ShipCatalog.get_color(role)
+		var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE).srgb_to_linear() * 1.8
+		_append_line(points, distances, stroke, light, from_index, to_index, maxf(0.05, part.light_period), part.light_phase)
 	_append_core(ship.core_radius)
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -155,7 +198,7 @@ func _append_fill(points: PackedVector2Array, color: Color, part: int) -> void:
 	for point: Vector2 in polygon: _vertex(point, color, Vector2.ZERO, Vector2.ZERO, part, -1.0)
 	for index: int in triangles: indices.append(base + index)
 
-func _append_outline(points: PackedVector2Array, distances: PackedFloat32Array, color: Color, light: Color, part: int, endpoints: float) -> void:
+func _append_outline(points: PackedVector2Array, distances: PackedFloat32Array, color: Color, light: Color, part: int, _unused_endpoints: float = -1.0) -> void:
 	var base: int = vertices.size()
 	var closed: bool = points[0].is_equal_approx(points[-1])
 	var last: int = points.size() - 1
@@ -175,7 +218,29 @@ func _append_outline(points: PackedVector2Array, distances: PackedFloat32Array, 
 		if bisector.is_zero_approx(): bisector = normal_out
 		var miter: Vector2 = bisector / maxf(0.25, absf(bisector.dot(normal_out)))
 		for side: float in [-1.0, 1.0]:
-			_vertex(points[i], color, Vector2(distances[i], side), miter * side, part, 1.0 if endpoints >= 0 else 0.0, light, endpoints)
+			_vertex(points[i], color, Vector2(distances[i], side), miter * side, part, 0.0, light, -1.0)
+	for i: int in range(last):
+		var start: int = base + i * 2
+		indices.append_array(PackedInt32Array([start, start + 1, start + 2, start + 1, start + 3, start + 2]))
+
+## A line's endpoints are always circles (validated), so its own identity
+## needs no slot in the shared 128-circle uniform arrays: period, phase and
+## the authored (rest-pose) perimeter travel as per-vertex data instead
+## (CUSTOM0.xyz), leaving those arrays for circles only. `from_index`/
+## `to_index` (packed into CUSTOM1.w) address the two endpoint circles that
+## the shader moves the line between every frame.
+func _append_line(points: PackedVector2Array, distances: PackedFloat32Array, color: Color, light: Color, from_index: int, to_index: int, period: float, phase: float) -> void:
+	var base: int = vertices.size()
+	var perimeter: float = distances[-1]
+	var endpoints: float = float(from_index + to_index * MAX_PARTS)
+	var last: int = points.size() - 1
+	for i: int in range(points.size()):
+		for side: float in [-1.0, 1.0]:
+			vertices.append(points[i])
+			colors.append(color)
+			uvs.append(Vector2(distances[i], side))
+			custom0.append_array(PackedFloat32Array([period, phase, perimeter, 1.0]))
+			custom1.append_array(PackedFloat32Array([light.r, light.g, light.b, endpoints]))
 	for i: int in range(last):
 		var start: int = base + i * 2
 		indices.append_array(PackedInt32Array([start, start + 1, start + 2, start + 1, start + 3, start + 2]))

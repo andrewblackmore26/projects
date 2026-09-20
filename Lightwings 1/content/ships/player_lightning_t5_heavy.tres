@@ -1,18 +1,19 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_hnmaq"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_0bjp6"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_0bjp6"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_jgyp5"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_tenck"]
 
-[sub_resource type="Resource" id="Resource_jgyp5"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_8g57k"]
+script = ExtResource("2_jgyp5")
 id = "core"
 radius = 18.0
 stat_id = "speed"
 tp_cost = 1.25
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_tenck"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_sid3w"]
+script = ExtResource("2_jgyp5")
 id = "lobe_0_l"
 position = Vector2(-44, -22.5)
 parent_id = "core"
@@ -23,8 +24,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_8g57k"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_wybn5"]
+script = ExtResource("2_jgyp5")
 id = "lobe_0_r"
 position = Vector2(44, -22.5)
 parent_id = "core"
@@ -35,8 +36,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_sid3w"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_8hita"]
+script = ExtResource("2_jgyp5")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -48,8 +49,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_wybn5"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_wvgxo"]
+script = ExtResource("2_jgyp5")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -61,8 +62,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_8hita"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_uyypp"]
+script = ExtResource("2_jgyp5")
 id = "lobe_1_l"
 position = Vector2(-55, -7.5)
 parent_id = "core"
@@ -73,8 +74,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_wvgxo"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_wjsbb"]
+script = ExtResource("2_jgyp5")
 id = "lobe_1_r"
 position = Vector2(55, -7.5)
 parent_id = "core"
@@ -84,8 +85,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_uyypp"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_vhpcx"]
+script = ExtResource("2_jgyp5")
 id = "link_1_l"
 shape = "line"
 radius = 1.0
@@ -98,8 +99,8 @@ mirror_id = "link_1_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_wjsbb"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_sp7m7"]
+script = ExtResource("2_jgyp5")
 id = "link_1_r"
 shape = "line"
 radius = 1.0
@@ -111,8 +112,8 @@ mirror_id = "link_1_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_vhpcx"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_377fk"]
+script = ExtResource("2_jgyp5")
 id = "lobe_2_l"
 position = Vector2(-52, 7.5)
 parent_id = "core"
@@ -122,8 +123,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_sp7m7"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_qa2dr"]
+script = ExtResource("2_jgyp5")
 id = "lobe_2_r"
 position = Vector2(52, 7.5)
 parent_id = "core"
@@ -134,8 +135,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_377fk"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_72x84"]
+script = ExtResource("2_jgyp5")
 id = "link_2_l"
 shape = "line"
 radius = 1.0
@@ -148,8 +149,8 @@ mirror_id = "link_2_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_qa2dr"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_r6ej5"]
+script = ExtResource("2_jgyp5")
 id = "link_2_r"
 shape = "line"
 radius = 1.0
@@ -160,8 +161,8 @@ mirror_id = "link_2_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_72x84"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_1oukp"]
+script = ExtResource("2_jgyp5")
 id = "lobe_3_l"
 position = Vector2(-63, 22.5)
 parent_id = "core"
@@ -172,8 +173,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_r6ej5"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_alo82"]
+script = ExtResource("2_jgyp5")
 id = "lobe_3_r"
 position = Vector2(63, 22.5)
 parent_id = "core"
@@ -184,8 +185,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_1oukp"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_v1nnc"]
+script = ExtResource("2_jgyp5")
 id = "link_3_l"
 shape = "line"
 radius = 1.0
@@ -197,8 +198,8 @@ mirror_id = "link_3_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_alo82"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_fk8wu"]
+script = ExtResource("2_jgyp5")
 id = "link_3_r"
 shape = "line"
 radius = 1.0
@@ -210,8 +211,8 @@ mirror_id = "link_3_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_v1nnc"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_1y47b"]
+script = ExtResource("2_jgyp5")
 id = "primary"
 position = Vector2(0, -12.6)
 radius = 3.5
@@ -223,8 +224,8 @@ ability_id = "bolt"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_fk8wu"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_a71qj"]
+script = ExtResource("2_jgyp5")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -234,8 +235,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_1y47b"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_31naw"]
+script = ExtResource("2_jgyp5")
 id = "secondary_0"
 position = Vector2(0, 25)
 radius = 3.5
@@ -248,8 +249,8 @@ ability_id = "laser_prong"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_a71qj"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_qn3es"]
+script = ExtResource("2_jgyp5")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -260,8 +261,8 @@ to_id = "secondary_0"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_31naw"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_pe65w"]
+script = ExtResource("2_jgyp5")
 id = "secondary_1"
 position = Vector2(0, 34)
 radius = 3.5
@@ -272,8 +273,8 @@ ability_id = "shield"
 mount_id = "secondary_1"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_qn3es"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_glsjc"]
+script = ExtResource("2_jgyp5")
 id = "secondary_1_link"
 shape = "line"
 radius = 1.0
@@ -284,8 +285,8 @@ to_id = "secondary_1"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_pe65w"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_jlh1l"]
+script = ExtResource("2_jgyp5")
 id = "secondary_2"
 position = Vector2(0, 43)
 radius = 3.5
@@ -298,8 +299,8 @@ ability_id = "seeker_missiles"
 mount_id = "secondary_2"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_glsjc"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_fk6si"]
+script = ExtResource("2_jgyp5")
 id = "secondary_2_link"
 shape = "line"
 radius = 1.0
@@ -309,8 +310,8 @@ to_id = "secondary_2"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_jlh1l"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_d5fir"]
+script = ExtResource("2_jgyp5")
 id = "passive_0"
 position = Vector2(0, -26)
 radius = 3.5
@@ -322,8 +323,8 @@ ability_id = "thrusters"
 mount_id = "passive_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_fk6si"]
-script = ExtResource("1_hnmaq")
+[sub_resource type="Resource" id="Resource_l0who"]
+script = ExtResource("2_jgyp5")
 id = "passive_0_link"
 shape = "line"
 radius = 1.0
@@ -335,13 +336,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_0bjp6")
+script = ExtResource("3_tenck")
 id = "player_lightning_t5_heavy"
 display_name = "Tempest Heavy"
 element = "lightning"
 tier = 5
 is_player = true
-parts = Array[ExtResource("1_hnmaq")]([SubResource("Resource_jgyp5"), SubResource("Resource_tenck"), SubResource("Resource_8g57k"), SubResource("Resource_sid3w"), SubResource("Resource_wybn5"), SubResource("Resource_8hita"), SubResource("Resource_wvgxo"), SubResource("Resource_uyypp"), SubResource("Resource_wjsbb"), SubResource("Resource_vhpcx"), SubResource("Resource_sp7m7"), SubResource("Resource_377fk"), SubResource("Resource_qa2dr"), SubResource("Resource_72x84"), SubResource("Resource_r6ej5"), SubResource("Resource_1oukp"), SubResource("Resource_alo82"), SubResource("Resource_v1nnc"), SubResource("Resource_fk8wu"), SubResource("Resource_1y47b"), SubResource("Resource_a71qj"), SubResource("Resource_31naw"), SubResource("Resource_qn3es"), SubResource("Resource_pe65w"), SubResource("Resource_glsjc"), SubResource("Resource_jlh1l"), SubResource("Resource_fk6si")])
+parts = Array[ExtResource("2_jgyp5")]([SubResource("Resource_8g57k"), SubResource("Resource_sid3w"), SubResource("Resource_wybn5"), SubResource("Resource_8hita"), SubResource("Resource_wvgxo"), SubResource("Resource_uyypp"), SubResource("Resource_wjsbb"), SubResource("Resource_vhpcx"), SubResource("Resource_sp7m7"), SubResource("Resource_377fk"), SubResource("Resource_qa2dr"), SubResource("Resource_72x84"), SubResource("Resource_r6ej5"), SubResource("Resource_1oukp"), SubResource("Resource_alo82"), SubResource("Resource_v1nnc"), SubResource("Resource_fk8wu"), SubResource("Resource_1y47b"), SubResource("Resource_a71qj"), SubResource("Resource_31naw"), SubResource("Resource_qn3es"), SubResource("Resource_pe65w"), SubResource("Resource_glsjc"), SubResource("Resource_jlh1l"), SubResource("Resource_fk6si"), SubResource("Resource_d5fir"), SubResource("Resource_l0who")])
 abilities = Array[String](["bolt", "laser_prong", "shield", "seeker_missiles", "thrusters"])
 role = "heavy"
 family = "heavy"

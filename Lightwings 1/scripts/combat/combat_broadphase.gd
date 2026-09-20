@@ -34,7 +34,9 @@ func rebuild() -> void:
     mouth={"actor":actor,"gun":{},"drone":{},"query":-1,"radius":9.0,"void_eater":true}
     actor.mouth_collider=mouth
    mouth.radius=float(actor.body_features.bullet_eater.value)
-   mouth.pos=Vector2(actor.pos)+Vector2(actor.body_features.bullet_eater.offset).rotated(Vector2(actor.aim).angle()+PI/2.0)
+   var feature: Dictionary=actor.body_features.bullet_eater
+   var local: Vector2=world._local_position(actor,str(feature.get("part_id","")),Vector2(feature.offset))
+   mouth.pos=Vector2(actor.pos)+local.rotated(Vector2(actor.aim).angle()+PI/2.0)
    insert(mouth)
   for gun: Dictionary in actor.guns:
    if float(gun.hp)<=0.0: continue

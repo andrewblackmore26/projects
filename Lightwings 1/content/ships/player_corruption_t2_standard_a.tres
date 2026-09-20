@@ -1,17 +1,35 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_6padn"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_mxphx"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_mxphx"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_lrw0o"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_2k7dp"]
 
-[sub_resource type="Resource" id="Resource_lrw0o"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_8wdpo"]
+script = ExtResource("1_mxphx")
+root_id = "core"
+breathe_amp = 0.05
+
+[sub_resource type="Resource" id="Resource_fl6u2"]
+script = ExtResource("1_mxphx")
+root_id = "lobe_0_l"
+orbit_radius = 7.875
+orbit_speed = 0.5
+
+[sub_resource type="Resource" id="Resource_i5upt"]
+script = ExtResource("1_mxphx")
+root_id = "lobe_0_r"
+orbit_radius = 7.875
+orbit_speed = -0.5
+
+[sub_resource type="Resource" id="Resource_ss72s"]
+script = ExtResource("2_lrw0o")
 id = "core"
 radius = 14.25
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_2k7dp"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_8ou5w"]
+script = ExtResource("2_lrw0o")
 id = "lobe_0_l"
 position = Vector2(-26, 0)
 radius = 7.875
@@ -23,8 +41,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_8wdpo"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_cdqdp"]
+script = ExtResource("2_lrw0o")
 id = "lobe_0_r"
 position = Vector2(26, 0)
 radius = 7.875
@@ -36,8 +54,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_fl6u2"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_kx3kx"]
+script = ExtResource("2_lrw0o")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -49,8 +67,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_i5upt"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_iopsi"]
+script = ExtResource("2_lrw0o")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -62,8 +80,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ss72s"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_st1fa"]
+script = ExtResource("2_lrw0o")
 id = "primary"
 position = Vector2(0, -10.5)
 radius = 3.5
@@ -75,8 +93,8 @@ ability_id = "pulse_cannon"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_8ou5w"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_648u2"]
+script = ExtResource("2_lrw0o")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -86,8 +104,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_cdqdp"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_2yf5i"]
+script = ExtResource("2_lrw0o")
 id = "secondary_0"
 position = Vector2(0, 22)
 radius = 3.5
@@ -100,8 +118,8 @@ ability_id = "virus"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_kx3kx"]
-script = ExtResource("1_6padn")
+[sub_resource type="Resource" id="Resource_ifvhv"]
+script = ExtResource("2_lrw0o")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -113,18 +131,17 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_mxphx")
+script = ExtResource("3_2k7dp")
 id = "player_corruption_t2_standard_a"
 display_name = "Worm Standard A"
 tier = 2
 is_player = true
-breathes = true
-parts = Array[ExtResource("1_6padn")]([SubResource("Resource_lrw0o"), SubResource("Resource_2k7dp"), SubResource("Resource_8wdpo"), SubResource("Resource_fl6u2"), SubResource("Resource_i5upt"), SubResource("Resource_ss72s"), SubResource("Resource_8ou5w"), SubResource("Resource_cdqdp"), SubResource("Resource_kx3kx")])
+parts = Array[ExtResource("2_lrw0o")]([SubResource("Resource_ss72s"), SubResource("Resource_8ou5w"), SubResource("Resource_cdqdp"), SubResource("Resource_kx3kx"), SubResource("Resource_iopsi"), SubResource("Resource_st1fa"), SubResource("Resource_648u2"), SubResource("Resource_2yf5i"), SubResource("Resource_ifvhv")])
+groups = Array[ExtResource("1_mxphx")]([SubResource("Resource_8wdpo"), SubResource("Resource_fl6u2"), SubResource("Resource_i5upt")])
 abilities = Array[String](["pulse_cannon", "virus"])
 footprint = 67.75
 magnet_radius = 90.0
 speed = 228.0
-motion_signature = "breathe"
 secondaries = Array[String](["virus"])
 tp_used = 5.5
 tp_max = 10.0

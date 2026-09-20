@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_wllc3"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_4okac"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_4okac"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_chqgo"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_ohjie"]
 
-[sub_resource type="Resource" id="Resource_chqgo"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_abwaj"]
+script = ExtResource("2_chqgo")
 id = "core"
 radius = 12.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_ohjie"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_d5533"]
+script = ExtResource("2_chqgo")
 id = "lobe_0_l"
 position = Vector2(-33, 0)
 parent_id = "core"
@@ -22,8 +23,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_abwaj"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_jf1nx"]
+script = ExtResource("2_chqgo")
 id = "lobe_0_r"
 position = Vector2(33, 0)
 parent_id = "core"
@@ -34,8 +35,8 @@ stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_d5533"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_2jrp1"]
+script = ExtResource("2_chqgo")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -47,8 +48,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_jf1nx"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_7gvum"]
+script = ExtResource("2_chqgo")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -60,8 +61,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_2jrp1"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_x1mxb"]
+script = ExtResource("2_chqgo")
 id = "primary"
 position = Vector2(0, -8.4)
 radius = 3.5
@@ -73,8 +74,8 @@ ability_id = "bolt"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_7gvum"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_1q7lo"]
+script = ExtResource("2_chqgo")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -84,8 +85,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_x1mxb"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_b7dng"]
+script = ExtResource("2_chqgo")
 id = "secondary_0"
 position = Vector2(0, 19)
 radius = 3.5
@@ -98,8 +99,8 @@ ability_id = "laser_prong"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_1q7lo"]
-script = ExtResource("1_wllc3")
+[sub_resource type="Resource" id="Resource_mkfwm"]
+script = ExtResource("2_chqgo")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -111,13 +112,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_4okac")
+script = ExtResource("3_ohjie")
 id = "player_lightning_t2_compact"
 display_name = "Arc Compact"
 element = "lightning"
 tier = 2
 is_player = true
-parts = Array[ExtResource("1_wllc3")]([SubResource("Resource_chqgo"), SubResource("Resource_ohjie"), SubResource("Resource_abwaj"), SubResource("Resource_d5533"), SubResource("Resource_jf1nx"), SubResource("Resource_2jrp1"), SubResource("Resource_7gvum"), SubResource("Resource_x1mxb"), SubResource("Resource_1q7lo")])
+parts = Array[ExtResource("2_chqgo")]([SubResource("Resource_abwaj"), SubResource("Resource_d5533"), SubResource("Resource_jf1nx"), SubResource("Resource_2jrp1"), SubResource("Resource_7gvum"), SubResource("Resource_x1mxb"), SubResource("Resource_1q7lo"), SubResource("Resource_b7dng"), SubResource("Resource_mkfwm")])
 abilities = Array[String](["bolt", "laser_prong"])
 role = "compact"
 family = "compact"

@@ -4,11 +4,11 @@ render_mode unshaded;
 uniform float visual_time = 0.0;
 uniform float body_scale = 1.0;
 uniform float canvas_scale = 1.0;
-uniform vec4 light_parameters[128]; // period, phase, perimeter, style
-uniform vec2 part_centers[128];
-uniform vec4 part_geometry[128];
+uniform vec4 light_parameters[128]; // period, phase, perimeter, style (circles only)
+uniform vec2 part_centers[128];     // rest position (circles only)
+uniform vec4 part_geometry[128];    // radius, radius, 0, 0 (circles only)
 uniform int motion_signature = 0;
-uniform vec4 part_offsets[128]; // translation xy, visibility z
+uniform vec4 part_offsets[128]; // xy translation, z radius scale (0 = hidden), w rim flare (reserved, P8)
 uniform vec4 core_color : source_color = vec4(1.0);
 uniform float core_radius = 3.0;
 uniform bool show_core = true;
@@ -22,37 +22,46 @@ varying vec4 light_data;
 varying float perimeter_pixels;
 varying float path_pixels;
 
-float inward(int part) {
-	return motion_signature == 3 ? 1.0 - 0.06 * fract(visual_time / 2.0) : 1.0;
-}
 float rim(int part, vec2 direction) {
 	vec4 geometry = part_geometry[part];
-	float c = cos(-geometry.z);
-	float s = sin(-geometry.z);
-	vec2 local = mat2(vec2(c,s),vec2(-s,c)) * direction;
-	return 1.0 / max(length(local / max(geometry.xy, vec2(0.001))), 0.001);
+	float scale = max(part_offsets[part].z, 0.0);
+	return 1.0 / max(length(direction / max(geometry.xy * scale, vec2(0.001))), 0.001);
 }
+
 void vertex() {
 	vec2 original_vertex = VERTEX;
-	int part = int(CUSTOM0.z + 0.5);
 	primitive_kind = CUSTOM0.w;
 	base_color = COLOR;
 	running_color = CUSTOM1.rgb;
-	part_visible = part_offsets[part].z;
-	light_data = light_parameters[part];
-	float perimeter = light_data.z;
-	vec2 position = VERTEX + part_offsets[part].xy + part_centers[part] * (inward(part) - 1.0);
-	vec2 normal = CUSTOM0.xy;
+	vec2 position;
+	vec2 normal;
+	if (primitive_kind > 0.5) {
+		// Line: period/phase/authored-perimeter travel with the vertex; final
+		// position comes entirely from the two endpoint circles below.
+		light_data = vec4(CUSTOM0.x, CUSTOM0.y, CUSTOM0.z, 2.0);
+		part_visible = 1.0;
+		position = VERTEX;
+		normal = vec2(0.0);
+	} else {
+		int part = int(CUSTOM0.z + 0.5);
+		light_data = light_parameters[part];
+		float scale = part_offsets[part].z;
+		vec2 local = VERTEX - part_centers[part];
+		position = part_centers[part] + local * max(scale, 0.0) + part_offsets[part].xy;
+		part_visible = scale > 0.0001 ? 1.0 : 0.0;
+		normal = CUSTOM0.xy;
+	}
 	float path = UV.x;
+	float perimeter = light_data.z;
 	if (primitive_kind > 0.5) {
 		int packed = int(CUSTOM1.w + 0.5);
 		int from_part = packed % 128;
 		int to_part = packed / 128;
-		vec2 from_position = part_centers[from_part] * inward(from_part) + part_offsets[from_part].xy;
-		vec2 to_position = part_centers[to_part] * inward(to_part) + part_offsets[to_part].xy;
+		vec2 from_position = part_centers[from_part] + part_offsets[from_part].xy;
+		vec2 to_position = part_centers[to_part] + part_offsets[to_part].xy;
 		float amount = UV.x / max(perimeter, 0.0001);
 		vec2 direction = to_position - from_position;
-				float center_distance = length(direction);
+		float center_distance = length(direction);
 		vec2 unit_direction = direction / max(center_distance, 0.001);
 		float from_radius = rim(from_part, unit_direction);
 		float to_radius = rim(to_part, -unit_direction);
@@ -64,7 +73,9 @@ void vertex() {
 		position = mix(from_position, to_position, amount);
 		normal = vec2(-direction.y, direction.x) / max(perimeter, 0.0001) * UV.y;
 		path = amount * perimeter;
-		part_visible *= part_offsets[from_part].z * part_offsets[to_part].z;
+		float from_visible = part_offsets[from_part].z > 0.0001 ? 1.0 : 0.0;
+		float to_visible = part_offsets[to_part].z > 0.0001 ? 1.0 : 0.0;
+		part_visible *= from_visible * to_visible;
 	}
 	perimeter_pixels = perimeter * body_scale * canvas_scale;
 	path_pixels = path * body_scale * canvas_scale;
@@ -96,7 +107,7 @@ void fragment() {
 				float cycles = (visual_time + light_data.y) / light_data.x;
 		if (motion_signature == 1) cycles += 0.025 * sin(cycles * 6.283185 * 5.0);
 		if (motion_signature == 2) cycles = floor(cycles * 12.0) / 12.0;
-		if (motion_signature == 5 && light_data.w > 2.5 && mod(abs(light_data.y * 10.0), 2.0) > 0.5) cycles *= -1.0;
+		if (motion_signature == 3 && light_data.w > 2.5 && mod(abs(light_data.y * 10.0), 2.0) > 0.5) cycles *= -1.0;
 		float phase = fract(cycles) * perimeter;
 		float half_segment = perimeter * 0.065;
 		float centered = mod(path_pixels - phase - half_segment + perimeter * 0.5, perimeter) - perimeter * 0.5;
@@ -108,6 +119,3 @@ void fragment() {
 		COLOR = vec4(rgb, alpha * part_visible);
 	}
 }
-
-
-

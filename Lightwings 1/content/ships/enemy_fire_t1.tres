@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_v81kk"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_0yilj"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_0yilj"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_5pdrv"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_l8iif"]
 
-[sub_resource type="Resource" id="Resource_5pdrv"]
-script = ExtResource("1_v81kk")
+[sub_resource type="Resource" id="Resource_udbva"]
+script = ExtResource("2_5pdrv")
 id = "core"
 radius = 11.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_l8iif"]
-script = ExtResource("1_v81kk")
+[sub_resource type="Resource" id="Resource_ld20l"]
+script = ExtResource("2_5pdrv")
 id = "primary"
 position = Vector2(0, -7.7)
 radius = 3.5
@@ -23,8 +24,8 @@ ability_id = "flame_cone"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_udbva"]
-script = ExtResource("1_v81kk")
+[sub_resource type="Resource" id="Resource_ueqtj"]
+script = ExtResource("2_5pdrv")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -36,11 +37,11 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_0yilj")
+script = ExtResource("3_l8iif")
 id = "enemy_fire_t1"
 display_name = "Ember Standard A"
 element = "fire"
-parts = Array[ExtResource("1_v81kk")]([SubResource("Resource_5pdrv"), SubResource("Resource_l8iif"), SubResource("Resource_udbva")])
+parts = Array[ExtResource("2_5pdrv")]([SubResource("Resource_udbva"), SubResource("Resource_ld20l"), SubResource("Resource_ueqtj")])
 abilities = Array[String](["flame_cone"])
 faction = "enemy"
 footprint = 22.4

@@ -8,7 +8,7 @@ extends RefCounted
 static func actor_snapshot(world: Node, actor: Dictionary) -> Dictionary:
  var copy: Dictionary={}
  for key: String in actor:
-  if key in ["renderer","definition","core_collider","mouth_collider","blocker_0","blocker_1","blocker_2","guns"]: continue
+  if key in ["renderer","definition","core_collider","mouth_collider","blocker_0","blocker_1","blocker_2","guns","rig","pose"]: continue
   copy[key]=actor[key]
  var guns: Array=[]
  for gun: Dictionary in actor.get("guns",[]):
@@ -68,7 +68,7 @@ static func restore(world: Node, data: Dictionary) -> void:
  world.absorption=data.get("absorption",{}).duplicate(true)
  var restored: Dictionary=decode_value(data.get("player",{}))
  for key: String in restored:
-  if key not in ["definition","renderer","core_collider"]: world.player[key]=restored[key]
+  if key not in ["definition","renderer","core_collider","rig","pose"]: world.player[key]=restored[key]
  world._configure_actor(world.player,ShipCatalog.get_ship(world.hull_id),false)
  world.light_total=float(data.get("light_total",40.0))
  world.player.hp=world.light_total

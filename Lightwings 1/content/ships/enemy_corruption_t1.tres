@@ -1,17 +1,23 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_qgyam"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_6ssxc"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_6ssxc"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_5viad"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_guh5i"]
 
-[sub_resource type="Resource" id="Resource_5viad"]
-script = ExtResource("1_qgyam")
+[sub_resource type="Resource" id="Resource_lo5x7"]
+script = ExtResource("1_6ssxc")
+root_id = "core"
+breathe_amp = 0.05
+
+[sub_resource type="Resource" id="Resource_wptir"]
+script = ExtResource("2_5viad")
 id = "core"
 radius = 11.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_guh5i"]
-script = ExtResource("1_qgyam")
+[sub_resource type="Resource" id="Resource_p6jjp"]
+script = ExtResource("2_5viad")
 id = "primary"
 position = Vector2(0, -7.7)
 radius = 3.5
@@ -23,8 +29,8 @@ ability_id = "pulse_cannon"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_lo5x7"]
-script = ExtResource("1_qgyam")
+[sub_resource type="Resource" id="Resource_4av08"]
+script = ExtResource("2_5viad")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -36,14 +42,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_6ssxc")
+script = ExtResource("3_guh5i")
 id = "enemy_corruption_t1"
 display_name = "Glitch Standard A"
-breathes = true
-parts = Array[ExtResource("1_qgyam")]([SubResource("Resource_5viad"), SubResource("Resource_guh5i"), SubResource("Resource_lo5x7")])
+parts = Array[ExtResource("2_5viad")]([SubResource("Resource_wptir"), SubResource("Resource_p6jjp"), SubResource("Resource_4av08")])
+groups = Array[ExtResource("1_6ssxc")]([SubResource("Resource_lo5x7")])
 abilities = Array[String](["pulse_cannon"])
 faction = "enemy"
 footprint = 22.4
 magnet_radius = 90.0
-motion_signature = "breathe"
 tp_used = 2.25

@@ -10,6 +10,7 @@ extends Resource
 @export var core_radius: float = 3.0
 @export var hull_radius: float = 0.0
 @export var parts: Array[PartDefinition] = []
+@export var groups: Array[GroupDefinition] = []
 @export var abilities: Array[String] = []
 @export var description: String = ""
 @export var schema_version: int = 3

@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_vut2v"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_hagdx"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_hagdx"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_bwhyc"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_85kg3"]
 
-[sub_resource type="Resource" id="Resource_bwhyc"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_vx8jg"]
+script = ExtResource("2_bwhyc")
 id = "core"
 radius = 12.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_85kg3"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_3e7it"]
+script = ExtResource("2_bwhyc")
 id = "lobe_0_l"
 position = Vector2(-16, -9)
 radius = 9.0
@@ -23,8 +24,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_vx8jg"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_oer6f"]
+script = ExtResource("2_bwhyc")
 id = "lobe_0_r"
 position = Vector2(16, -9)
 radius = 9.0
@@ -36,8 +37,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_3e7it"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_lc5le"]
+script = ExtResource("2_bwhyc")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -49,8 +50,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_oer6f"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_ft1tm"]
+script = ExtResource("2_bwhyc")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -62,8 +63,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_lc5le"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_d2k4o"]
+script = ExtResource("2_bwhyc")
 id = "primary"
 position = Vector2(0, -8.4)
 radius = 3.5
@@ -75,8 +76,8 @@ ability_id = "flame_cone"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_ft1tm"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_34ovm"]
+script = ExtResource("2_bwhyc")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -86,8 +87,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_d2k4o"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_1xqo1"]
+script = ExtResource("2_bwhyc")
 id = "secondary_0"
 position = Vector2(0, 19)
 radius = 3.5
@@ -100,8 +101,8 @@ ability_id = "mine_layer"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_34ovm"]
-script = ExtResource("1_vut2v")
+[sub_resource type="Resource" id="Resource_ktvpt"]
+script = ExtResource("2_bwhyc")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -113,13 +114,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_hagdx")
+script = ExtResource("3_85kg3")
 id = "player_fire_t2_compact"
 display_name = "Flare Compact"
 element = "fire"
 tier = 2
 is_player = true
-parts = Array[ExtResource("1_vut2v")]([SubResource("Resource_bwhyc"), SubResource("Resource_85kg3"), SubResource("Resource_vx8jg"), SubResource("Resource_3e7it"), SubResource("Resource_oer6f"), SubResource("Resource_lc5le"), SubResource("Resource_ft1tm"), SubResource("Resource_d2k4o"), SubResource("Resource_34ovm")])
+parts = Array[ExtResource("2_bwhyc")]([SubResource("Resource_vx8jg"), SubResource("Resource_3e7it"), SubResource("Resource_oer6f"), SubResource("Resource_lc5le"), SubResource("Resource_ft1tm"), SubResource("Resource_d2k4o"), SubResource("Resource_34ovm"), SubResource("Resource_1xqo1"), SubResource("Resource_ktvpt")])
 abilities = Array[String](["flame_cone", "mine_layer"])
 role = "compact"
 family = "compact"

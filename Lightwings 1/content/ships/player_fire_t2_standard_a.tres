@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_lvuxl"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_bjb7l"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_bjb7l"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_ien5x"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_k7kyu"]
 
-[sub_resource type="Resource" id="Resource_ien5x"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_au1xt"]
+script = ExtResource("2_ien5x")
 id = "core"
 radius = 15.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_k7kyu"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_kqe2x"]
+script = ExtResource("2_ien5x")
 id = "lobe_0_l"
 position = Vector2(-21, -9)
 radius = 9.0
@@ -23,8 +24,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_au1xt"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_iwwup"]
+script = ExtResource("2_ien5x")
 id = "lobe_0_r"
 position = Vector2(21, -9)
 radius = 9.0
@@ -36,8 +37,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_kqe2x"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_gtavl"]
+script = ExtResource("2_ien5x")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -49,8 +50,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_iwwup"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_i7xc1"]
+script = ExtResource("2_ien5x")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -62,8 +63,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_gtavl"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_32f0n"]
+script = ExtResource("2_ien5x")
 id = "primary"
 position = Vector2(0, -10.5)
 radius = 3.5
@@ -75,8 +76,8 @@ ability_id = "flame_cone"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_i7xc1"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_cjnel"]
+script = ExtResource("2_ien5x")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -86,8 +87,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_32f0n"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_v305m"]
+script = ExtResource("2_ien5x")
 id = "secondary_0"
 position = Vector2(0, 22)
 radius = 3.5
@@ -100,8 +101,8 @@ ability_id = "mine_layer"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_cjnel"]
-script = ExtResource("1_lvuxl")
+[sub_resource type="Resource" id="Resource_b2d6t"]
+script = ExtResource("2_ien5x")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -113,13 +114,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_bjb7l")
+script = ExtResource("3_k7kyu")
 id = "player_fire_t2_standard_a"
 display_name = "Flare Standard A"
 element = "fire"
 tier = 2
 is_player = true
-parts = Array[ExtResource("1_lvuxl")]([SubResource("Resource_ien5x"), SubResource("Resource_k7kyu"), SubResource("Resource_au1xt"), SubResource("Resource_kqe2x"), SubResource("Resource_iwwup"), SubResource("Resource_gtavl"), SubResource("Resource_i7xc1"), SubResource("Resource_32f0n"), SubResource("Resource_cjnel")])
+parts = Array[ExtResource("2_ien5x")]([SubResource("Resource_au1xt"), SubResource("Resource_kqe2x"), SubResource("Resource_iwwup"), SubResource("Resource_gtavl"), SubResource("Resource_i7xc1"), SubResource("Resource_32f0n"), SubResource("Resource_cjnel"), SubResource("Resource_v305m"), SubResource("Resource_b2d6t")])
 abilities = Array[String](["flame_cone", "mine_layer"])
 footprint = 63.694637
 magnet_radius = 90.0

@@ -1,18 +1,19 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_tso6l"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_ancui"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_ancui"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_i55i5"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_uhogr"]
 
-[sub_resource type="Resource" id="Resource_i55i5"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_iysdf"]
+script = ExtResource("2_i55i5")
 id = "core"
 radius = 18.0
 stat_id = "speed"
 tp_cost = 1.25
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_uhogr"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_dhfls"]
+script = ExtResource("2_i55i5")
 id = "lobe_0_l"
 position = Vector2(-27, -16.5)
 radius = 9.0
@@ -24,8 +25,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_iysdf"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_ohkk1"]
+script = ExtResource("2_i55i5")
 id = "lobe_0_r"
 position = Vector2(27, -16.5)
 radius = 9.0
@@ -37,8 +38,8 @@ stat_id = "speed"
 tp_cost = 0.5
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_dhfls"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_ov25t"]
+script = ExtResource("2_i55i5")
 id = "link_0_l"
 shape = "line"
 radius = 1.0
@@ -50,8 +51,8 @@ mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ohkk1"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_jqbjn"]
+script = ExtResource("2_i55i5")
 id = "link_0_r"
 shape = "line"
 radius = 1.0
@@ -63,8 +64,8 @@ mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ov25t"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_d4bn8"]
+script = ExtResource("2_i55i5")
 id = "lobe_1_l"
 position = Vector2(-34, -1.5)
 radius = 8.0
@@ -76,8 +77,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_jqbjn"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_xmrhn"]
+script = ExtResource("2_i55i5")
 id = "lobe_1_r"
 position = Vector2(34, -1.5)
 radius = 8.0
@@ -88,8 +89,8 @@ stat_id = "magnet_radius"
 tp_cost = 0.25
 stat_value = 4.0
 
-[sub_resource type="Resource" id="Resource_d4bn8"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_2jbqc"]
+script = ExtResource("2_i55i5")
 id = "link_1_l"
 shape = "line"
 radius = 1.0
@@ -102,8 +103,8 @@ mirror_id = "link_1_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_xmrhn"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_y4i6r"]
+script = ExtResource("2_i55i5")
 id = "link_1_r"
 shape = "line"
 radius = 1.0
@@ -115,8 +116,8 @@ mirror_id = "link_1_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_2jbqc"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_ciate"]
+script = ExtResource("2_i55i5")
 id = "primary"
 position = Vector2(0, -12.6)
 radius = 3.5
@@ -127,8 +128,8 @@ ability_id = "flame_cone"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_y4i6r"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_cuhpe"]
+script = ExtResource("2_i55i5")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -139,8 +140,8 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ciate"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_cymm5"]
+script = ExtResource("2_i55i5")
 id = "secondary_0"
 position = Vector2(0, 25)
 radius = 3.5
@@ -153,8 +154,8 @@ ability_id = "mine_layer"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_cuhpe"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_kgyxl"]
+script = ExtResource("2_i55i5")
 id = "secondary_0_link"
 shape = "line"
 radius = 1.0
@@ -164,8 +165,8 @@ to_id = "secondary_0"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_cymm5"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_gs55t"]
+script = ExtResource("2_i55i5")
 id = "secondary_1"
 position = Vector2(0, 34)
 radius = 3.5
@@ -177,8 +178,8 @@ ability_id = "explosives"
 mount_id = "secondary_1"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_kgyxl"]
-script = ExtResource("1_tso6l")
+[sub_resource type="Resource" id="Resource_tkshh"]
+script = ExtResource("2_i55i5")
 id = "secondary_1_link"
 shape = "line"
 radius = 1.0
@@ -190,13 +191,13 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_ancui")
+script = ExtResource("3_uhogr")
 id = "player_fire_t3_heavy"
 display_name = "Stoker Heavy"
 element = "fire"
 tier = 3
 is_player = true
-parts = Array[ExtResource("1_tso6l")]([SubResource("Resource_i55i5"), SubResource("Resource_uhogr"), SubResource("Resource_iysdf"), SubResource("Resource_dhfls"), SubResource("Resource_ohkk1"), SubResource("Resource_ov25t"), SubResource("Resource_jqbjn"), SubResource("Resource_d4bn8"), SubResource("Resource_xmrhn"), SubResource("Resource_2jbqc"), SubResource("Resource_y4i6r"), SubResource("Resource_ciate"), SubResource("Resource_cuhpe"), SubResource("Resource_cymm5"), SubResource("Resource_kgyxl")])
+parts = Array[ExtResource("2_i55i5")]([SubResource("Resource_iysdf"), SubResource("Resource_dhfls"), SubResource("Resource_ohkk1"), SubResource("Resource_ov25t"), SubResource("Resource_jqbjn"), SubResource("Resource_d4bn8"), SubResource("Resource_xmrhn"), SubResource("Resource_2jbqc"), SubResource("Resource_y4i6r"), SubResource("Resource_ciate"), SubResource("Resource_cuhpe"), SubResource("Resource_cymm5"), SubResource("Resource_kgyxl"), SubResource("Resource_gs55t"), SubResource("Resource_tkshh")])
 abilities = Array[String](["flame_cone", "mine_layer", "explosives"])
 role = "heavy"
 family = "heavy"

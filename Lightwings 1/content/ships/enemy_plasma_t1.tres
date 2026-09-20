@@ -1,17 +1,18 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="1_1fw4c"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="2_nftqk"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_nftqk"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_g1s81"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_w5gpx"]
 
-[sub_resource type="Resource" id="Resource_g1s81"]
-script = ExtResource("1_1fw4c")
+[sub_resource type="Resource" id="Resource_j1ia1"]
+script = ExtResource("2_g1s81")
 id = "core"
 radius = 11.0
 stat_id = "speed"
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_w5gpx"]
-script = ExtResource("1_1fw4c")
+[sub_resource type="Resource" id="Resource_6ap2i"]
+script = ExtResource("2_g1s81")
 id = "orbit_0"
 radius = 16.0
 filled = false
@@ -21,8 +22,8 @@ light_phase = -0.7
 stat_id = "projectile_orbit"
 stat_value = 65.0
 
-[sub_resource type="Resource" id="Resource_j1ia1"]
-script = ExtResource("1_1fw4c")
+[sub_resource type="Resource" id="Resource_8jrms"]
+script = ExtResource("2_g1s81")
 id = "primary"
 position = Vector2(0, -7.7)
 radius = 3.5
@@ -34,8 +35,8 @@ ability_id = "pulse_cannon"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_6ap2i"]
-script = ExtResource("1_1fw4c")
+[sub_resource type="Resource" id="Resource_vpqmo"]
+script = ExtResource("2_g1s81")
 id = "primary_link"
 shape = "line"
 radius = 1.0
@@ -47,11 +48,11 @@ stat_id = "structure"
 tp_cost = 0.25
 
 [resource]
-script = ExtResource("2_nftqk")
+script = ExtResource("3_w5gpx")
 id = "enemy_plasma_t1"
 display_name = "Ion Standard A"
 element = "plasma"
-parts = Array[ExtResource("1_1fw4c")]([SubResource("Resource_g1s81"), SubResource("Resource_w5gpx"), SubResource("Resource_j1ia1"), SubResource("Resource_6ap2i")])
+parts = Array[ExtResource("2_g1s81")]([SubResource("Resource_j1ia1"), SubResource("Resource_6ap2i"), SubResource("Resource_8jrms"), SubResource("Resource_vpqmo")])
 abilities = Array[String](["pulse_cannon"])
 faction = "enemy"
 footprint = 32.0

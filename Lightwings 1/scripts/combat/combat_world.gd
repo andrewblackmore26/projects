@@ -208,10 +208,12 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
  var enabled: Dictionary={}
  actor.mounts={}
  actor.body_features={}
+ actor.rig=ShipMotion.get_rig(definition)
+ actor.pose=ShipMotion.ShipPose.new(actor.rig)
  for part: PartDefinition in definition.parts:
   if not part.mount_id.is_empty() and not actor.mounts.has(part.mount_id): actor.mounts[part.mount_id]=part.position
   if part.stat_id in ["bullet_eater","void_pull","projectile_orbit"]:
-   actor.body_features[part.stat_id]={"offset":part.position,"value":part.stat_value}
+   actor.body_features[part.stat_id]={"offset":part.position,"value":part.stat_value,"part_id":part.id}
  for id: String in definition.mounted_components(): enabled[id]=true
  actor.ability_set=enabled
  if reset:
@@ -302,6 +304,8 @@ func _physics_process(delta: float) -> void:
  var began: int=Time.get_ticks_usec()
  var dt: float=minf(delta,0.05)
  _last_dt=dt
+ _step_motion(player)
+ for actor: Dictionary in enemies: _step_motion(actor)
  elapsed+=dt
  player_invulnerable=maxf(0.0,player_invulnerable-dt)
  reshape_remaining=maxf(0.0,reshape_remaining-dt)
@@ -589,7 +593,21 @@ func _damage_segment(source: Dictionary, from: Vector2, to: Vector2, amount: flo
    _damage_actor(target,amount,int(source.id),int(source.faction))
    hit_ids[key]=true
 func _gun_position(actor: Dictionary, gun: Dictionary) -> Vector2:
- return Vector2(actor.pos)+Vector2(gun.offset).rotated(Vector2(actor.aim).angle()+PI/2.0)
+ return Vector2(actor.pos)+_local_position(actor,str(gun.id),Vector2(gun.offset)).rotated(Vector2(actor.aim).angle()+PI/2.0)
+func _step_motion(actor: Dictionary) -> void:
+ var rig: ShipMotion.ShipRig=actor.get("rig")
+ var pose: ShipMotion.ShipPose=actor.get("pose")
+ if rig!=null and pose!=null: ShipMotion.step(rig,pose,tick)
+func _local_position(actor: Dictionary, id: String, fallback: Vector2) -> Vector2:
+ # Fire from where the circle actually is: an orbiting group moves a mount
+ # or gun exactly as far as the renderer moves it, both driven by the same
+ # tick (ShipMotion). A hull with no groups on this part returns `fallback`
+ # unchanged, so the golden trace cannot move for content that never orbits.
+ var rig: ShipMotion.ShipRig=actor.get("rig")
+ var pose: ShipMotion.ShipPose=actor.get("pose")
+ if rig==null or pose==null: return fallback
+ var index: int=rig.index_of(id)
+ return pose.local[index] if index>=0 else fallback
 func _update_guns(actor: Dictionary, dt: float) -> void:
  for gun: Dictionary in actor.guns:
   if float(gun.hp)<=0.0: continue
@@ -947,6 +965,7 @@ func _sync_visuals() -> void:
   if not is_instance_valid(renderer): continue
   renderer.position=actor.pos
   renderer.rotation=Vector2(actor.aim).angle()+PI/2.0
+  renderer.set_motion_tick(tick)
   var hidden: Array[String]=[]
   for gun: Dictionary in actor.guns:
    if float(gun.hp)<=0.0:
@@ -1135,7 +1154,8 @@ func _configure_arena_exits() -> void:
   elif direction is Array and direction.size()==2: arena.exits.append(Vector2i(int(direction[0]),int(direction[1])))
 
 func _muzzle(actor: Dictionary, mount: String) -> Vector2:
- return Vector2(actor.pos)+Vector2(actor.get("mounts",{}).get(mount,Vector2.ZERO)).rotated(Vector2(actor.aim).angle()+PI/2.0)
+ var fallback: Vector2=Vector2(actor.get("mounts",{}).get(mount,Vector2.ZERO))
+ return Vector2(actor.pos)+_local_position(actor,mount,fallback).rotated(Vector2(actor.aim).angle()+PI/2.0)
 
 func _prepare_shot_source(index: int) -> void:
  _shot_source.id=bullets.owners[index]

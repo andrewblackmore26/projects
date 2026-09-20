@@ -4,6 +4,7 @@ extends RefCounted
 static var catalog_root: String = "res://content/ships"
 const MAX_PARTS: int = 128
 const MAX_AUTHORED_PARTS: int = 128
+const MAX_LINES: int = 512
 const ELEMENTS: Array[String] = ["fire", "lightning", "void", "corruption", "plasma"]
 const SHAPES: Array[String] = ["circle", "line"]
 const FAMILIES: Array[String] = ["compact", "standard_a", "standard_b", "heavy"]
@@ -102,8 +103,11 @@ static func build_ship(element: String, tier: int, is_player: bool = false, _leg
 	ship.role = "standard" if tier == 1 else role_for_family(family)
 	ship.id = "player_seed" if is_player and tier == 1 else ship.faction + "_" + element + "_t" + str(tier) + ("_" + family if is_player else "")
 	ship.display_name = "Lumen" if ship.element == "neutral" else str(NAMES[element][tier - 1]) + " " + family.replace("_", " ").capitalize()
-	ship.motion_signature = {"fire": "flicker", "lightning": "snap", "void": "inward", "corruption": "breathe", "plasma": "counter_rotate"}.get(ship.element, "smooth")
-	ship.breathes = ship.element == "corruption"
+	# "inward"/"breathe" are retired from the light-only motion_signature vocabulary;
+	# void's old whole-hull pull and corruption's old whole-hull scale are now, where
+	# they still happen at all, expressed as groups (ShipMotion), not shader terms.
+	ship.motion_signature = {"fire": "flicker", "lightning": "snap", "plasma": "counter_rotate"}.get(ship.element, "smooth")
+	ship.breathes = false
 	ship.speed = 220.0 * (1.25 if ship.role == "compact" else 0.85 if ship.role == "heavy" else 1.0)
 	ship.turn_rate = 10.0 * (1.25 if ship.role == "compact" else 0.8 if ship.role == "heavy" else 1.0)
 	ship.hp_buffer = 0.8 if ship.role == "compact" else 1.3 if ship.role == "heavy" else 1.0
@@ -124,11 +128,27 @@ static func build_ship(element: String, tier: int, is_player: bool = false, _leg
 	# circle keeps the mean radius so the eye and mounts stay in the same place.
 	var core_radius: float = body_radius * 0.95 if element == "corruption" and tier > 1 else body_radius
 	var core: PartDefinition = add_part(ship, "core", "circle", Vector2.ZERO, core_radius, "chassis", "hp_buffer", 3)
+	if ship.element == "corruption":
+		# The old whole-hull `breathes` scale (1.00 -> 1.05 over 2s, spec §18)
+		# is now a group covering the whole ship (root = core, no parent), so
+		# it is expressed through the pose the sim also reads, not a shader-only term.
+		var breathe: GroupDefinition = GroupDefinition.new()
+		breathe.root_id = "core"
+		breathe.breathe_amp = 0.05
+		ship.groups.append(breathe)
 	if ship.element == "void":
 		ship.hull_radius = body_radius + 5.0 * tier
 		core.radius = ship.hull_radius
-		var reach: PartDefinition = add_part(ship, "reach", "circle", Vector2.ZERO, ship.hull_radius + 9, "chassis", "magnet_radius", 0, false, "core")
-		reach.dashed = true
+		# The reach ring is synthesized from the group below (ShipMesh), not
+		# authored as a visible part; this circle only carries the position/
+		# stat (magnet_radius on players, void_pull on enemies) at the radius
+		# the old dashed ring used to draw at.
+		var reach: PartDefinition = add_part(ship, "reach", "circle", Vector2.ZERO, 1.0, "chassis", "magnet_radius", 3, false, "core")
+		var reach_group: GroupDefinition = GroupDefinition.new()
+		reach_group.root_id = "reach"
+		reach_group.orbit_radius = ship.hull_radius + 9
+		reach_group.reach_ring = true
+		ship.groups.append(reach_group)
 		# The old crescent "maw" is a bright rimmed circle with a black disc laid
 		# over part of it; the rimmed circle keeps the id, position and stat that
 		# combat reads (scripts/combat/combat_broadphase.gd's bullet_eater mouth).
@@ -160,6 +180,21 @@ static func build_ship(element: String, tier: int, is_player: bool = false, _leg
 			add_line(ship, "link_" + str(index) + "_r", "core", "lobe_" + str(index) + "_r")
 			ship.parts[-2].mirror_id = ship.parts[-1].id
 			ship.parts[-1].mirror_id = ship.parts[-2].id
+			if element == "corruption":
+				# Lobes carry no mount, so orbiting them cannot move a weapon or
+				# change a bullet spawn point; sibling radii get opposite spin
+				# or the hull reads as one spinning wheel (spec §18).
+				var spin: float = 0.5 + 0.15 * float(index)
+				var left_orbit: GroupDefinition = GroupDefinition.new()
+				left_orbit.root_id = "lobe_" + str(index) + "_l"
+				left_orbit.orbit_radius = lobe_radius
+				left_orbit.orbit_speed = spin if index % 2 == 0 else -spin
+				ship.groups.append(left_orbit)
+				var right_orbit: GroupDefinition = GroupDefinition.new()
+				right_orbit.root_id = "lobe_" + str(index) + "_r"
+				right_orbit.orbit_radius = lobe_radius
+				right_orbit.orbit_speed = -left_orbit.orbit_speed
+				ship.groups.append(right_orbit)
 	mount_component(ship, ship.primary, "primary", Vector2(0, -body_radius * 0.7), 11.0 if ship.faction == "elite" else 3.5)
 	if ship.faction == "elite": ship.parts[-2].hp = 24 + tier * 15
 	for index: int in range(ship.secondaries.size()): mount_component(ship, ship.secondaries[index], "secondary_" + str(index), Vector2(0, body_radius + 7 + index * 9))
@@ -254,7 +289,17 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 	if not ship.faction in ["player", "enemy", "elite", "rival"]: errors.append("Unknown faction.")
 	if ship.is_player != (ship.faction == "player"): errors.append("Faction and player flag disagree.")
 	if not ship.role in ["compact", "standard", "heavy"]: errors.append("Unknown role.")
-	if ship.parts.size() > MAX_PARTS: errors.append("At most 128 expanded parts supported.")
+	var circle_count: int = 0
+	var line_count: int = 0
+	var reach_ring_count: int = 0
+	for counted: PartDefinition in ship.parts:
+		if counted == null: continue
+		if counted.shape == "circle": circle_count += 1
+		elif counted.shape == "line": line_count += 1
+	for counted_group: GroupDefinition in ship.groups:
+		if counted_group.reach_ring: reach_ring_count += 1
+	if circle_count + reach_ring_count > MAX_PARTS: errors.append("At most 128 circles (including synthesized reach rings) supported.")
+	if line_count > MAX_LINES: errors.append("At most 512 lines supported.")
 	if ship.core_radius <= 0 or not is_finite(ship.core_radius): errors.append("Invalid core radius.")
 	var ids: Dictionary = {}
 	var mounts: Dictionary = {}
@@ -325,6 +370,47 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 			if not component in mounts.values(): errors.append("Loadout component has no visible mount: " + component)
 			if AbilityCatalog.get_definition(component).slot_kind != kind and not (not ship.is_player and kind == "secondary" and AbilityCatalog.get_definition(component).slot_kind == "enemy"): errors.append("Component in wrong slot: " + component)
 	if not ids.has("core") or not ids.core.position.is_zero_approx(): errors.append("Body must remain at the core origin.")
+	# Groups: root must be a real circle, at most one group per root, tuning
+	# stays inside the amplitudes spec §18 asks for, a sway/whip subtree is a
+	# simple chain, and mirrored roots counter-rotate (spec §18: "or the hull
+	# visibly stops being symmetric").
+	var group_roots: Dictionary = {}
+	var mount_bearing: Dictionary = {}
+	for part: PartDefinition in ship.parts:
+		if not part.mount_id.is_empty():
+			var cursor: String = part.id
+			var guard: int = 0
+			while circle_ids.has(cursor) and guard < MAX_PARTS:
+				mount_bearing[cursor] = true
+				cursor = str(circle_ids[cursor].parent_id)
+				guard += 1
+	for group: GroupDefinition in ship.groups:
+		if not circle_ids.has(group.root_id): errors.append("Group root must name an existing circle: " + group.root_id); continue
+		if group_roots.has(group.root_id): errors.append("At most one group per root: " + group.root_id)
+		group_roots[group.root_id] = true
+		if absf(group.orbit_speed) > 3.0: errors.append(group.root_id + ": orbit_speed outside +/-3 rad/s.")
+		if group.breathe_amp > 0.08: errors.append(group.root_id + ": breathe_amp above 0.08.")
+		var drift_limit: float = 2.0 if mount_bearing.has(group.root_id) else 6.0
+		if group.drift_amp > drift_limit: errors.append(group.root_id + ": drift_amp above the amplitude allowed for its subtree.")
+		if not group.chain_mode in ["rigid", "sway", "whip"]: errors.append(group.root_id + ": unknown chain_mode.")
+		if group.chain_mode in ["sway", "whip"]:
+			var rig: ShipMotion.ShipRig = ShipMotion.get_rig(ship)
+			var root_index: int = rig.index_of(group.root_id)
+			if root_index >= 0:
+				var last: int = root_index + rig.subtree_size[root_index]
+				for i: int in range(root_index, last):
+					var children_of_i: int = 0
+					for j: int in range(root_index, last):
+						if rig.parent_index[j] == i: children_of_i += 1
+					if children_of_i > 1: errors.append(group.root_id + ": a sway/whip subtree must be a simple chain, not a tree.")
+	for part: PartDefinition in ship.parts:
+		if part.shape == "circle" and not part.mirror_id.is_empty() and group_roots.has(part.id) and group_roots.has(part.mirror_id):
+			var mine: GroupDefinition = null
+			var theirs: GroupDefinition = null
+			for group: GroupDefinition in ship.groups:
+				if group.root_id == part.id: mine = group
+				if group.root_id == part.mirror_id: theirs = group
+			if mine != null and theirs != null and not is_equal_approx(mine.orbit_speed, -theirs.orbit_speed): errors.append(part.id + ": mirrored group roots must counter-rotate.")
 	if not errors.is_empty(): return errors
 	var copy: ShipDefinition = ship.duplicate(true)
 	recalculate(copy)
