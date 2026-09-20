@@ -60,6 +60,8 @@ func sync_pool(pool: LightBulletPool) -> void:
 	var shot_positions: PackedVector2Array = pool.positions
 	var shot_velocities: PackedVector2Array = pool.velocities
 	var shot_radii: PackedFloat32Array = pool.radii
+	var shot_visual_radii: PackedFloat32Array = pool.visual_radii
+	var shot_ages: PackedFloat32Array = pool.ages
 	var shot_factions: PackedInt32Array = pool.factions
 	var shot_elements: PackedInt32Array = pool.elements
 	var shot_flags: PackedInt32Array = pool.flags
@@ -86,7 +88,9 @@ func sync_pool(pool: LightBulletPool) -> void:
 	for index: int in shot_active_indices:
 		var friendly: bool = shot_factions[index] == 0
 		var pos: Vector2 = shot_positions[index]
-		var radius: float = shot_radii[index]
+		# Visual radius only (spec §19 per-weapon size); the COLLISION radius
+		# (`shot_radii`, used below for the mine's blast extent) is untouched.
+		var radius: float = shot_visual_radii[index]
 		var flags: int = shot_flags[index]
 		var color: Color = PLAYER_COLOR if friendly else COLORS[clampi(shot_elements[index], 0, 4)]
 		var velocity: Vector2 = shot_velocities[index]
@@ -97,7 +101,13 @@ func sync_pool(pool: LightBulletPool) -> void:
 		var extent_y: float = radius
 		var special_radius: float = 0.0
 		var reach: float = 0.0
-		var brightness: float = 1.8
+		# Finding 1 (tasks/todo.md P8): every projectile used to draw at a flat
+		# 1.8x emission regardless of element, so plasma violet (base blue
+		# channel already at 1.0) clipped/bloomed toward pale blue-white,
+		# visually colliding with pillar 5's "light blue is the player, no
+		# other ship/pickup/projectile uses it". 1.4 still clears the HDR glow
+		# threshold (1.0, spec §23) without pushing every channel into clip.
+		var brightness: float = 1.4
 		if (flags & Pool.BLACK_HOLE) != 0:
 			kind = 1.0
 			special_radius = 13.0
@@ -108,9 +118,21 @@ func sync_pool(pool: LightBulletPool) -> void:
 			color = PLAYER_COLOR if friendly else Color("ff5436")
 		elif (flags & Pool.MINE) != 0:
 			straight = 0.0
-			extent_x = radius
-			extent_y = radius
+			extent_x = shot_radii[index]
+			extent_y = shot_radii[index]
 			brightness = 1.5
+		elif (flags & Pool.ROCKET) != 0 and radius > 6.5:
+			# Interior (spec §19 table): "rotating inner ring and spoke", driven
+			# by the bullet's own AGE (never a wall clock) so it is identical
+			# across simulation and render, and freezes exactly when the sim does.
+			kind = 2.0
+			special_radius = radius
+			reach = shot_ages[index]
+		elif (flags & Pool.HOMING) != 0 and radius > 6.5:
+			# Interior: "pulsing halo ring" (seeker).
+			kind = 3.0
+			special_radius = radius
+			reach = shot_ages[index]
 		var offset: int = (player_cursor if friendly else enemy_cursor) * STRIDE
 		# MultiMesh buffer rows: [xx,yx,0,ox] and [xy,yy,0,oy].
 		if friendly:

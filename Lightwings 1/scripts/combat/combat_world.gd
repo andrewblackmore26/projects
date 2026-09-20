@@ -26,7 +26,10 @@ const Pool = preload("res://scripts/combat/bullet_pool.gd")
 const CombatAI = preload("res://scripts/combat/combat_ai.gd")
 const BulletCanvas = preload("res://scripts/combat/combat_canvas.gd")
 const TrailCanvas = preload("res://scripts/combat/trail_canvas.gd")
+const FxCanvas = preload("res://scripts/combat/fx_canvas.gd")
+const PickupCanvas = preload("res://scripts/combat/pickup_canvas.gd")
 const Arena = preload("res://scripts/combat/circular_arena.gd")
+const FX = preload("res://scripts/combat/combat_fx.gd")
 const ELEMENTS: Array[String] = ["fire","lightning","void","corruption","plasma"]
 const COLORS: Array[Color] = [Color("ff5436"),Color("ffd23f"),Color("9aa3b3"),Color("45e06a"),Color("a97dff")]
 const PLAYER_COLOR: Color = Color("6fd3ff")
@@ -66,7 +69,14 @@ var bullet_count: int = 0
 var enemies: Array = []
 var pickups: Array = []
 var drones: Array = []
-var effects: Array = []
+## Pooled, batched attack/impact effects (spec §19/§23 "not nodes", P8). The
+## single choke point for creating one is `fx.emit(...)`; nothing else builds
+## an entry in `fx`'s SoA arrays directly. `_fx_rng` is FX's OWN RNG (never
+## `_rng`, the sim's) so a fragment spread can never perturb sim state -
+## `tests/combat_fx_test.gd` asserts a sim trace is identical with FX draws
+## enabled and disabled.
+var fx: CombatFX = FX.new()
+var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var telegraphs: Array = []
 var viruses: Array = []
 var clouds: Array = []
@@ -101,6 +111,12 @@ var _ability_cache: Dictionary = {}
 var _bullet_canvas: Node2D
 var trail_pool: TrailPool = TrailPool.new()
 var _trail_canvas: Node2D
+## Batched MultiMesh draw for `fx` (P9 perf pass): see `fx_canvas.gd` header.
+## Synced once per tick from `_physics_process`, same shape as `_bullet_canvas`.
+var _fx_canvas: Node2D
+## Batched MultiMesh draw for pickups (see `pickup_canvas.gd`): the immediate per-pickup arcs it
+## replaced measured ~17 ms of frame time at the 400-pickup cap.
+var _pickup_canvas: Node2D
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Test-only negative controls for the human-like AI limits (spec §14) - never
 ## toggled by gameplay code. `enemy_ai_test.gd` flips these to prove the
@@ -168,6 +184,11 @@ var _respawn_timer: float = 0.0
 
 func _ready() -> void:
  _rng.seed=734927
+ _fx_rng.randomize() # FX-only RNG (never the sim's `_rng`): visuals must not perturb the trace.
+ # Startup choke point (spec item 2): a template shorter than the §16 0.25s
+ # minimum visible lifetime is a hard, loud engine error every test runner's
+ # log grep catches (tools/lib.ps1 greps for "ERROR:").
+ for message: String in FX.validate_templates(): push_error(message)
  _broadphase.world=self
  _ensure_canvas()
  if player.is_empty(): setup_player("neutral",1,40,[],arena.center)
@@ -182,6 +203,10 @@ func _ensure_canvas() -> void:
  _trail_canvas.pool=trail_pool
  _trail_canvas.z_index=5
  add_child(_trail_canvas)
+ _fx_canvas=FxCanvas.new()
+ add_child(_fx_canvas)
+ _pickup_canvas=PickupCanvas.new()
+ add_child(_pickup_canvas)
 func setup_player(element: String, tier: int, energy: float, _stolen: Array, position: Vector2 = Vector2(896,560)) -> void:
  if not player.is_empty():
   _remove_visual(player)
@@ -377,12 +402,14 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  var part_egg: PackedFloat32Array=PackedFloat32Array()
  var part_aim: PackedVector2Array=PackedVector2Array()
  var part_attached: PackedByteArray=PackedByteArray()
+ var part_flare: PackedFloat32Array=PackedFloat32Array() # P8 target feedback; decays via `_step_motion`
  part_hp.resize(n)
  part_max_hp.resize(n)
  part_cd.resize(n)
  part_egg.resize(n)
  part_aim.resize(n)
  part_attached.resize(n)
+ part_flare.resize(n)
  var mount_index: Dictionary={}
  var gun_indices: PackedInt32Array=PackedInt32Array()
  # id -> authored PartDefinition.stat_id (P4b: sub_core / shield_generator are
@@ -415,6 +442,7 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  part_max_hp[0]=float(actor.max_hp)
  part_attached[0]=1
  actor.part_hp=part_hp
+ actor.part_flare=part_flare
  actor.part_max_hp=part_max_hp
  actor.part_cd=part_cd
  actor.part_egg_cd=part_egg
@@ -617,6 +645,13 @@ func _physics_process(delta: float) -> void:
   _bullet_canvas.sync_pool(bullets)
   _bullet_canvas.queue_redraw()
  if is_instance_valid(_trail_canvas): _trail_canvas.queue_redraw()
+ # `_fx_canvas.sync` runs from `_draw()` (render/idle step), NOT here: the OLD
+ # immediate `fx.draw_below`/`fx.draw_above` it replaces also ran on the
+ # render step, outside `simulation_ms` - `tests/combat_benchmark.gd`'s
+ # headless sim-only gate budgets (2000 bullets: mean<=9.0/p95<=12.0) proved
+ # this the hard way: syncing here folded ~1-2ms of FX MultiMesh upload into
+ # the sim budget and regressed it to mean 11.7/p95 16.9, a real, avoidable
+ # cost that has nothing to do with simulating a tick.
  simulation_ms=(Time.get_ticks_usec()-began)/1000.0
  if profile_sections:
   section_ms.upload=(Time.get_ticks_usec()-section_start)/1000.0
@@ -942,6 +977,10 @@ func _use_secondary(actor: Dictionary, index: int = 0) -> void:
 func _emit_shot(actor: Dictionary, id: String, at: Vector2) -> void:
  shot_fired.emit(at,str(actor.element),id)
  if int(actor.id)==0: attack_performed.emit(str(actor.element),id)
+ # Shot beat 1 (spec §19.1): "a ring at the emitter snapping outward and
+ # fading over ~0.15 s" - fired once per ability activation (not once per
+ # bullet in a spread), at the muzzle position the ability itself resolved.
+ fx.emit("muzzle",at,_actor_color(actor),_fx_rng)
 func _damage_scale(actor: Dictionary) -> float:
  return float(actor.get("damage_multiplier",1.0))*(1.0+0.12*(int(actor.tier)-1))*(1.0 if int(actor.id)==0 or bool(actor.get("rival",false)) else 0.65)
 func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector2, mount: String = "") -> void:
@@ -978,7 +1017,9 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
   "laser_prong": _queue_attack(actor,"laser",at,_ray_end(at,aim),0.8,damage,0.0,-1,mount)
   "poison_cloud":
    if clouds.size()<80: clouds.append({"pos":arena.clamp_point(at+aim*100.0),"radius":definition.range_pixels,"time":definition.duration,"damage":damage,"owner":int(actor.id),"faction":int(actor.faction),"element":str(actor.element)})
-  "mine_layer": _queue_attack(actor,"mine",arena.clamp_point(at-aim*28.0),Vector2.ZERO,0.35,damage,definition.range_pixels,-1,mount)
+  # Spec §16: "any attack that cannot be dodged on reaction shows a warning
+  # >= 0.5 s before it lands" - was 0.35s (P8 carried-forward finding).
+  "mine_layer": _queue_attack(actor,"mine",arena.clamp_point(at-aim*28.0),Vector2.ZERO,0.5,damage,definition.range_pixels,-1,mount)
   "orbital_blockers":
    actor.blockers=definition.duration
    actor.blocker_hits=6
@@ -991,9 +1032,18 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
    for i: int in range(6):
     var direction: Vector2=Vector2.from_angle(float(actor.age)*0.5+TAU*i/6.0)
     _shoot(actor,direction,250.0,damage,-1.0,0,at+direction*definition.range_pixels)
+## Per-weapon visual size (spec §19 "projectile interiors ... above ~7 px").
+## Collision radius (the 3.0 passed to `bullets.add` below) is UNCHANGED by
+## this - only the drawn size moves, via `BulletPool.visual_radii`.
+func _visual_radius(special: int) -> float:
+ if (special & Pool.ROCKET)!=0: return 9.0
+ if (special & Pool.HOMING)!=0: return 7.5
+ if (special & Pool.RICOCHET)!=0: return 4.0
+ if (special & Pool.CHAIN)!=0: return 3.5
+ return 3.0
 func _shoot(actor: Dictionary, direction: Vector2, speed: float, damage: float, life: float = -1.0, special: int = 0, at: Vector2 = Vector2.INF) -> int:
  var origin: Vector2=Vector2(actor.pos)+direction*8.0 if at==Vector2.INF else at
- return bullets.add(origin,direction.normalized()*speed,life,damage,3.0,int(actor.id),int(actor.faction),maxi(0,ELEMENTS.find(str(actor.element))),special)
+ return bullets.add(origin,direction.normalized()*speed,life,damage,3.0,int(actor.id),int(actor.faction),maxi(0,ELEMENTS.find(str(actor.element))),special,_visual_radius(special))
 func _ray_end(at: Vector2, direction: Vector2) -> Vector2:
  var endpoint: Vector2=at+direction.normalized()*4000.0
  var hit: Dictionary=arena.boundary_hit(at,endpoint)
@@ -1021,6 +1071,13 @@ func _beam(actor: Dictionary, id: String, dt: float, origin: Vector2 = Vector2.I
  var hit_ids: Dictionary={}
  for i: int in range(path.size()-1): _damage_segment(actor,path[i],path[i+1],damage,hit_ids)
  beams.append({"points":path,"faction":int(actor.faction),"element":str(actor.element)})
+ # Beam interior (spec §19 table): "impact sparking continuously at the far
+ # end" - one small burst per call would spam the pool at 60/s, so it is
+ # throttled to ~10/s per actor via its own cooldown field.
+ actor.beam_spark_cd=maxf(0.0,float(actor.get("beam_spark_cd",0.0))-dt)
+ if float(actor.beam_spark_cd)<=0.0 and path.size()>0:
+  actor.beam_spark_cd=0.1
+  fx.emit("beam_spark",path[path.size()-1],PLAYER_COLOR if int(actor.faction)==0 else COLORS[maxi(0,ELEMENTS.find(str(actor.element)))],_fx_rng,{"direction":Vector2(path[path.size()-1]-path[maxi(0,path.size()-2)])})
 func _damage_segment(source: Dictionary, from: Vector2, to: Vector2, amount: float, hit_ids: Dictionary) -> void:
  for target: Dictionary in actors_by_id.values():
   if not _hostile(source,target): continue
@@ -1071,6 +1128,25 @@ func _step_motion(actor: Dictionary) -> void:
  var rig: ShipMotion.ShipRig=actor.get("rig")
  var pose: ShipMotion.ShipPose=actor.get("pose")
  if rig!=null and pose!=null: ShipMotion.step(rig,pose,tick)
+ # Target feedback (P8): `ShipMotion.step` always zeroes `pose.flare` (it is
+ # a reserved slot with no sim-side owner of its own), so this actor's own
+ # decaying `part_flare` is written in AFTER step, every tick, and handed to
+ # the renderer separately (`ShipRenderer.part_flare`) since the renderer
+ # keeps its own independent `ShipPose` for the mesh upload.
+ if actor.has("part_flare"):
+  # `.duplicate()` at every hand-off: a bare `pose.flare = flare` (sharing
+  # the same PackedFloat32Array buffer) let `ShipMotion.step`'s own
+  # `pose.flare[i] = 0.0` reach back and zero `actor.part_flare` too on the
+  # VERY NEXT tick - PackedArray element writes do not reliably fork a
+  # shared COW buffer the way whole-array reassignment does. Three
+  # independent buffers (actor/pose/renderer) removes the aliasing outright.
+  var flare: PackedFloat32Array=(actor.part_flare as PackedFloat32Array).duplicate()
+  var decay: float=_last_dt/FLARE_DECAY_SECONDS
+  for i: int in range(flare.size()): flare[i]=maxf(0.0,flare[i]-decay)
+  actor.part_flare=flare
+  if pose!=null and pose.flare.size()==flare.size(): pose.flare=flare.duplicate()
+  var renderer: ShipRenderer=actor.get("renderer") as ShipRenderer
+  if is_instance_valid(renderer): renderer.part_flare=flare.duplicate()
 func _local_position(actor: Dictionary, id: String, fallback: Vector2) -> Vector2:
  # Fire from where the circle actually is: an orbiting group moves a mount
  # or gun exactly as far as the renderer moves it, both driven by the same
@@ -1119,6 +1195,8 @@ func _damage_part(actor: Dictionary, index: int, amount: float, source: Dictiona
   var aim: Vector2=actor.part_aim[index]
   for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.25),330.0,15.0,-1.0,Pool.HOMING,_part_position(actor,index))
  actor.part_hp[index]=maxf(0.0,float(actor.part_hp[index])-amount)
+ _flare(actor,index)
+ _maybe_collar(_part_position(actor,index),amount)
  if float(actor.part_hp[index])<=0.0:
   for i: int in range(telegraphs.size()-1,-1,-1):
    if int(telegraphs[i].owner)==int(actor.id) and str(telegraphs[i].mount)==str(rig.ids[index]): telegraphs.remove_at(i)
@@ -1162,7 +1240,12 @@ func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
  for k: int in range(rig.line_from.size()):
   var lf: int=rig.line_from[k]
   var lt: int=rig.line_to[k]
-  if (lf>=index and lf<last) or (lt>=index and lt<last): hidden.append(rig.line_ids[k])
+  if (lf>=index and lf<last) or (lt>=index and lt<last):
+   hidden.append(rig.line_ids[k])
+   # "Its lines snap from both ends" (spec §19 "destruction").
+   var from_pos: Vector2=_part_position(actor,lf)
+   var to_pos: Vector2=_part_position(actor,lt)
+   fx.emit("line_snap",from_pos,_actor_color(actor),_fx_rng,{"to":to_pos})
  actor.hidden_ids=hidden
  if offsets.is_empty(): return
  actor.reward_unpaid_limb=maxf(0.0,float(actor.get("reward_unpaid_limb",0.0))-light)
@@ -1343,9 +1426,28 @@ func _update_bullets(dt: float) -> void:
    var target: Dictionary=_nearest(source,from)
    if not target.is_empty():
     var angle: float=rotate_toward(velocity.angle(),(Vector2(target.pos)-from).angle(),2.8*dt)
+    # Path identity (spec §19 table): "weaving sine, tightening near the
+    # target" - the weave's own amplitude shrinks as range closes, so the
+    # seeker still reads as a seeker right up to impact but does not swing
+    # wildly at point-blank range.
+    var tighten: float=clampf(Vector2(target.pos).distance_to(from)/220.0,0.15,1.0)
+    angle+=sin(elapsed*9.0+index*2.3)*0.35*tighten
     velocity=Vector2.from_angle(angle)*velocity.length()
-  if (flag & Pool.WANDER)!=0: velocity=velocity.rotated(sin(elapsed*5.0+index*1.7)*1.2*dt)
+  if (flag & Pool.WANDER)!=0:
+   # Path identity: rocket's "slow wallow, wide curve" - slower and wider
+   # than a generic wander would be (WANDER is only ever paired with ROCKET,
+   # see `_activate_component`'s `rocket_launcher` case).
+   velocity=velocity.rotated(sin(elapsed*1.6+index*1.7)*2.2*dt)
   bullets.velocities[index]=velocity
+  # Per-weapon trails (spec §19 "trail length is a per-weapon property...
+  # a seeker leaves a long ribbon", rocket "thick, long"). Pulses/ricochet
+  # get their stub for free from the capsule's own `straight` stretch
+  # (combat_canvas.gd) - no pooled trail spent on them. Owner ids are offset
+  # well clear of actor ids (0..a few hundred) so a bullet trail can never
+  # collide with a ship's own lightstream in the shared 40-trail budget.
+  if (flag & (Pool.HOMING|Pool.ROCKET))!=0:
+   var rocket_like: bool=(flag & Pool.ROCKET)!=0
+   trail_pool.request(5000000+index,from,1.0,3.2 if rocket_like else 2.2,COLORS[bullets.elements[index]] if bullets.factions[index]!=0 else PLAYER_COLOR,14 if rocket_like else 12)
   if bullets.lives[index]>=0.0:
    bullets.lives[index]-=dt
    if bullets.lives[index]<=0.0:
@@ -1393,6 +1495,11 @@ func _update_bullets(dt: float) -> void:
      hit_part=int(c.get("part_index",0))
    if not hit.is_empty():
     _prepare_shot_source(index)
+    var impact_point: Vector2=from.lerp(to,nearest)
+    var bullet_color: Color=PLAYER_COLOR if bullets.factions[index]==0 else COLORS[bullets.elements[index]]
+    # Shot beat 3 (spec §19.1/Appendix B): two rings plus 5-7 decelerating
+    # fragments thrown ALONG THE INCOMING VECTOR.
+    fx.emit("impact",impact_point,bullet_color,_fx_rng,{"direction":velocity})
     if not hit.drone.is_empty(): hit.drone.hp=float(hit.drone.hp)-bullets.damages[index]
     elif bool(hit.get("blocker",false)):
      hit.actor.blocker_hits=maxi(0,int(hit.actor.blocker_hits)-1)
@@ -1405,8 +1512,8 @@ func _update_bullets(dt: float) -> void:
       var target: Dictionary=_nearest(source,hit.actor.pos,[int(hit.actor.id)])
       if not target.is_empty() and Vector2(target.pos).distance_to(hit.actor.pos)<=180.0:
        _damage_actor(target,bullets.damages[index]*0.65,bullets.owners[index],bullets.factions[index])
-       _add_line_effect(hit.actor.pos,target.pos,PLAYER_COLOR if bullets.factions[index]==0 else COLORS[bullets.elements[index]],0.15)
-    if (flag & Pool.ROCKET)!=0: _radial_damage(source,from.lerp(to,nearest),55.0,bullets.damages[index]*0.5)
+       _add_line_effect(hit.actor.pos,target.pos,bullet_color,0.15)
+    if (flag & Pool.ROCKET)!=0: _radial_damage(source,impact_point,55.0,bullets.damages[index]*0.5)
     bullets.remove_at(slot)
     removed=true
     break
@@ -1421,6 +1528,10 @@ func _update_bullets(dt: float) -> void:
    velocity=velocity.bounce(normal)
    remaining*=1.0-float(wall.t)
    from=Vector2(wall.point)-normal*0.01
+   # Path identity: "hard bounces off the rim, fragments thrown on each
+   # bounce" and the trail "kinks at each bounce" (spec §19 table).
+   fx.emit("ricochet_kink",Vector2(wall.point),PLAYER_COLOR if bullets.factions[index]==0 else COLORS[bullets.elements[index]],_fx_rng,{"direction":normal})
+   trail_pool.kink(5000000+index)
    if remaining<=0.000001: break
   if not removed:
    bullets.positions[index]=from
@@ -1432,6 +1543,27 @@ func _update_contact() -> void:
    _damage_actor(player,12.0,int(actor.id),int(actor.faction))
    contact_timer=0.4
    break
+## Target feedback (spec item 4/§19 "flare the target circle's own rim,
+## don't just spawn a ring in front of it"): sets a per-circle flare
+## intensity that decays over `FLARE_DECAY_SECONDS` (>= §16's 0.25s floor),
+## read by `_step_motion` into the pose/renderer every tick. `index` 0 is
+## always the core (the player's ONLY hitbox, spec §16).
+const FLARE_DECAY_SECONDS: float = 0.25
+## On large hits, darken a collar under the impact instead of a brighter
+## flash (spec §19). Threshold is the raw incoming `amount` (the ability's
+## own damage number, before hp_buffer scaling, so it reads the same across
+## every hull regardless of buffer) - a chosen convention, not a measured
+## player-feel tuning; stated plainly as unverified against real play, same
+## as every other P8 number here.
+const FX_COLLAR_DAMAGE_THRESHOLD: float = 30.0
+func _flare(actor: Dictionary, index: int) -> void:
+ # Direct chained subscript assignment (matches `actor.part_hp[index]=...`
+ # elsewhere in this file): going through an intermediate local
+ # PackedFloat32Array variable first would mutate a COW copy and never write
+ # back into the Dictionary.
+ if actor.has("part_flare") and index>=0 and index<actor.part_flare.size(): actor.part_flare[index]=1.0
+func _maybe_collar(at: Vector2, amount: float) -> void:
+ if amount>=FX_COLLAR_DAMAGE_THRESHOLD: fx.emit("collar",at,Color.BLACK,_fx_rng,{"r1":18.0+amount*0.35})
 func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_faction: int = -999) -> void:
  if amount<=0.0 or bool(actor.dead) or float(actor.invulnerable)>0.0: return
  if int(actor.id)==0:
@@ -1444,7 +1576,8 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
    player_died.emit()
    return
   _check_regression()
-  _add_effect("hit",actor.pos,Color.WHITE,0.15,8.0)
+  _flare(actor,0)
+  _maybe_collar(actor.pos,amount)
   return
  # P4a: the armoured-core rule ("reduced damage until half the guns are
  # destroyed") is REMOVED per spec §28 - the core is the kill target and
@@ -1455,9 +1588,11 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
  if _boss_shield_active(actor): return
  var damage: float=amount/maxf(0.1,float(actor.hp_buffer))
  var actual: float=minf(float(actor.hp),damage)
- if show_damage_numbers and actual>0.0 and effects.size()<250: effects.append({"kind":"number","pos":actor.pos+Vector2(_rng.randf_range(-6,6),-10),"color":Color.WHITE,"time":0.6,"duration":0.6,"radius":0.0,"text":str(roundi(actual))})
+ if show_damage_numbers and actual>0.0: fx.emit("damage_number",actor.pos+Vector2(_fx_rng.randf_range(-6,6),-10),Color.WHITE,_fx_rng,{"text":str(roundi(actual))})
  actor.hp=maxf(0.0,float(actor.hp)-damage)
  if actor.has("part_hp") and actor.part_hp.size()>0: actor.part_hp[0]=actor.hp
+ _flare(actor,0)
+ _maybe_collar(actor.pos,amount)
  actor.reward_damage=float(actor.reward_damage)+actual
  while float(actor.reward_damage)>=18.0 and int(actor.reward_remaining)>0:
   actor.reward_damage=float(actor.reward_damage)-18.0
@@ -1589,6 +1724,10 @@ func _update_pickups(dt: float) -> void:
    collector.hp=float(collector.hp)+consumed*multiplier
    if float(collector.hp)>=float(collector.max_hp): _pickup_collectors.erase(collector)
   pickup.value=maxf(0.0,float(pickup.value)-consumed)
+  # Spec §19 "movement effects": "absorbing a pickup pulls a short line from
+  # the pickup into the core as it's consumed" - only on the tick it is
+  # actually consumed (consumed>0), not every tick it merely sits in range.
+  if consumed>0.0: fx.emit("absorb",position,COLORS[maxi(0,ELEMENTS.find(str(pickup.element)))],_fx_rng,{"to":collector.pos})
   if float(pickup.value)<=0.000001: pickups.remove_at(i)
 func _magnet_radius(actor: Dictionary) -> float:
  return float(actor.magnet_radius)*(1.5 if _has_ability(actor,"magnet") else 1.0)
@@ -1631,14 +1770,27 @@ func _sync_visuals() -> void:
   renderer.hidden_part_ids=actor.get("hidden_ids",PackedStringArray())
 func _actor_color(actor: Dictionary) -> Color:
  return PLAYER_COLOR if int(actor.id)==0 else COLORS[maxi(0,ELEMENTS.find(str(actor.element)))]
-func _add_effect(kind: String, at: Vector2, color: Color, duration: float, radius: float) -> void:
- if effects.size()<250: effects.append({"kind":kind,"pos":at,"color":color,"time":duration,"duration":duration,"radius":radius})
-func _add_line_effect(from: Vector2, to: Vector2, color: Color, duration: float) -> void:
- if effects.size()<250: effects.append({"kind":"line","pos":from,"to":to,"color":color,"time":duration,"duration":duration,"radius":0.0})
+## Back-compat call points, kept so existing call sites did not need to move,
+## now routed through the ONE choke point (`fx.emit`) instead of a raw
+## Dictionary Array. `duration`/`radius` map onto the named template's own
+## `extra.r0`/`r1` overrides where the caller's radius is content (e.g. a
+## destroyed circle's own authored size), not onto the template's timing -
+## timing is the template's, per spec item 2/3, not the call site's.
+const _EFFECT_TEMPLATE: Dictionary = {"wall":"wall_flash","dash_ring":"dash_ring","gun_destroyed":"destruction","spawn":"spawn_telegraph","explosion":"explosion","death":"destruction"}
+func _add_effect(kind: String, at: Vector2, color: Color, _duration: float, radius: float) -> void:
+ var template: String=str(_EFFECT_TEMPLATE.get(kind,""))
+ if template.is_empty():
+  push_error("_add_effect: unmapped effect kind '%s'" % kind)
+  return
+ var extra: Dictionary={}
+ if template=="destruction": extra={"r0":maxf(4.0,radius),"r1":maxf(1.0,radius*0.1),"direction":Vector2.from_angle(_fx_rng.randf()*TAU)}
+ elif template=="explosion": extra={"r1":maxf(8.0,radius),"direction":Vector2.from_angle(_fx_rng.randf()*TAU)}
+ elif template=="spawn_telegraph" or template=="wall_flash": extra={"r0":radius*0.4,"r1":radius}
+ fx.emit(template,at,color,_fx_rng,extra)
+func _add_line_effect(from: Vector2, to: Vector2, color: Color, _duration: float) -> void:
+ fx.emit("chain_line",from,color,_fx_rng,{"to":to})
 func _update_effects(dt: float) -> void:
- for i: int in range(effects.size()-1,-1,-1):
-  effects[i].time=float(effects[i].time)-dt
-  if float(effects[i].time)<=0.0: effects.remove_at(i)
+ fx.update(dt)
 func _clear_encounter() -> void:
  for actor: Dictionary in enemies:
   _remove_visual(actor)
@@ -1649,10 +1801,12 @@ func _clear_encounter() -> void:
  if not player.is_empty(): actors_by_id[0]=player
  bullets.clear()
  if is_instance_valid(_bullet_canvas): _bullet_canvas.clear_instances()
+ if is_instance_valid(_fx_canvas): _fx_canvas.clear_instances()
+ if is_instance_valid(_pickup_canvas): _pickup_canvas.clear_instances()
  bullet_count=0
  pickups.clear()
  drones.clear()
- effects.clear()
+ fx.clear()
  telegraphs.clear()
  viruses.clear()
  clouds.clear()
@@ -1710,8 +1864,23 @@ func _fill_benchmark(count: int) -> void:
   var p: Vector2=Vector2(_rng.randf_range(200,1500),_rng.randf_range(200,900))
   bullets.add(p,Vector2.from_angle(_rng.randf()*TAU)*220.0,-1.0,0.0,2.8,-1,i%6,i%5)
 
+## Diagnostic-only (P9): cost of THIS node's own immediate _draw() (pickups,
+## actor status overlays, drones, viruses, clouds, debris), which runs on the
+## render/idle step, not `_physics_process` - invisible to `simulation_ms`.
+var world_draw_ms: float=0.0
+var projectiles_draw_ms: float=0.0 # Diagnostic-only (P9), same reason as `world_draw_ms`.
 func _draw() -> void:
- for pickup: Dictionary in pickups: _draw_pickup(pickup)
+ var _p9_began: int=Time.get_ticks_usec()
+ # FX MultiMesh upload (see the comment at the `_physics_process` call site
+ # this replaced): kept on the render step so it never counts against the
+ # headless sim-only benchmark budget.
+ if is_instance_valid(_fx_canvas): _fx_canvas.sync(fx)
+ # The dark collar (spec §19 "darken a collar... below the playfield value")
+ # is drawn by `_fx_canvas` (z_index 1, under ships at z_index 10) as a
+ # batched MultiMesh pass now (P9 perf pass) - see `fx_canvas.gd`'s header.
+ # Pickups are batched for the same reason and were the dominant cost once the
+ # effects pool stopped being the dominant cost - see `pickup_canvas.gd`.
+ if is_instance_valid(_pickup_canvas): _pickup_canvas.sync(self)
  for actor: Dictionary in actors_by_id.values():
   if bool(actor.dead): continue
   var at: Vector2=actor.pos
@@ -1744,12 +1913,18 @@ func _draw() -> void:
  for virus: Dictionary in viruses:
   var color: Color=PLAYER_COLOR if int(virus.faction)==0 else Color("45e06a")
   draw_arc(virus.pos,8.0,elapsed*5,elapsed*5+TAU*0.8,20,color*1.8,2.6,true)
+  # Spec §19 table: "latches, then a LINE TO THE HOST that pulses" (the
+  # host's own rim flare on the infection tick is separate - `_flare`,
+  # called every tick while `infected>0` from `_update_actor_status`).
+  var owner: Dictionary=actors_by_id.get(int(virus.owner),{})
+  if not owner.is_empty(): draw_line(owner.pos,virus.pos,Color(color,0.4+0.3*sin(elapsed*6.0)),1.5,true)
  for cloud: Dictionary in clouds:
   draw_arc(cloud.pos,float(cloud.radius),0,TAU,48,Color("45e06a"),1.5,true)
   for i: int in range(8):
    var p: Vector2=Vector2(cloud.pos)+Vector2.from_angle(i*TAU/8+elapsed*0.1)*float(cloud.radius)*0.6
    draw_arc(p,18.0,0,TAU,20,Color("45e06a",0.4),1.0,true)
  for d: Dictionary in debris: _draw_debris(d)
+ world_draw_ms=float(Time.get_ticks_usec()-_p9_began)/1000.0
 func _draw_debris(d: Dictionary) -> void:
  var alpha: float=clampf(1.0-float(d.age)/float(d.life),0.0,1.0)
  var color: Color=d.color
@@ -1760,16 +1935,8 @@ func _draw_debris(d: Dictionary) -> void:
  for j: int in range(offsets.size()):
   var p: Vector2=Vector2(d.position)+offsets[j].rotated(angle)
   draw_circle(p,maxf(1.0,float(radii[j])*maxf(0.15,alpha)),color)
-func _draw_pickup(pickup: Dictionary) -> void:
- var color: Color=COLORS[maxi(0,ELEMENTS.find(str(pickup.element)))]
- # Radius reads SIZE, not the (possibly 3x-multiplied) value (spec §10).
- var size: int=int(pickup.get("size",pickup.value))
- var radius: float=3.0+(1.5 if size>=5 else 0.0)+(1.5 if size>=20 else 0.0)
- if pickup.element=="void": draw_circle(pickup.pos,radius,Color.BLACK)
- draw_arc(pickup.pos,radius,0,TAU,24,color,1.5,true)
- var angle: float=elapsed*PI+float(pickup.phase)
- draw_arc(pickup.pos,radius,angle,angle+TAU*0.13,8,color.lerp(Color.WHITE,0.6)*1.8,2.6,true)
 func draw_projectiles(canvas: Node2D) -> void:
+ var _p9_began: int=Time.get_ticks_usec()
  # Player status sits above its foreground hull, including an opaque Void disc.
  if not player.is_empty():
   var p: Vector2=player.pos
@@ -1789,7 +1956,16 @@ func draw_projectiles(canvas: Node2D) -> void:
     if enemy.element=="void": canvas.draw_string(ThemeDB.fallback_font,Vector2(enemy.pos)+Vector2(-20,-30),"%d" % ceili(enemy.hp),HORIZONTAL_ALIGNMENT_LEFT,-1,12,COLORS[2])
  for beam: Dictionary in beams:
   var color: Color=PLAYER_COLOR if int(beam.faction)==0 else COLORS[maxi(0,ELEMENTS.find(beam.element))]
-  canvas.draw_polyline(beam.points,color*1.8,2.6,true)
+  # Spec §19 table: "wide faint band under a bright core, both jittering in
+  # width, with pulses running along it". `elapsed` (sim-tick-derived, never
+  # a wall clock) drives both the jitter and the travelling pulse so a
+  # paused sim freezes the beam exactly, same rule as everything else here.
+  var jitter: float=1.0+0.18*sin(elapsed*23.0+beam.points[0].x*0.05)
+  canvas.draw_polyline(beam.points,Color(color,0.35)*1.4,7.0*jitter,true)
+  canvas.draw_polyline(beam.points,color*1.8,2.6*jitter,true)
+  var pulse_t: float=fmod(elapsed*2.2,1.0)
+  var pulse_index: int=clampi(roundi(pulse_t*float(beam.points.size()-1)),0,beam.points.size()-1)
+  canvas.draw_circle(beam.points[pulse_index],4.0,color*1.8)
  for attack: Dictionary in telegraphs:
   var color: Color=Color("ff5436")
   var progress: float=clampf(1.0-float(attack.time)/maxf(0.001,float(attack.warn)),0.0,1.0)
@@ -1801,15 +1977,13 @@ func draw_projectiles(canvas: Node2D) -> void:
   else:
    canvas.draw_arc(attack.from,float(attack.radius),0,TAU,40,color,1.5,true)
    canvas.draw_arc(attack.from,maxf(0.5,float(attack.radius)*progress),0,TAU,40,color*1.8,2.6,true)
- for effect: Dictionary in effects:
-  var color: Color=effect.color
-  color.a=clampf(float(effect.time)/float(effect.duration),0,1)
-  if effect.kind=="line": canvas.draw_line(effect.pos,effect.to,color*1.8,2.6,true)
-  elif effect.kind=="number":
-   var rise: Vector2=Vector2(0,-16.0*(1.0-color.a))
-   canvas.draw_string(ThemeDB.fallback_font,Vector2(effect.pos)+rise,str(effect.text),HORIZONTAL_ALIGNMENT_CENTER,-1,13,color)
-  else: canvas.draw_arc(effect.pos,maxf(2.0,float(effect.radius)*(1.0-color.a*0.4)),0,TAU,24,color*1.6,1.5,true)
+ # Rings/discs/fragments are drawn by `_fx_canvas` (z_index 41, above the
+ # bullet canvas at 40) as a batched MultiMesh pass (P9 perf pass) - see
+ # `fx_canvas.gd`'s header. Lines and (off-by-default) damage numbers are few
+ # per frame and stay immediate here.
+ fx.draw_lines_and_text(canvas,ThemeDB.fallback_font)
  if player_invulnerable>0.0: canvas.draw_arc(player.pos,12.0,elapsed*4,elapsed*4+PI*1.6,24,Color(PLAYER_COLOR,0.8),1.5,true)
+ projectiles_draw_ms=float(Time.get_ticks_usec()-_p9_began)/1000.0
  # Spec §24: "Poison/slow state clearly marked on the player" - a corruption-
  # green pulsing ring, distinct from the white invulnerability flicker above.
  if not player.is_empty() and float(player.get("slow",0.0))>0.0: canvas.draw_arc(player.pos,17.0,0,TAU,20,Color("45e06a",0.55+0.35*sin(elapsed*10.0)),2.2,true)

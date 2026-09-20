@@ -53,6 +53,17 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
   because "median ≤ X" is satisfied by half the runs being arbitrarily bad. The fix also made the
   measurement truer to the game — a new player who dies reboots in ~0.6 s and keeps playing, so the
   claim is about a session, not one fragile life.
+- **Sample where the effect actually is.** The flare pixel test averaged a 7×7 patch on a circle's
+  CENTRE, but a flare brightens its 1.5 px rim at radius r, which that patch never contains. It read
+  the same value before and after, and only "passed" when the enemy happened to drift between the
+  two captures so the patch caught unrelated geometry — 3 runs in 5, for the wrong reason. Sampling
+  the rim turned it into 7.99 against 3.65 and exposed a real bug behind it: the renderer's
+  dirty check for the part-offsets uniform did not include the flare, so a frame where the flare
+  changed but the motion tick did not skipped the upload. Both the wrong sample point and the
+  missing dependency were invisible while the test was green.
+- **A test that passes 3 times in 5 is telling you it measures something else.** Do not label an
+  intermittent pixel test "load flake" and move on: run it on an idle machine and count. If it is
+  genuinely intermittent, the thing it measures is not the thing it names.
 - **An instrument that guards on a precondition reports "absent" when the precondition fails.** The
   play census checked the boss turret ring with `if hp > 0`, and after 60 s of brawling that circle
   was sometimes dead, so the census reported "the turret ring never fired" about a component that
@@ -78,3 +89,6 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
   forbids. It happened to survive, but source edits go through Edit/Write — no exceptions for
   one-line constants.
 - A negative control covers only the lines it can reach. Scaling the time budgets to 1 % could never fail the pool-fill line of the benchmark gate, so that line got its own sabotage (`--fill-scale=2`). When adding a control, list the instrument's lines and check each one turns `ok=0` under some control.
+- **`a.b = shared_packed_array` aliases, it does not copy.** Assigning the SAME `PackedFloat32Array` object to two owners (an actor's own field and a `ShipPose`'s field) left both referencing one COW buffer; the pose's own per-element `[]=` write (inside `ShipMotion.step`, unrelated code) reached back and zeroed the actor's copy on the very next tick, killing a decaying value in 1 tick instead of 15 (P8, `combat_world.gd::_step_motion`, target rim flare). Fixed by `.duplicate()`-ing at every hand-off. A single chained `dict.key[index] = value` write DOES mutate the Dictionary's stored array in place (proven by the codebase's own `part_hp` pattern working everywhere); the risk is specifically SHARING that array with a second owner that also does index writes.
+- **A GPU test's `root.size` must match the project's base content-scale aspect ratio, or `get_texture().get_image()` silently letterboxes.** `root.size = Vector2i(900,700)` (aspect 1.286) against a project base of 1.6 returned an image measured 900x562, not 900x700 - every world-space sample coordinate then missed its content, and three different capture cases all read exactly background with zero errors printed (no shader failure, no exception - just quietly wrong). `arena_render_test.gd`'s existing 1280x800 (aspect 1.6) was the accidental reason it worked; `combat_fx_render_test.gd` copied that number after the trap was found the hard way.
+- A whole class of P8 negative controls needed an absolute threshold rethought as a RELATIVE one: "the flared rim's channel sum > 1.0" also passed for an entirely unflared enemy core, because every core is already boosted ~1.8x per spec and clears 1.0 on its own. The working control compared against a measured same-hull unflared baseline instead of a hand-picked constant - the same shape of fix as the palette-role tolerance lesson above, applied to a boolean threshold instead of a numeric band.

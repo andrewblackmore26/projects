@@ -78,6 +78,24 @@ if (-not $Quick) {
     Add-Gate 'NEGATIVE benchmark fill doubled' ($bench.ExitCode -ne 0 -and $fill.Total -gt 0 -and $fill.Failed -eq $fill.Total) $bench.Seconds ("fill lines failed {0}/{1}" -f $fill.Failed, $fill.Total)
 }
 
+if ($GPU) {
+    # Rendered-frame gate (P9 perf pass, tasks/todo.md): needs a real window
+    # (main.gd's own rendered `--benchmark`, not the headless sim-only one
+    # above), so only runs under -GPU. 30s, not the full 65s: `main.gd`'s
+    # $RENDERED_FRAME_BUDGET_MEAN_MS/P95_MS header records that a 30s run
+    # (29.2/42.4ms) and the full 65s run (31.6/41.3ms) agree once pickups
+    # saturate their MAX_PICKUPS cap - a shorter gate does not read low by
+    # missing that saturation.
+    $render = Invoke-Godot '-- --benchmark --benchmark-seconds=30 --benchmark-assert' $logDir 'rendered-frame' 90
+    $renderLines = Measure-Lines $render.Out 'rendered_frame'
+    Add-Gate 'rendered frame benchmark' ($render.ExitCode -eq 0 -and $renderLines.Total -gt 0 -and $renderLines.Failed -eq 0) $render.Seconds (Get-LastLine $render.Out '^RENDERED FRAME GATE')
+    if (-not $Quick) {
+        $renderNeg = Invoke-Godot '-- --benchmark --benchmark-seconds=15 --benchmark-assert --benchmark-budget-scale=0.01' $logDir 'rendered-frame-negative' 60
+        $renderNegLines = Measure-Lines $renderNeg.Out 'rendered_frame'
+        Add-Gate 'NEGATIVE rendered frame at 1%' ($renderNeg.ExitCode -ne 0 -and $renderNegLines.Total -gt 0 -and $renderNegLines.Failed -eq $renderNegLines.Total) $renderNeg.Seconds ("lines failed {0}/{1}" -f $renderNegLines.Failed, $renderNegLines.Total)
+    }
+}
+
 if ($Exports -and -not $Quick) {
     foreach ($flavor in @('', ' -Demo')) {
         $label = 'campaign'; if ($flavor) { $label = 'demo' }

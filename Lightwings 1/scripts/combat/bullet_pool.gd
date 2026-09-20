@@ -23,6 +23,11 @@ var lives: PackedFloat32Array = PackedFloat32Array()
 var ages: PackedFloat32Array = PackedFloat32Array()
 var damages: PackedFloat32Array = PackedFloat32Array()
 var radii: PackedFloat32Array = PackedFloat32Array()
+## Visual radius only (spec §19 per-weapon projectile size); COLLISION radius
+## stays `radii` above, unchanged by this array, so hitbox behaviour is
+## identical to before P8. Defaults to `radii` when the caller does not pass
+## one, so every pre-P8 call site (tests, tools) keeps its old appearance.
+var visual_radii: PackedFloat32Array = PackedFloat32Array()
 var owners: PackedInt32Array = PackedInt32Array()
 var factions: PackedInt32Array = PackedInt32Array()
 var elements: PackedInt32Array = PackedInt32Array()
@@ -40,12 +45,13 @@ func _init() -> void:
 	ages.resize(CAPACITY)
 	damages.resize(CAPACITY)
 	radii.resize(CAPACITY)
+	visual_radii.resize(CAPACITY)
 	owners.resize(CAPACITY)
 	factions.resize(CAPACITY)
 	elements.resize(CAPACITY)
 	flags.resize(CAPACITY)
 
-func add(pos: Vector2, velocity: Vector2, life: float, damage: float, radius: float, owner: int, faction: int, element: int, special: int = NORMAL) -> int:
+func add(pos: Vector2, velocity: Vector2, life: float, damage: float, radius: float, owner: int, faction: int, element: int, special: int = NORMAL, visual_radius: float = -1.0) -> int:
 	var index: int = -1
 	if not free_indices.is_empty():
 		index = free_indices.pop_back()
@@ -62,6 +68,7 @@ func add(pos: Vector2, velocity: Vector2, life: float, damage: float, radius: fl
 	ages[index] = 0.0
 	damages[index] = damage
 	radii[index] = radius
+	visual_radii[index] = radius if visual_radius < 0.0 else visual_radius
 	owners[index] = owner
 	factions[index] = faction
 	elements[index] = element
@@ -108,7 +115,7 @@ static func segment_circle_t(start: Vector2, finish: Vector2, center: Vector2, r
 func to_array() -> Array:
 	var result: Array = []
 	for index: int in active_indices:
-		result.append({"p": [positions[index].x, positions[index].y], "v": [velocities[index].x, velocities[index].y], "life": lives[index], "age": ages[index], "damage": damages[index], "radius": radii[index], "owner": owners[index], "faction": factions[index], "element": elements[index], "flags": flags[index]})
+		result.append({"p": [positions[index].x, positions[index].y], "v": [velocities[index].x, velocities[index].y], "life": lives[index], "age": ages[index], "damage": damages[index], "radius": radii[index], "vr": visual_radii[index], "owner": owners[index], "faction": factions[index], "element": elements[index], "flags": flags[index]})
 	return result
 
 func from_array(data: Array) -> void:
@@ -121,6 +128,6 @@ func from_array(data: Array) -> void:
 		var v: Array = item.get("v", [0.0, 0.0])
 		if p.size() != 2 or v.size() != 2:
 			continue
-		var restored: int = add(Vector2(float(p[0]), float(p[1])), Vector2(float(v[0]), float(v[1])), clampf(float(item.get("life", -1.0)), -1.0, 30.0), clampf(float(item.get("damage", 0.0)), 0.0, 500.0), clampf(float(item.get("radius", 2.0)), 0.5, 30.0), int(item.get("owner", -1)), int(item.get("faction", 1)), int(item.get("element", 0)), int(item.get("flags", 0)))
+		var restored: int = add(Vector2(float(p[0]), float(p[1])), Vector2(float(v[0]), float(v[1])), clampf(float(item.get("life", -1.0)), -1.0, 30.0), clampf(float(item.get("damage", 0.0)), 0.0, 500.0), clampf(float(item.get("radius", 2.0)), 0.5, 30.0), int(item.get("owner", -1)), int(item.get("faction", 1)), int(item.get("element", 0)), int(item.get("flags", 0)), clampf(float(item.get("vr", -1.0)), -1.0, 30.0))
 		if restored >= 0: ages[restored] = maxf(0.0, float(item.get("age", 0.0)))
 

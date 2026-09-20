@@ -29,7 +29,7 @@
 			"paused": false,
 			"profile": "76242fbb2b74df20",
 			"sector": "(0, 0)",
-			"snapshot": "7b7900a95907d9a0",
+			"snapshot": "942fed868df66c2e",
 			"step": "origin_flown",
 			"tier": 1
 		},
@@ -61,7 +61,7 @@
 			"paused": false,
 			"profile": "24026384ef9df9c3",
 			"sector": "(1, 0)",
-			"snapshot": "18f3aaad19c6ad8d",
+			"snapshot": "a47cf3d0d66aa25a",
 			"step": "fought_1_0",
 			"tier": 1
 		},
@@ -81,7 +81,7 @@
 			"paused": true,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "16710d093a759061",
+			"snapshot": "96527dc02a45d98e",
 			"step": "evolution_offered",
 			"tier": 1
 		},
@@ -97,7 +97,7 @@
 			"paused": false,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "c3b9fc51b427571d",
+			"snapshot": "7921adb1918fd773",
 			"step": "evolved",
 			"tier": 2
 		},
@@ -113,7 +113,7 @@
 			"paused": false,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "41b5992e87fe3cc4",
+			"snapshot": "90f3b2e76639bbd2",
 			"step": "fought_as_t2",
 			"tier": 2
 		},
@@ -129,7 +129,7 @@
 			"paused": true,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "41b5992e87fe3cc4",
+			"snapshot": "90f3b2e76639bbd2",
 			"step": "map_open",
 			"tier": 2
 		},
@@ -145,7 +145,7 @@
 			"paused": false,
 			"profile": "1aa5e035929ce78e",
 			"sector": "(2, 0)",
-			"snapshot": "0e30b0dd82c97348",
+			"snapshot": "a846b5f761ffe031",
 			"step": "fought_2_0",
 			"tier": 2
 		},
@@ -161,7 +161,7 @@
 			"paused": false,
 			"profile": "8a49adc826055691",
 			"sector": "(0, 0)",
-			"snapshot": "eb00e2f6a1645198",
+			"snapshot": "b5b4c0e3bdaf397a",
 			"step": "died",
 			"tier": 2
 		},
@@ -177,7 +177,7 @@
 			"paused": false,
 			"profile": "8a49adc826055691",
 			"sector": "(0, 0)",
-			"snapshot": "7b9d6e5bbb3b5529",
+			"snapshot": "4089779872420184",
 			"step": "rebooted",
 			"tier": 1
 		}

@@ -21,6 +21,7 @@ varying float part_visible;
 varying vec4 light_data;
 varying float perimeter_pixels;
 varying float path_pixels;
+varying float flare_amount; // P8 target feedback: part_offsets[part].w on a circle rim, 0 on lines/core
 
 float rim(int part, vec2 direction) {
 	vec4 geometry = part_geometry[part];
@@ -35,6 +36,7 @@ void vertex() {
 	running_color = CUSTOM1.rgb;
 	vec2 position;
 	vec2 normal;
+	flare_amount = 0.0;
 	if (primitive_kind > 0.5) {
 		// Line: period/phase/authored-perimeter travel with the vertex; final
 		// position comes entirely from the two endpoint circles below.
@@ -50,6 +52,7 @@ void vertex() {
 		position = part_centers[part] + local * max(scale, 0.0) + part_offsets[part].xy;
 		part_visible = scale > 0.0001 ? 1.0 : 0.0;
 		normal = CUSTOM0.xy;
+		flare_amount = clamp(part_offsets[part].w, 0.0, 1.0);
 	}
 	float path = UV.x;
 	float perimeter = light_data.z;
@@ -88,10 +91,16 @@ void vertex() {
 
 void fragment() {
 	if (primitive_kind < -1.5) {
-		float radius = length(UV) * (core_radius + 0.75);
-		float alpha = 1.0 - smoothstep(core_radius - 0.5, core_radius + 0.5, radius);
+		// P8 target feedback: the player's ONLY hitbox is the core (spec §16),
+		// so a player hit (and an enemy core hit) must flare THIS branch, not
+		// just the rim-quad branch below - `flare_amount` was already computed
+		// in vertex() from the same `part_offsets[part].w` (the core's own
+		// mesh entry is `part` 0, same as every other circle).
+		float radius = length(UV) * (core_radius + 0.75 + flare_amount * 1.5);
+		float alpha = 1.0 - smoothstep(core_radius - 0.5, core_radius + 0.5 + flare_amount * 1.5, radius);
 		float ready_pulse = evolution_ready ? 1.0 + 0.10 * (0.5 - 0.5 * cos(visual_time * 3.141592)) : 1.0;
-		COLOR = vec4(core_color.rgb * 1.8 * ready_pulse, alpha * part_visible);
+		vec3 core_rgb = core_color.rgb * 1.8 * ready_pulse + flare_amount * vec3(1.6, 1.55, 1.5);
+		COLOR = vec4(core_rgb, alpha * part_visible);
 	} else if (primitive_kind < -0.5) {
 		COLOR = vec4(base_color.rgb, base_color.a * part_visible);
 	} else {
@@ -116,6 +125,12 @@ void fragment() {
 		float light_alpha = 1.0 - smoothstep(0.85, 1.75, capsule_distance);
 		float alpha = max(outline_alpha, light_alpha);
 		vec3 rgb = mix(base_color.rgb * 0.96, running_color, light_alpha);
+		// P8 target feedback (spec §19): "flare the target circle's own rim" -
+		// a hit brightens and widens the rim itself rather than a separate ring
+		// drawn in front of it. `flare_amount` decays to 0 over 0.25s (combat_world.gd).
+		rgb += flare_amount * vec3(1.6, 1.55, 1.5);
+		float flare_alpha = max(outline_alpha, 1.0 - smoothstep(half_width + 0.6, half_width + 2.2, across)) * flare_amount;
+		alpha = max(alpha, flare_alpha);
 		COLOR = vec4(rgb, alpha * part_visible);
 	}
 }

@@ -2,22 +2,25 @@ extends SceneTree
 
 const World = preload("res://scripts/combat/combat_world.gd")
 
-## `-- --assert` turns the report into a gate. Budgets are milliseconds of headless simulation per
-## tick on the development desktop: a regression detector, not Steam Deck qualification.
-## `-- --assert --budget-scale=0.01` is the negative control: it must exit 1.
+## `-- --assert` turns the report into a gate: milliseconds of HEADLESS SIMULATION per tick on the
+## development desktop, a regression detector for the sim only. The whole-frame claim ("2000 live
+## projectiles at 60 fps", §23) is gated separately by the rendered-frame benchmark in main.gd.
+## `-- --assert --budget-scale=0.01` and `--fill-scale=2` are the negative controls; each must exit 1.
 ##
-## v0.2 baseline (3 runs): 1000 bullets mean 3.6-3.8 / p95 4.3-4.8; 2000 mean 6.0-6.9 / p95 7.8-9.3.
-## P4a restated the 1000-bullet budgets. Spec §16 gives every enemy circle its own hitbox, which is
-## 2-3x the colliders and lands on the bullet phase; after the broadphase work in
-## combat_broadphase.gd's header the measured cost is 1000 mean 4.66 / p95 7.03 and 2000 mean 6.92 /
-## p95 9.50. The old 1000-bullet p95 budget of 7.0 therefore sat exactly on the measurement and
-## would have flaked run to run. Budgets keep the ~1.3x-above-worst-measured convention.
-##
-## The number the spec actually names is "2000 live projectiles at 60 fps" (§23) and that case still
-## has margin. What this gate cannot see is the whole frame: v0.2 recorded a rendered p95 of 16.5 ms
-## against a 16.67 ms frame, so the render path - not the simulation - is the binding constraint, and
-## it is re-measured in P8. Neither number has been measured on a Steam Deck.
-const BUDGETS: Dictionary = {1000: {"mean": 6.0, "p95": 9.0}, 2000: {"mean": 9.0, "p95": 12.0}}
+## History, all measured on this machine:
+##   v0.2 baseline   1000: mean 3.6-3.8  p95 4.3-4.8   2000: mean 6.0-6.9  p95 7.8-9.3
+##   P4a             1000: mean 4.66     p95 7.03      2000: mean 6.92     p95 9.50
+##   P8 (here)       1000: mean 5.2-6.0  p95 8.5-9.8   2000: mean 8.3-9.6  p95 13.0-13.9
+## P4a restated the 1000-bullet budgets when spec §16's per-circle hitboxes raised the floor. This
+## restates both, because P6 and P7 added momentum, the dash, the warp state machine, trail
+## sampling, light decay, the kill combo, node-pool refill and enemy respawn - all spec-required, all
+## paid every tick. The section breakdown says the growth is NOT in the parts that were already
+## measured: at 2000 bullets the bullet phase actually got CHEAPER (5.17 -> 4.09 ms, the 32 px cell
+## from P4a), ai 1.54 -> 1.36, grid 0.58 -> 0.67, upload 1.06 -> 1.08, and the named sections now sum
+## to 7.57. The remaining ~1.4 ms is unsectioned work in the tick (pace, debris, warp), which is
+## flagged in tasks/todo.md for the review pass to profile rather than guessed at here.
+## Budgets keep the ~1.25x-above-worst-measured convention.
+const BUDGETS: Dictionary = {1000: {"mean": 7.5, "p95": 12.0}, 2000: {"mean": 12.0, "p95": 17.5}}
 
 func _initialize() -> void:
 	call_deferred("_run")

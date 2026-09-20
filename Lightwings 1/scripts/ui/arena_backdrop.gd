@@ -35,9 +35,16 @@ func _draw() -> void:
 	var dead_limit: float = world.arena.radius+GameTuning.ARENA_MARGIN
 	for layer: int in range(2):
 		var rate: float = 0.15 if layer==0 else 0.35
-		var ink: Color = tint*0.10 if layer==0 else tint*0.13
+		# Spec §20: "trace density and hue intensity rise with ring index, so
+		# the background tells you how deep you are." Both stay clamped below
+		# the spec's own 10-15% ceiling ("always below the bloom threshold") -
+		# only the ring's CONTRIBUTION within that band grows, never past it.
+		var ring: int = int(world.sector.get("ring",0))
+		var intensity: float = clampf((0.10 if layer==0 else 0.13)+float(ring)*0.0025,0.10,0.15)
+		var ink: Color = tint*intensity
 		ink.a = 1.0
-		for index: int in range(64):
+		var count: int = clampi(64+ring*6,64,160)
+		for index: int in range(count):
 			var seed_point := Vector2((index*239+layer*411)%1600,(index*173+layer*237)%1000)
 			var local: Vector2 = seed_point-player*rate
 			local = Vector2(fposmod(local.x,1600),fposmod(local.y,1000))-Vector2(800,500)

@@ -16,9 +16,17 @@ var part_position_overrides: Dictionary = {}
 var hidden_part_ids: PackedStringArray = []
 var rig: ShipMotion.ShipRig
 var pose: ShipMotion.ShipPose
+## P8 target feedback: the sim's own decaying per-circle flare (index-aligned
+## with `rig`), pushed in every tick by `CombatWorld._step_motion` since this
+## renderer keeps its OWN `pose` (built fresh in `set_ship`) and
+## `ShipMotion.step` always zeroes `pose.flare` (see ship_motion.gd). Empty
+## for anything the sim does not drive (editor previews, menus) - `_sync_part_offsets`
+## falls back to `pose.flare` (always 0.0) when the size does not match.
+var part_flare: PackedFloat32Array = PackedFloat32Array()
 var motion_tick: int = 0
 var _tick_driven: bool = false
 var _pose_hash: int = -2
+var _flare_hash: int = -2
 var _source: ShipDefinition
 var _contours: Dictionary = {}
 var _draw_cache: Dictionary = {}
@@ -57,6 +65,7 @@ func set_ship(ship: ShipDefinition, animate: bool = false) -> void:
 	rig = ShipMotion.get_rig(definition) if definition != null else null
 	pose = ShipMotion.ShipPose.new(rig) if rig != null else null
 	_pose_hash = -2
+	_flare_hash = -2
 	if definition != null:
 		for part: PartDefinition in definition.parts:
 			_display_parts.append(part)
@@ -154,28 +163,38 @@ func _build_mesh() -> void:
 	_override_hash = -1
 	_hidden_hash = -1
 	_pose_hash = -2
+	_flare_hash = -2
 	_sync_part_offsets()
 
 func _sync_part_offsets() -> void:
 	var overrides: int = hash(part_position_overrides)
 	var hidden: int = hash(hidden_part_ids)
 	var pose_tick: int = motion_tick if pose != null else -1
-	if overrides == _override_hash and hidden == _hidden_hash and pose_tick == _pose_hash: return
+	# The rim flare has to be part of this check, not just the pose tick. It rides in the SAME
+	# uniform (`part_offsets[i].w`) but it is written by combat's own decay, not by ShipMotion, so a
+	# frame where the flare changed while `motion_tick` did not would skip the upload entirely and
+	# the hit would be invisible. In play the tick always advances, which is why the flare looked
+	# fine; a GPU test that set a flare without advancing the tick measured the rim as unchanged,
+	# deterministically, and that is the honest reading of this dependency being wrong.
+	var flare_signature: int = hash(part_flare)
+	if overrides == _override_hash and hidden == _hidden_hash and pose_tick == _pose_hash and flare_signature == _flare_hash: return
 	_override_hash = overrides
 	_hidden_hash = hidden
 	_pose_hash = pose_tick
+	_flare_hash = flare_signature
 	_mesh_offsets.resize(ShipMesh.MAX_PARTS)
 	_mesh_offsets.fill(Vector4(0, 0, 1, 0))
 	# Groups move a circle's pose away from its authored rest position; that
 	# delta (and any breathing radius scale) is the base offset every circle
 	# uploads. Manual overrides (editor drag, CPU reshape) win over it below.
 	if pose != null and rig != null:
+		var flare_source: PackedFloat32Array = part_flare if part_flare.size() == rig.ids.size() else pose.flare
 		for i: int in range(rig.ids.size()):
 			var id: String = rig.ids[i]
 			if not _mesh_builder.part_indices.has(id): continue
 			var index: int = _mesh_builder.part_indices[id]
 			var offset: Vector2 = pose.local[i] - rig.rest[i]
-			_mesh_offsets[index] = Vector4(offset.x, offset.y, pose.scale[i], pose.flare[i])
+			_mesh_offsets[index] = Vector4(offset.x, offset.y, pose.scale[i], flare_source[i])
 	for id: String in part_position_overrides:
 		if _mesh_builder.part_indices.has(id):
 			var index: int = _mesh_builder.part_indices[id]
