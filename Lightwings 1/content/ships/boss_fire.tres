@@ -5,6 +5,42 @@
 [ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_lfb7s"]
 
 [sub_resource type="Resource" id="Resource_va7v6"]
+script = ExtResource("1_pks67")
+root_id = "turret_ring_0"
+orbit_radius = 97.0
+orbit_speed = 0.35
+
+[sub_resource type="Resource" id="Resource_gck4h"]
+script = ExtResource("1_pks67")
+root_id = "turret_ring_1"
+orbit_radius = 97.0
+orbit_speed = 0.35
+
+[sub_resource type="Resource" id="Resource_1x7e4"]
+script = ExtResource("1_pks67")
+root_id = "turret_ring_2"
+orbit_radius = 97.0
+orbit_speed = 0.35
+
+[sub_resource type="Resource" id="Resource_fnj0v"]
+script = ExtResource("1_pks67")
+root_id = "turret_ring_3"
+orbit_radius = 97.0
+orbit_speed = 0.35
+
+[sub_resource type="Resource" id="Resource_yx3ro"]
+script = ExtResource("1_pks67")
+root_id = "turret_ring_4"
+orbit_radius = 97.0
+orbit_speed = 0.35
+
+[sub_resource type="Resource" id="Resource_yc5do"]
+script = ExtResource("1_pks67")
+root_id = "turret_ring_5"
+orbit_radius = 97.0
+orbit_speed = 0.35
+
+[sub_resource type="Resource" id="Resource_puqa7"]
 script = ExtResource("2_g3hud")
 id = "core"
 radius = 75.0
@@ -12,7 +48,7 @@ stat_id = "speed"
 tp_cost = 3.5
 stat_value = 40.0
 
-[sub_resource type="Resource" id="Resource_gck4h"]
+[sub_resource type="Resource" id="Resource_kdovl"]
 script = ExtResource("2_g3hud")
 id = "sub_core_0"
 position = Vector2(-1.8030947e-06, 41.25)
@@ -22,7 +58,7 @@ light_phase = -0.7
 stat_id = "sub_core"
 hp = 320.0
 
-[sub_resource type="Resource" id="Resource_1x7e4"]
+[sub_resource type="Resource" id="Resource_2mdsb"]
 script = ExtResource("2_g3hud")
 id = "sub_core_0_link"
 shape = "line"
@@ -34,7 +70,7 @@ to_id = "sub_core_0"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_fnj0v"]
+[sub_resource type="Resource" id="Resource_gc88a"]
 script = ExtResource("2_g3hud")
 id = "sub_core_1"
 position = Vector2(4.9190135e-07, -41.25)
@@ -44,7 +80,7 @@ light_period = 1.6
 stat_id = "sub_core"
 hp = 320.0
 
-[sub_resource type="Resource" id="Resource_yx3ro"]
+[sub_resource type="Resource" id="Resource_h48jw"]
 script = ExtResource("2_g3hud")
 id = "sub_core_1_link"
 shape = "line"
@@ -56,7 +92,7 @@ to_id = "sub_core_1"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_yc5do"]
+[sub_resource type="Resource" id="Resource_ey4cf"]
 script = ExtResource("2_g3hud")
 id = "shield_generator"
 position = Vector2(0, -71.25)
@@ -68,7 +104,7 @@ stat_id = "shield_generator"
 tp_cost = 0.75
 hp = 240.0
 
-[sub_resource type="Resource" id="Resource_puqa7"]
+[sub_resource type="Resource" id="Resource_epybj"]
 script = ExtResource("2_g3hud")
 id = "shield_generator_link"
 shape = "line"
@@ -79,7 +115,7 @@ to_id = "shield_generator"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_kdovl"]
+[sub_resource type="Resource" id="Resource_nx8e1"]
 script = ExtResource("2_g3hud")
 id = "primary"
 position = Vector2(0, 71.25)
@@ -94,7 +130,7 @@ mount_id = "primary"
 tp_cost = 0.0
 hp = 440.0
 
-[sub_resource type="Resource" id="Resource_2mdsb"]
+[sub_resource type="Resource" id="Resource_jab45"]
 script = ExtResource("2_g3hud")
 id = "primary_link"
 shape = "line"
@@ -106,6 +142,206 @@ to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
+[sub_resource type="Resource" id="Resource_mrjjv"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_0"
+position = Vector2(97, 0)
+parent_id = "core"
+color_role = "red"
+layer = 4
+ability_id = "mine_layer"
+mount_id = "turret_ring_0"
+tp_cost = 0.0
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_x6yke"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_0_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "turret_ring_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_7qdqg"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_1"
+position = Vector2(48.499996, 84.00447)
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "mine_layer"
+mount_id = "turret_ring_1"
+tp_cost = 0.0
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_2wuye"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "turret_ring_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_hkrxe"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_2"
+position = Vector2(-48.500008, 84.00446)
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_phase = -0.7
+ability_id = "mine_layer"
+mount_id = "turret_ring_2"
+tp_cost = 0.0
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_c767k"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_2_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "turret_ring_2"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_pgxky"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_3"
+position = Vector2(-97, -8.4800095e-06)
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+ability_id = "mine_layer"
+mount_id = "turret_ring_3"
+tp_cost = 0.0
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_654xn"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_3_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "turret_ring_3"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_sa03t"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_4"
+position = Vector2(-48.499992, -84.00447)
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_phase = -1.3
+ability_id = "mine_layer"
+mount_id = "turret_ring_4"
+tp_cost = 0.0
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_pnlun"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_4_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "turret_ring_4"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_g2c3j"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_5"
+position = Vector2(48.499992, -84.00447)
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -0.7
+ability_id = "mine_layer"
+mount_id = "turret_ring_5"
+tp_cost = 0.0
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_nf6hl"]
+script = ExtResource("2_g3hud")
+id = "turret_ring_5_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
+to_id = "turret_ring_5"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_thj4b"]
+script = ExtResource("2_g3hud")
+id = "deployment_ramp"
+position = Vector2(-52.5, 52.5)
+radius = 6.0
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+ability_id = "deployment_ramp"
+mount_id = "deployment_ramp"
+tp_cost = 0.0
+hp = 105.0
+
+[sub_resource type="Resource" id="Resource_qauy6"]
+script = ExtResource("2_g3hud")
+id = "deployment_ramp_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "deployment_ramp"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_t37ff"]
+script = ExtResource("2_g3hud")
+id = "egg"
+position = Vector2(52.5, 52.5)
+radius = 7.0
+parent_id = "core"
+color_role = "red"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "egg"
+mount_id = "egg"
+tp_cost = 0.0
+hp = 86.0
+
+[sub_resource type="Resource" id="Resource_5s03a"]
+script = ExtResource("2_g3hud")
+id = "egg_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "egg"
+stat_id = "structure"
+tp_cost = 0.25
+
 [resource]
 script = ExtResource("3_lfb7s")
 id = "boss_fire"
@@ -113,12 +349,13 @@ display_name = "Fire Boss"
 element = "fire"
 tier = 3
 symmetry = "radial"
-parts = Array[ExtResource("2_g3hud")]([SubResource("Resource_va7v6"), SubResource("Resource_gck4h"), SubResource("Resource_1x7e4"), SubResource("Resource_fnj0v"), SubResource("Resource_yx3ro"), SubResource("Resource_yc5do"), SubResource("Resource_puqa7"), SubResource("Resource_kdovl"), SubResource("Resource_2mdsb")])
+parts = Array[ExtResource("2_g3hud")]([SubResource("Resource_puqa7"), SubResource("Resource_kdovl"), SubResource("Resource_2mdsb"), SubResource("Resource_gc88a"), SubResource("Resource_h48jw"), SubResource("Resource_ey4cf"), SubResource("Resource_epybj"), SubResource("Resource_nx8e1"), SubResource("Resource_jab45"), SubResource("Resource_mrjjv"), SubResource("Resource_x6yke"), SubResource("Resource_7qdqg"), SubResource("Resource_2wuye"), SubResource("Resource_hkrxe"), SubResource("Resource_c767k"), SubResource("Resource_pgxky"), SubResource("Resource_654xn"), SubResource("Resource_sa03t"), SubResource("Resource_pnlun"), SubResource("Resource_g2c3j"), SubResource("Resource_nf6hl"), SubResource("Resource_thj4b"), SubResource("Resource_qauy6"), SubResource("Resource_t37ff"), SubResource("Resource_5s03a")])
+groups = Array[ExtResource("1_pks67")]([SubResource("Resource_va7v6"), SubResource("Resource_gck4h"), SubResource("Resource_1x7e4"), SubResource("Resource_fnj0v"), SubResource("Resource_yx3ro"), SubResource("Resource_yc5do")])
 abilities = Array[String](["flame_cone"])
 faction = "boss"
 role = "heavy"
 family = "heavy"
-footprint = 175.5
+footprint = 204.00002
 magnet_radius = 90.0
 speed = 187.0
 turn_rate = 8.0
@@ -126,5 +363,5 @@ hp_buffer = 1.3
 damage_multiplier = 1.15
 motion_signature = "flicker"
 primary = "flame_cone"
-tp_used = 9.25
+tp_used = 27.25
 tp_max = 120.0

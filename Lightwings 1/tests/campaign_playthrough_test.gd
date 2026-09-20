@@ -162,7 +162,13 @@ func _test_core_escape() -> void:
 	campaign.on_enter(coord)
 	combat.start_sector(campaign.sector_at(coord))
 	for actor: Dictionary in combat.enemies:
-		if bool(actor.get("rival",false)): combat._damage_actor(actor,1000000.0,0,0)
+		if bool(actor.get("rival",false)):
+			# P4b: a boss's core is shielded/multi-cored (spec §14) - a single
+			# massive hit no longer kills it outright; destroy the shield
+			# generator and every sub-core first, exactly as a player would.
+			for i: int in actor.get("shield_generator_indices",PackedInt32Array()): combat._damage_part(actor,i,1000000.0,combat.player)
+			for i: int in actor.get("sub_core_indices",PackedInt32Array()): combat._damage_part(actor,i,1000000.0,combat.player)
+			combat._damage_actor(actor,1000000.0,0,0)
 	combat._cleanup_dead()
 	expect("fire" in campaign.defeated_leaders and combat.remaining_enemies()>0,"Actual rival kill credits objective while other opponents survive")
 	expect(not campaign.sector_at(coord).cleared,"Core kill alone does not erase the remaining encounter")

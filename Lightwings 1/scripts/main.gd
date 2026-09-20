@@ -136,6 +136,12 @@ func _ready() -> void:
 			combat.start_sector(showcase)
 			settings.auto_fire = true
 			line_queue.clear()
+		elif arg == "--show-combat-boss" and OS.has_feature("editor"):
+			_new_game(false)
+			combat.setup_player("fire",1,400,[],Vector2(896,900))
+			combat.start_sector({"id":"p4b_boss","kind":"core","element":"fire","tier":1,"resource_budget":200,"enemy_count":0})
+			settings.auto_fire = true
+			line_queue.clear()
 
 func _verify_package() -> void:
 	var verification := PackageValidation.new()

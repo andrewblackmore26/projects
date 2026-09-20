@@ -83,15 +83,15 @@ removed with the shim in P5.
 - [x] Proof: hit within 0.01 px, 1000 bounces inside, membranes only where exits exist, benchmark `--assert`; commit
 
 ## P4 — Enemies as graphs
-- [ ] Per-circle HP arrays; every alive circle in the broadphase; queries replace actor loops
-- [ ] Detachment → debris (velocity kept, spin, 1 s fade, light drop; flushed on node exit)
-- [ ] Remove armoured-core rule; rewards half limbs / half core
-- [ ] `scripts/combat/combat_ai.gd`: archetypes, 150–300 ms decisions, 2–5° aim error
-- [ ] Bosses: sub-cores, shield generators, no respawn, `boss_defeated(level_id)`
-- [ ] Snapshot allow-list + packed codecs; remap by id on definition edit
-- [ ] Editor elite preview: per-circle HP, what detaches
-- [ ] `V02-ADAPTER` descriptor shim
-- [ ] Proof list + play census per level, each with its negative control; commit
+- [x] Per-circle HP arrays; every alive circle in the broadphase; queries replace actor loops (P4a)
+- [x] Detachment → debris (velocity kept, spin, 1 s fade, light drop; flushed on node exit) (P4a)
+- [x] Remove armoured-core rule; rewards half limbs / half core (P4a)
+- [x] `scripts/combat/combat_ai.gd`: archetypes, 150–300 ms decisions, 2–5° aim error (P4b, see review below)
+- [x] Bosses: sub-cores, shield generators, no respawn, `boss_defeated(level_id)` (P4b, see review below)
+- [x] Snapshot allow-list + packed codecs; remap by id on definition edit (P4a)
+- [ ] Editor elite preview: per-circle HP, what detaches — not done in P4b either, still open
+- [x] `V02-ADAPTER` descriptor shim (P4a)
+- [x] Proof list + play census per level, each with its negative control; commit (P4b: `tests/enemy_ai_test.gd`)
 
 ## P5 — World, modes, saves, minimap
 - [ ] `CampaignState` v4: epoch, level seed, Chebyshev rings, bounded levels, membrane function, boss cell, archetype table, element blocks
@@ -149,6 +149,21 @@ removed with the shim in P5.
 ## P10 — Adversarial review
 - [ ] Review by lens; findings challenged; upheld findings fixed with a test each
 - [ ] Final `tools\gates.ps1 -GPU -Exports`; review + "what is NOT verified" below; commit
+
+Carried forward for the review pass (found while verifying earlier phases, none of them gate-breaking):
+- [ ] Enemy-only components are thin on elites: measured across the roster, `egg` and
+  `deployment_ramp` sit on the 5 bosses only, `droid_bay` on 3 enemy hulls, `turret_ring` on bosses
+  as real orbiting weapon circles (correct per §14 — the component IS the ring of circles, so it
+  carries no `ability_id`). §14 does not require every elite to carry one, but elites are what M4
+  says should kill the player. Consider one enemy-only component per elite.
+- [ ] `turret_ring` still exists as an entry in `ability_catalog.gd` that nothing mounts, and its
+  `_activate_component` case is dead code left commented in `combat_world.gd`. Remove both, or
+  mount it somewhere, so the catalogue does not advertise an ability the game never uses.
+- [ ] Bosses never get `_add_enemy_body_feature`, so a void boss has no `bullet_eater` mouth and a
+  plasma boss no `projectile_orbit` — the body stats their element implies.
+- [ ] `standard_a` and `standard_b` player hulls share geometry and differ only by primary weapon,
+  so a tier's four offers read as three shapes (see the P2b-1 review).
+- [ ] `SCREEN_POLICY["intro"]` and `_show_rival_intro` in `main.gd` are dead code with no caller.
 
 ---
 
@@ -237,6 +252,30 @@ Retired/rewritten assertions: `tests/ships_validation.gd:51-52` ("Ellipse restri
 | Not verified by measurement (stated plainly) | Human "does the circle actually feel bigger/smaller to fly in" is not measured (out of scope until the P7 stop). The MultiMesh AABB fix is sized generously by calculation, not fuzzed against every possible bullet special-radius combination |
 
 Retired: `tests/combat_tests.gd` "Arena is 1.4 viewport dimensions" (rectangle `bounds.size` has no circular equivalent — the playable-area comparison moved to `arena_test.gd`'s dedicated measurement), "Rounded corner excludes rectangular corner" → "Circular rim excludes a point just past the radius", "Corner clamp is inside wall" → "Clamp of a far point lands inside the wall", the four `exit_direction`/`entry_position` checks rewritten in polar terms (`arena.center+Vector2.from_angle(...)`/`arena.center-Vector2(radius-44,0)` instead of literal rectangle corners), "Slowed ships can traverse openings…" rewritten to enter via `arena.center-Vector2(radius-4,0)` and check `pos.x<center.x-radius` instead of the rectangle-specific `pos.x<0`. `tests/campaign_playthrough_test.gd`'s inline bot pilot: `GameTuning.ARENA_SIZE*0.5`/`GameTuning.ARENA_SIZE*0.5-Vector2.ONE*100.0` → `GameTuning.ARENA_CENTER`/`GameTuning.ARENA_RADIUS-100.0`. No change was needed to `tests/ui_flow_test.gd` (its `bounds.end`/`bounds.get_center()` usage stayed correct against the new computed square `bounds`) or `tests/support/bot_pilot.gd` (same reason).
+
+## Review — P4b (archetype behaviour, human-like limits, bosses)
+
+Note: no `## Review — P4a` section exists above (P4a's own numbers were folded into the "This project" entry in `tasks/lessons.md` instead); this section covers P4b only, per-circle HP/detachment/debris/reward-split already having landed in P4a.
+
+| What | Measured |
+|---|---|
+| `scripts/combat/combat_ai.gd` | New file: `CombatAI.update(world,actor,dt)` dispatches on `archetype_of(actor)` (`hull_id` prefix, or `rival==true` -> "boss"). Drone/chain: `_update_regular` (flat 0.3 s movement cadence, full current-position aim, no error — spec "fixed patterns"). Sentry: `_update_sentry` (`speed=0` always, continuous full-information tracking, fires through the existing `laser_prong`/`_queue_attack` telegraph). Radial/irregular/boss: `_update_decision_driven` (`REACTION_MIN/MAX=0.15/0.30` s decision cadence IS the reaction delay — `_decide` stores the target's position/velocity captured at decision *k-1* as `_delayed_pos/vel`, used at decision *k*; retreat when `_should_retreat` — alive weapon circles from `gun_indices`/`gun_total` fall below `RETREAT_LIMB_FRACTION=0.5` of the count authored at spawn; `_protect_bias` turns the ship up to `PROTECT_BIAS_MAX_RAD` (~26°) toward whichever authored side (`rig.rest[i].x` sign) has more surviving circles). Per-gun aim error is resampled once per decision in `combat_world.gd::_update_guns`'s `new_decision` branch: `CombatAI.sample_aim_error(_rng)`, stored per-circle in `actor.part_aim_error`. `world.ai_reaction_disabled`/`ai_aim_error_disabled` are test-only negative-control flags (never touched by gameplay code). |
+| Reaction lag (measured in ticks) | Tick-exact: `_decide` stamps `actor._decided_tick`/`_delayed_tick` with the sim tick the observation was captured at; `now_tick-_delayed_tick` read directly. Measured 228.5 ms (13.7 ticks) — inside the 150–300 ms band. Control (`ai_reaction_disabled=true`, which also collapses the decision cadence to every tick): 0.0 ms |
+| Aim error distribution | 500 draws of `CombatAI.sample_aim_error`: min/max stayed inside [2°,5°], 500/500 distinct values at 0.01° resolution (resampled, not fixed). In real gameplay an elite's single gun showed >1 distinct applied-error value across 300 ticks (multiple decisions). Control (`ai_aim_error_disabled=true`): every applied error forced to exactly 0 across 120 ticks/every gun |
+| Strafing hit rate | 0.353 with both limits on (band: strictly between 0.05 and 0.6). Control (`ai_reaction_disabled=true` AND `ai_aim_error_disabled=true`, elite at 150 px, player strafing at low amplitude): 0.681, above 0.6 — proves the limits, not perfect aim, are what suppresses the hit rate |
+| Sentry | Never moves (`Vector2(sentry.pos).distance_to(start_pos) < 0.01` over 6 s) while a drone control moved > 1 px in 2 s. Telegraph observed with `warn=0.8` s (>= the 0.5 s spec floor) before landing |
+| Retreat | An elite with fewer than half its spawn-time gun count (`gun_total`) alive gained 336.6 px of distance from the player over 4 s; a full-health elite orbiting at the same range gained only 15.2 px (orbit-turn drift, not retreat) — control: the full-health gain is required to stay under half the retreating elite's gain |
+| Boss (spec §14 shielded core / multiple cores) | Core takes 0 damage while any `shield_generator` circle lives (single choke point `_boss_shield_active`, checked at the top of `_damage_actor`'s enemy branch); damage resumes once every generator is destroyed. Core hp can reach and stay at 0 while a `sub_core` circle is still alive/attached (`actor.dead` stays false — gated by `_boss_can_die`, re-checked both on the qualifying core hit and the moment the last sub_core dies via `_damage_part`); the boss dies once the core AND every sub_core are dead. Control: an identical boss with the generator already destroyed takes core damage immediately. `boss_defeated(level_id)` now emits alongside the existing `rival_defeated(core_id)` (tagged `V02-ADAPTER`) on every rival/boss kill. No boss health bar exists in the HUD to remove — the only per-enemy HP readout found (`health_readout` passive, `combat_world.gd` `_draw`/`draw_projectiles`) is a general player-unlockable numeric readout for any enemy, not a boss-specific bar, and was left alone |
+| Boss capture (looked at, `--show-combat-boss`) | T1 fire boss: a pale ring (`fff3b0`, drawn at `footprint*0.62`) is clearly visible around the whole hull while the shield generator lives, with the small olive `shield_generator` circle visible at the core's base and small red-rimmed `turret_ring` circles and red dashed mine-layer telegraphs around it. After scripted destruction of the generator and both sub-cores (same capture flag, forced via `_damage_part` before the auto-capture at tick 90): the ring and the generator circle are both gone, core dark-red and exposed. Limbs coming off is otherwise the same P4a debris mechanism, unit-tested separately (`enemy_ai_test.gd`'s chain-severing check, `enemy_parts_test.gd`) |
+| Chain severing | Damaging `tail_2` on `enemy_chain_fire_t3` detaches exactly one debris record covering the rest of the tail (`tail_2..tail_4`, `subtree_size=3`) |
+| Determinism | Same seed (42) produces a byte-identical 600-tick trace (positions/bullets/debris sampled every 30 ticks) across two fresh runs. Control: re-randomizing `_rng` mid-run (simulating a wall-clock-derived decision) produces a different trace |
+| Play census (60 simulated s, one representative hull per archetype) | drone (fire) fired, sentry (lightning) fired, chain (fire) fired, radial elite (fire) fired, irregular elite (fire) fired, boss (fire) fired; droid_bay (corruption drone) produced drones; egg burst produced homing bullets on demand; deployment_ramp spawned a new enemy on demand; turret_ring produced a bullet/telegraph on demand. Control (`ai_firing_disabled=true`, gates `_fire_primary`/`_use_secondary`/`_update_guns`/the egg reactive branch): every one of the 10 counts is exactly 0 |
+| Enemy-only components: what was faked/unmounted, and the fix | `egg`, `deployment_ramp` and `turret_ring` were never mounted on ANY roster hull (`ELITE_WEAPON_ROTATION` in `ship_generator.gd` listed them but nothing ever read that constant — dead code, left in place and now flagged in a comment rather than silently misleading). `turret_ring`'s own `_activate_component` case additionally faked the whole component as one instantaneous 6-direction spread computed from `actor.age`, not real geometry. Fix: `build_boss` (`ship_generator.gd`) now authors 6 real orbiting weapon circles (`turret_ring_0..5`, each its own `GroupDefinition` orbit, each with independent per-circle HP through the existing P4a machinery) plus real `deployment_ramp` and `egg` mounts, as bonus mounts outside `secondaries` (so the loadout-slot invariants `ship_roster_test.gd` checks are untouched). The old `turret_ring` ability case in `_activate_component` is now dead code (no circle carries that `ability_id` any more) — left in place rather than deleted, since retiring an `AbilityCatalog` entry outright was judged out of scope for this step. `droid_bay` was already real (corruption regular enemies) and unaffected |
+| `ai` benchmark section (2000 bullets, `combat_benchmark.gd`) | Before (task prompt's own baseline): 1.54 ms of 8.64 ms total. After: 1.252 ms of 6.741 ms total — no regression (per-gun aim/error is now resampled once per ~225 ms decision instead of every tick, which is cheaper, not more expensive, than the old always-refresh code) |
+| `tools\gates.ps1 -GPU -Exports` | 8/8 ok in 76.0 s: harness self-test, 24/24 suite (20 headless + 4 GPU, including the new `enemy_ai_test`), benchmark budgets (2000 bullets mean 6.741 ms / p95 9.819 ms, both inside the 9.0/12.0 ms budgets with headroom), both NEGATIVE benchmark controls, both Windows exports built and verified (2/2 packages) |
+| Golden trace | Re-recorded. Checked first per the plan's own rule: at the `new_game` step (before any AI runs) mode/overlay/sector/hull/tier/light(40)/enemies/bullets/offers/profile all matched the old recording exactly; only the raw `snapshot` digest moved, because `_configure_parts` now draws one extra `_rng` sample per circle (`part_aim_error`, needed for every ship including the player's own single core circle) — a legitimate RNG-stream shift from new instrumentation, not a gameplay bug. No engine errors. Re-recorded, new final digest `59dd9ece473e3cac` |
+| `tests/campaign_playthrough_test.gd` fix | `_test_core_escape`'s single 1,000,000-damage `_damage_actor` call on the rival no longer kills it outright now that a boss can be shielded/multi-cored — updated to destroy the shield generator and every sub-core first (mirroring real play), then the qualifying hit. `debug_clear()` (`combat_world.gd`) also now zeroes `shield_generator_indices`/`sub_core_indices`, not just `gun_indices`, so a debug full-clear (used by `_test_campaign_route`) still actually kills a boss |
+| Not completed / stated plainly | `egg`/`deployment_ramp` were only added to the BOSS archetype, not to elites/regulars, given the time budget — the spec does not name which archetype must carry each component, and bosses ("all of the above layered") are the least risky place to add new mounted circles without touching the already-locked elite/regular roster invariants (`ship_roster_test.gd`'s 825 checks). The editor's elite/boss preview (per-circle HP, what detaches) is still P4's own unchecked line and was not touched this step. `_add_enemy_body_feature` (void `bullet_eater`/`void_pull`, plasma `projectile_orbit`) is authored on regular/elite hulls but never on bosses — found while reading `ship_generator.gd`, not fixed (out of scope: not part of P4b's brief, and touching `build_boss` further risked the TP/circle-count margins already spent on the new mounts) |
 
 ## Retired assertions
 

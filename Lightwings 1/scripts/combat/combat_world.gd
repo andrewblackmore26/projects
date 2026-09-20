@@ -7,12 +7,14 @@ signal player_died
 signal player_regressed(from_tier: int, to_tier: int)
 signal sector_cleared
 signal rival_reward(component: String, mirror_root: String)
-signal rival_defeated(core_id: String)
+signal rival_defeated(core_id: String) # V02-ADAPTER: kept for campaign_state.gd; P5 consumes boss_defeated instead.
+signal boss_defeated(level_id: String)
 signal event_message(text: String)
 signal attack_performed(element: String, ability: String)
 signal shot_fired(position: Vector2, element: String, ability: String)
 signal boundary_contact(position: Vector2)
 const Pool = preload("res://scripts/combat/bullet_pool.gd")
+const CombatAI = preload("res://scripts/combat/combat_ai.gd")
 const BulletCanvas = preload("res://scripts/combat/combat_canvas.gd")
 const Arena = preload("res://scripts/combat/circular_arena.gd")
 const ELEMENTS: Array[String] = ["fire","lightning","void","corruption","plasma"]
@@ -86,6 +88,17 @@ var debris: Array = [] # P4a detachment: each entry is one destroyed circle's su
 var _ability_cache: Dictionary = {}
 var _bullet_canvas: Node2D
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Test-only negative controls for the human-like AI limits (spec §14) - never
+## toggled by gameplay code. `enemy_ai_test.gd` flips these to prove the
+## reaction-delay/aim-error instruments can actually fail.
+var ai_reaction_disabled: bool = false
+var ai_aim_error_disabled: bool = false
+## Play-census negative control (spec plan: "a mechanic can pass its unit test
+## and never happen in play"): every enemy fire path funnels through
+## `_fire_primary`/`_use_secondary`/`_update_guns`, so gating those three is
+## the single choke point that makes every archetype's fire count (and every
+## enemy-only component event, which all fire from inside these) go to 0.
+var ai_firing_disabled: bool = false
 var _pickup_collectors: Array = []
 var _shot_source: Dictionary={"id":-1,"faction":-1,"element":"fire"}
 var _last_dt: float = 1.0/60.0
@@ -281,6 +294,17 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  part_attached.resize(n)
  var mount_index: Dictionary={}
  var gun_indices: PackedInt32Array=PackedInt32Array()
+ # id -> authored PartDefinition.stat_id (P4b: sub_core / shield_generator are
+ # not carried by ShipRig, which only knows geometry/motion, so this is read
+ # once here from the ShipDefinition and turned into index arrays below - the
+ # single choke point boss rules (`_boss_shield_active`, `_boss_can_die`) read).
+ var stat_by_id: Dictionary={}
+ for part: PartDefinition in actor.definition.parts:
+  if part.shape=="circle" and not part.stat_id.is_empty(): stat_by_id[part.id]=part.stat_id
+ var sub_core_indices: PackedInt32Array=PackedInt32Array()
+ var shield_generator_indices: PackedInt32Array=PackedInt32Array()
+ var part_aim_error: PackedFloat32Array=PackedFloat32Array()
+ part_aim_error.resize(n)
  for i: int in range(n):
   var pid: String=rig.ids[i]
   var max_hp: float=float(actor.max_hp) if i==0 else (rig.authored_hp[i] if rig.authored_hp[i]>0.0 else rig.radius[i]*(4.0+3.0*float(actor.tier)))
@@ -290,8 +314,12 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
   part_cd[i]=float(old_cd[pid]) if old_cd.has(pid) else _rng.randf_range(0.2,1.2)
   part_egg[i]=float(old_egg[pid]) if old_egg.has(pid) else 0.0
   part_aim[i]=old_aim[pid] if old_aim.has(pid) else Vector2.DOWN
+  part_aim_error[i]=CombatAI.sample_aim_error(_rng)
   if not rig.mount_id[i].is_empty(): mount_index[rig.mount_id[i]]=i
   if i>0 and not rig.ability_id[i].is_empty(): gun_indices.append(i)
+  match str(stat_by_id.get(pid,"")):
+   "sub_core": sub_core_indices.append(i)
+   "shield_generator": shield_generator_indices.append(i)
  part_hp[0]=float(actor.hp)
  part_max_hp[0]=float(actor.max_hp)
  part_attached[0]=1
@@ -300,9 +328,19 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  actor.part_cd=part_cd
  actor.part_egg_cd=part_egg
  actor.part_aim=part_aim
+ actor.part_aim_error=part_aim_error
  actor.part_attached=part_attached
  actor.mount_index=mount_index
  actor.gun_indices=gun_indices
+ actor.sub_core_indices=sub_core_indices
+ actor.shield_generator_indices=shield_generator_indices
+ # Recomputed on every fresh configure (`reset` - a spawn or a hull swap,
+ # e.g. `_spawn_elite`'s second `_configure_actor` call after `_spawn_enemy`'s
+ # first one), never mid-fight: "retreat when fewer than half the weapon
+ # circles remain" needs a stable denominator, not one that shrinks as guns
+ # die - a hull that started with 6 guns and has 3 left is exactly at the
+ # threshold, not permanently safe because `gun_indices.size()` also fell to 3.
+ if reset: actor.gun_total=gun_indices.size()
  # Reward split (spec item 5): computed once at spawn, never re-derived on a
  # later reconfigure (a mid-fight definition edit must not re-halve an
  # already-halved pool) - remapped by id like every other per-circle array.
@@ -510,51 +548,13 @@ func _tick_cooldowns(actor: Dictionary, dt: float) -> void:
  for i: int in range(actor.get("part_cd",PackedFloat32Array()).size()):
   actor.part_cd[i]=maxf(0.0,float(actor.part_cd[i])-dt)
   actor.part_egg_cd[i]=maxf(0.0,float(actor.part_egg_cd[i])-dt)
+## Archetype behaviour lives in combat_ai.gd (P4b, spec §14); this stays the
+## per-tick entry point so `_physics_process` and every existing test/tool
+## that calls `_update_ai` directly keeps working unchanged.
 func _update_ai(actor: Dictionary, dt: float) -> void:
  _tick_cooldowns(actor,dt)
  actor.age=float(actor.age)+dt
- actor.decision_cd=float(actor.decision_cd)-dt
- if float(actor.decision_cd)<=0.0:
-  actor.decision_cd=_rng.randf_range(0.15,0.3) if bool(actor.rival) else 0.3
-  var target: Dictionary=_choose_target(actor)
-  actor.target=int(target.get("id",0))
-  var relative: Vector2=Vector2(target.get("pos",player_position))-Vector2(actor.pos)
-  var desired: Vector2=relative.normalized()
-  if bool(actor.rival):
-   var lead: Vector2=target.get("vel",Vector2.ZERO)
-   var aim_error: float=deg_to_rad(_rng.randf_range(2,5))*(-1.0 if _rng.randf()<0.5 else 1.0)
-   actor.desired_aim=(relative+lead*clampf(relative.length()/600.0,0.1,0.6)).normalized().rotated(aim_error)
-   if relative.length()<300: desired=desired.orthogonal()
-   if float(actor.hp)<float(actor.max_hp)*0.4:
-    desired=-relative.normalized()
-    var nearest: float=INF
-    for pickup: Dictionary in pickups:
-     var d: float=Vector2(pickup.pos).distance_squared_to(actor.pos)
-     if d<nearest:
-      nearest=d
-      desired=(Vector2(pickup.pos)-Vector2(actor.pos)).normalized()
-   for index: int in bullets.active_indices:
-    var d: Vector2=Vector2(actor.pos)-bullets.positions[index]
-    if bullets.factions[index]!=int(actor.faction) and d.length_squared()<6400.0 and d.dot(bullets.velocities[index])>0:
-     desired=(desired+bullets.velocities[index].orthogonal().normalized()*signf(bullets.velocities[index].cross(d))).normalized()
-     break
-  else:
-   actor.desired_aim=relative.normalized()
-   if relative.length()<300.0: desired=desired.orthogonal()*0.6
-  actor.desired=desired
- var thrusters: float=1.2 if _has_ability(actor,"thrusters") else 1.0
- var desired_aim: Vector2=actor.get("desired_aim",actor.aim)
- actor.aim=Vector2.from_angle(rotate_toward(Vector2(actor.aim).angle(),desired_aim.angle(),float(actor.turn_rate)*thrusters*dt))
- var speed: float=float(actor.speed)*thrusters*(0.45 if bool(actor.elite) else (0.85 if bool(actor.rival) else 0.45))
- actor.vel=Vector2(actor.desired)*speed*_slow_multiplier(actor)
- actor.pos=arena.clamp_point(Vector2(actor.pos)+Vector2(actor.vel)*dt,18.0)
- if bool(actor.elite): _update_guns(actor,dt)
- elif bool(actor.rival):
-  _fire_primary(actor,dt)
-  for i: int in range(actor.secondaries.size()): _use_secondary(actor,i)
- else:
-  _regular_pattern(actor,dt)
-  for i: int in range(actor.secondaries.size()): _use_secondary(actor,i)
+ CombatAI.update(self,actor,dt)
  _passives(actor,dt)
 func _choose_target(actor: Dictionary) -> Dictionary:
  var best: Dictionary=player
@@ -592,6 +592,7 @@ func _mount_alive(actor: Dictionary, mount: String) -> bool:
  if index<=0: return true
  return bool(actor.part_attached[index]) and float(actor.part_hp[index])>0.0
 func _fire_primary(actor: Dictionary, dt: float) -> void:
+ if int(actor.id)!=0 and ai_firing_disabled: return
  if not _mount_alive(actor,"primary"): return
  var id: String=str(actor.primary)
  if id in ["beam","homing_beam"]:
@@ -607,6 +608,7 @@ func _fire_primary(actor: Dictionary, dt: float) -> void:
 func _fire_basic(actor: Dictionary) -> void: _fire_primary(actor,_last_dt)
 func _use_primary(actor: Dictionary) -> void: _fire_primary(actor,_last_dt)
 func _use_secondary(actor: Dictionary, index: int = 0) -> void:
+ if int(actor.id)!=0 and ai_firing_disabled: return
  if index<0 or index>=actor.secondaries.size(): return
  var id: String=str(actor.secondaries[index])
  var key: String="secondary_%d" % index
@@ -624,6 +626,7 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
  var definition: AbilityDefinition=_ability(id)
  var damage: float=definition.damage*_damage_scale(actor)
  _emit_shot(actor,id,at)
+ actor.shots_fired=int(actor.get("shots_fired",0))+1 # play-census instrumentation only; not read by gameplay
  match id:
   "pulse_cannon":
    var regular: bool=int(actor.id)!=0 and not bool(actor.rival) and not bool(actor.elite)
@@ -756,14 +759,25 @@ func _local_position(actor: Dictionary, id: String, fallback: Vector2) -> Vector
  if rig==null or pose==null: return fallback
  var index: int=rig.index_of(id)
  return pose.local[index] if index>=0 else fallback
-func _update_guns(actor: Dictionary, dt: float) -> void:
+## `new_decision` gates whether aim is re-measured this call (spec §14/§23:
+## per-circle aim is resampled once per DECISION, 150-300 ms apart, with its
+## own 2-5 deg error - never every tick, and never a per-frame allocation:
+## `part_aim`/`part_aim_error` are the same packed arrays every call). Callers
+## outside `combat_ai.gd` (tests, tools) that pass no third argument keep the
+## old always-refresh behaviour so they are unaffected by this change.
+func _update_guns(actor: Dictionary, dt: float, new_decision: bool = true) -> void:
+ if ai_firing_disabled: return
  var rig: ShipMotion.ShipRig=actor.rig
  for index: int in actor.gun_indices:
   if float(actor.part_hp[index])<=0.0: continue
   var at: Vector2=_part_position(actor,index)
-  var target: Dictionary=_nearest(actor,at)
-  if target.is_empty(): continue
-  actor.part_aim[index]=(Vector2(target.pos)-at).normalized()
+  if new_decision:
+   var target: Dictionary=_nearest(actor,at)
+   if target.is_empty(): continue
+   var observed: Vector2=Vector2(target.pos) if bool(ai_reaction_disabled) or not actor.has("_delayed_pos") else Vector2(actor._delayed_pos)
+   var error: float=0.0 if bool(ai_aim_error_disabled) else CombatAI.sample_aim_error(_rng)
+   actor.part_aim_error[index]=error
+   actor.part_aim[index]=(observed-at).normalized().rotated(error)
   var id: String=rig.ability_id[index]
   if id in ["beam","homing_beam"]:
    # Enemy continuous beams pulse between readable windows.
@@ -778,7 +792,7 @@ func _update_guns(actor: Dictionary, dt: float) -> void:
 func _damage_part(actor: Dictionary, index: int, amount: float, source: Dictionary) -> void:
  if amount<=0.0 or index<=0 or index>=actor.part_hp.size() or float(actor.part_hp[index])<=0.0: return
  var rig: ShipMotion.ShipRig=actor.rig
- if rig.ability_id[index]=="egg" and float(actor.part_egg_cd[index])<=0.0:
+ if rig.ability_id[index]=="egg" and not ai_firing_disabled and float(actor.part_egg_cd[index])<=0.0:
   actor.part_egg_cd[index]=2.0
   var aim: Vector2=actor.part_aim[index]
   for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.25),330.0,15.0,-1.0,Pool.HOMING,_part_position(actor,index))
@@ -788,6 +802,12 @@ func _damage_part(actor: Dictionary, index: int, amount: float, source: Dictiona
    if int(telegraphs[i].owner)==int(actor.id) and str(telegraphs[i].mount)==str(rig.ids[index]): telegraphs.remove_at(i)
   _add_effect("gun_destroyed",_part_position(actor,index),_actor_color(actor),0.4,float(rig.radius[index]))
   _destroy_part(actor,index,source)
+  # A boss whose core already sat at 0 hp waiting on its last sub_core (see
+  # `_damage_actor`) dies the instant that sub_core does, not on some later
+  # incidental core hit that may never come.
+  if float(actor.hp)<=0.0 and not bool(actor.dead) and index in actor.get("sub_core_indices",PackedInt32Array()) and _boss_can_die(actor):
+   actor.dead=true
+   _kill_reward(actor,int(source.get("id",-1)),int(source.get("faction",-999)))
 func _damage_gun(actor: Dictionary, gun: Dictionary, amount: float, source: Dictionary) -> void:
  # Compatibility wrapper: `gun` is a snapshot Dictionary from `actor.guns`
  # (see `_rebuild_part_views`); the packed arrays remain the source of truth.
@@ -1071,7 +1091,11 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
   return
  # P4a: the armoured-core rule ("reduced damage until half the guns are
  # destroyed") is REMOVED per spec §28 - the core is the kill target and
- # takes full damage from tick 0, regardless of surviving limbs.
+ # takes full damage from tick 0, regardless of surviving limbs. P4b adds ONE
+ # exception, spec §14's "shielded core": while any shield_generator circle
+ # of a boss lives, the core takes NO damage at all (the generator circles
+ # themselves are ordinary per-circle hitboxes and take damage normally).
+ if _boss_shield_active(actor): return
  var damage: float=amount/maxf(0.1,float(actor.hp_buffer))
  var actual: float=minf(float(actor.hp),damage)
  actor.hp=maxf(0.0,float(actor.hp)-damage)
@@ -1081,9 +1105,35 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
   actor.reward_damage=float(actor.reward_damage)-18.0
   actor.reward_remaining=int(actor.reward_remaining)-1
   _drop_pickup(actor.pos,str(actor.element),1)
- if float(actor.hp)<=0.0:
+ # A boss's core reaching 0 hp is not enough on its own (spec §14: "multiple
+ # cores"): every sub_core circle must ALSO be dead. The core can sit at 0 hp
+ # indefinitely (further damage is a no-op, `actual` above is already 0) -
+ # `_damage_part`'s sub_core branch re-checks this the moment the last one dies.
+ if float(actor.hp)<=0.0 and _boss_can_die(actor):
   actor.dead=true
   _kill_reward(actor,source_id,source_faction)
+## Single choke point (spec §14 "shielded core"): true while any
+## `shield_generator` circle of `actor` is attached and alive. Non-bosses
+## have no `shield_generator_indices` at all, so this is always false for them.
+func _boss_shield_active(actor: Dictionary) -> bool:
+ var indices: PackedInt32Array=actor.get("shield_generator_indices",PackedInt32Array())
+ if indices.is_empty(): return false
+ var hp: PackedFloat32Array=actor.get("part_hp",PackedFloat32Array())
+ var attached: PackedByteArray=actor.get("part_attached",PackedByteArray())
+ for i: int in indices:
+  if i<hp.size() and hp[i]>0.0 and (i>=attached.size() or bool(attached[i])): return true
+ return false
+## Single choke point (spec §14 "multiple cores"): true once every sub_core
+## circle is dead (or there are none, i.e. a shielded-core boss rather than a
+## multi-core one, or a non-boss actor).
+func _boss_can_die(actor: Dictionary) -> bool:
+ var indices: PackedInt32Array=actor.get("sub_core_indices",PackedInt32Array())
+ if indices.is_empty(): return true
+ var hp: PackedFloat32Array=actor.get("part_hp",PackedFloat32Array())
+ var attached: PackedByteArray=actor.get("part_attached",PackedByteArray())
+ for i: int in indices:
+  if i<hp.size() and hp[i]>0.0 and (i>=attached.size() or bool(attached[i])): return false
+ return true
 func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -999) -> void:
  # Killing the core kills the enemy regardless of surviving limbs (spec
  # §14/§28); any limb reward share never paid because its circle was still
@@ -1098,7 +1148,9 @@ func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -99
   _drop_pickup(Vector2(actor.pos)+Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(3,30),str(actor.element),size)
   reward-=size
  _add_effect("death",actor.pos,_actor_color(actor),0.4,35.0)
- if bool(actor.rival): rival_defeated.emit(str(actor.get("core_id","")))
+ if bool(actor.rival):
+  rival_defeated.emit(str(actor.get("core_id",""))) # V02-ADAPTER: campaign_state.gd still consumes this
+  boss_defeated.emit(str(actor.get("core_id",actor.element)))
 func _drop_pickup(point: Vector2, element: String, value: int) -> void:
  var amount: int=_spend_energy(value)
  if amount<=0: return
@@ -1236,6 +1288,11 @@ func restore(data: Dictionary) -> void: CombatPersistence.restore(self,data)
 func debug_clear() -> void:
  for actor: Dictionary in enemies:
   for i: int in actor.gun_indices: actor.part_hp[i]=0.0
+  # A boss's shield generator/sub-cores are not guns, but a debug full-clear
+  # must still actually kill it (spec §14 boss rules) rather than leaving the
+  # core shielded/undead forever.
+  for i: int in actor.get("shield_generator_indices",PackedInt32Array()): actor.part_hp[i]=0.0
+  for i: int in actor.get("sub_core_indices",PackedInt32Array()): actor.part_hp[i]=0.0
   actor.invulnerable=0.0
   _damage_actor(actor,1000000.0,0,0)
  _cleanup_dead()
@@ -1279,6 +1336,9 @@ func _draw() -> void:
    draw_arc(at,13.0,0,TAU,24,Color("45e06a"),2.6,true)
    draw_arc(at,17.0,elapsed*PI,elapsed*PI+PI,20,Color("caffd5")*1.8,2.6,true)
   if float(actor.shield)>0.0: draw_arc(at,65.0,0,TAU,48,PLAYER_COLOR if int(actor.id)==0 else _actor_color(actor),1.5,true)
+  # Boss shielded core (spec §14): a visible ring so the player can see why
+  # the core is absorbing damage, gone the instant the last generator dies.
+  if _boss_shield_active(actor): draw_arc(at,float(actor.get("footprint",24.0))*0.62,0,TAU,48,Color("fff3b0",0.85),2.4,true)
   if float(actor.blockers)>0.0 and int(actor.blocker_hits)>0:
    for i: int in range(3):
     var p: Vector2=at+Vector2.from_angle(elapsed*2.0+TAU*i/3.0)*60.0

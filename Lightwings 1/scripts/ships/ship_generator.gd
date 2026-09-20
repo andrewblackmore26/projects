@@ -676,6 +676,33 @@ static func build_boss(element: String, tier: int) -> ShipDefinition:
 	Catalog.add_line(ship, "shield_generator_link", "core", "shield_generator")
 	Catalog.mount_component(ship, ship.primary, "primary", Vector2(0, base_r * 0.95), 12.0)
 	ship.parts[-2].hp = 260.0 + ship.tier * 60.0
+	# Turret ring (spec §14 enemy-only component): a REAL ring of independently
+	# orbiting weapon circles, each with its own HP and its own orbit group -
+	# not a faked spread of instantaneous directions (see combat_ai.gd /
+	# combat_world.gd `_update_guns`, which fires every gun circle from where
+	# it actually is). Bonus mounts (not listed in `secondaries`), so they do
+	# not disturb the loadout-slot invariants `ship_roster_test.gd` checks.
+	var ring_ability: String = str(Catalog.ABILITIES[element][1])
+	var ring_count: int = 6
+	var ring_radius: float = base_r + 22.0
+	for i: int in range(ring_count):
+		var angle: float = TAU * float(i) / float(ring_count)
+		var pos: Vector2 = Vector2.from_angle(angle) * ring_radius
+		var mount_id: String = "turret_ring_%d" % i
+		Catalog.mount_component(ship, ring_ability, mount_id, pos, 5.0)
+		ship.parts[-2].hp = 30.0 + ship.tier * 10.0
+		var orbit: GroupDefinition = GroupDefinition.new()
+		orbit.root_id = mount_id
+		orbit.orbit_radius = ring_radius
+		orbit.orbit_speed = 0.35
+		ship.groups.append(orbit)
+	# Deployment ramp: periodically releases small regular units.
+	Catalog.mount_component(ship, "deployment_ramp", "deployment_ramp", Vector2(-base_r * 0.7, base_r * 0.7), 6.0)
+	ship.parts[-2].hp = 60.0 + ship.tier * 15.0
+	# Egg: bursts into a spread of seeker missiles when damaged (reactive,
+	# see `_damage_part`'s `rig.ability_id[index]=="egg"` branch).
+	Catalog.mount_component(ship, "egg", "egg", Vector2(base_r * 0.7, base_r * 0.7), 7.0)
+	ship.parts[-2].hp = 50.0 + ship.tier * 12.0
 	ship.abilities = ship.mounted_components()
 	Catalog.recalculate(ship)
 	return ship
