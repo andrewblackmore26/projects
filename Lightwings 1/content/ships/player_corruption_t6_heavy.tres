@@ -699,50 +699,50 @@ tp_cost = 0.25
 
 [sub_resource type="Resource" id="Resource_jcxmv"]
 script = ExtResource("2_q6uho")
-id = "secondary_3"
-position = Vector2(0, 52)
-radius = 3.5
-parent_id = "core"
-color_role = "green"
-layer = 4
-ability_id = "virus"
-mount_id = "secondary_3"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_gbnu1"]
-script = ExtResource("2_q6uho")
-id = "secondary_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "secondary_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_7h1mq"]
-script = ExtResource("2_q6uho")
 id = "passive_0"
 position = Vector2(0, -26)
 radius = 3.5
 parent_id = "core"
 color_role = "green"
 layer = 4
-light_period = 1.6
-light_phase = -1.3
 ability_id = "siphon"
 mount_id = "passive_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_u0i0n"]
+[sub_resource type="Resource" id="Resource_gbnu1"]
 script = ExtResource("2_q6uho")
 id = "passive_0_link"
 shape = "line"
 radius = 1.0
 layer = 1
+light_phase = -0.7
 from_id = "core"
 to_id = "passive_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_7h1mq"]
+script = ExtResource("2_q6uho")
+id = "passive_1"
+position = Vector2(0, -35)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "radar"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_u0i0n"]
+script = ExtResource("2_q6uho")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "passive_1"
 stat_id = "structure"
 tp_cost = 0.25
 
@@ -754,16 +754,18 @@ tier = 6
 is_player = true
 parts = Array[ExtResource("2_q6uho")]([SubResource("Resource_yk6ik"), SubResource("Resource_2qndo"), SubResource("Resource_d1lxq"), SubResource("Resource_v0tkc"), SubResource("Resource_3rqsi"), SubResource("Resource_opgbo"), SubResource("Resource_akwjs"), SubResource("Resource_mj1w5"), SubResource("Resource_hd6pb"), SubResource("Resource_fael5"), SubResource("Resource_ws0fw"), SubResource("Resource_hxqer"), SubResource("Resource_2yo53"), SubResource("Resource_f40k7"), SubResource("Resource_k8n8o"), SubResource("Resource_jj8m1"), SubResource("Resource_4eg7w"), SubResource("Resource_scuam"), SubResource("Resource_sajoh"), SubResource("Resource_d00kq"), SubResource("Resource_a5abi"), SubResource("Resource_8sbx3"), SubResource("Resource_h5myb"), SubResource("Resource_cx55v"), SubResource("Resource_30hn8"), SubResource("Resource_sc5vc"), SubResource("Resource_1vkxo"), SubResource("Resource_stibv"), SubResource("Resource_nw8os"), SubResource("Resource_5d1ev"), SubResource("Resource_ocwqd"), SubResource("Resource_5ig0m"), SubResource("Resource_v2xtr"), SubResource("Resource_wtnum"), SubResource("Resource_uk861"), SubResource("Resource_kye86"), SubResource("Resource_ymblk"), SubResource("Resource_xrrjr"), SubResource("Resource_j58xo"), SubResource("Resource_i3d8p"), SubResource("Resource_3f0tq"), SubResource("Resource_gt1g2"), SubResource("Resource_n4e3p"), SubResource("Resource_uyexq"), SubResource("Resource_pgoxw"), SubResource("Resource_ut0m8"), SubResource("Resource_1205w"), SubResource("Resource_5v07u"), SubResource("Resource_f5t7k"), SubResource("Resource_n0724"), SubResource("Resource_y247f"), SubResource("Resource_njspq"), SubResource("Resource_tf45f"), SubResource("Resource_3oyv5"), SubResource("Resource_qec5l"), SubResource("Resource_7r081"), SubResource("Resource_7ontk"), SubResource("Resource_jcxmv"), SubResource("Resource_gbnu1"), SubResource("Resource_7h1mq"), SubResource("Resource_u0i0n")])
 groups = Array[ExtResource("1_xau72")]([SubResource("Resource_f4fo8"), SubResource("Resource_qaply")])
-abilities = Array[String](["pulse_cannon", "virus", "poison_cloud", "seeker_missiles", "virus", "siphon"])
+abilities = Array[String](["pulse_cannon", "virus", "poison_cloud", "seeker_missiles", "siphon", "radar"])
 role = "heavy"
 family = "heavy"
 footprint = 169.0
 magnet_radius = 106.0
 speed = 207.4
 turn_rate = 8.0
+accel = 700.0
+drag = 3.5
 hp_buffer = 1.3
 damage_multiplier = 1.15
-secondaries = Array[String](["virus", "poison_cloud", "seeker_missiles", "virus"])
-passives = Array[String](["siphon"])
-tp_used = 27.25
+secondaries = Array[String](["virus", "poison_cloud", "seeker_missiles"])
+passives = Array[String](["siphon", "radar"])
+tp_used = 26.25
 tp_max = 36.0

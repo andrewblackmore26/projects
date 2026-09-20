@@ -117,7 +117,7 @@ static func restore_encounter(world: Node, data: Dictionary) -> void:
 static func snapshot(world: Node) -> Dictionary:
  world._flush_debris() # light must not ride along as an object reference; pay it out first (spec item 3)
  var result: Dictionary=encounter_snapshot(world)
- result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_commit_speed":world.warp_commit_speed,"warp_reduced":world.warp_reduced})
+ result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"tick":world.tick,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_commit_speed":world.warp_commit_speed,"warp_reduced":world.warp_reduced})
  return result
 static func restore(world: Node, data: Dictionary) -> void:
  # P4a bumped the schema to 3 (per-circle allow-listed state). An older
@@ -144,6 +144,14 @@ static func restore(world: Node, data: Dictionary) -> void:
  world.player.hp=world.light_total
  world.player_position=world.player.pos
  world.elapsed=float(data.get("elapsed",0.0))
+ # Review finding 4: `tick` is the clock ShipMotion.step actually reads (not
+ # `elapsed`, which decides nothing geometric) - it drives every orbit/
+ # drift/breathe group, hence every collider position and gun muzzle.
+ # P1's own todo promised this snapshot field "in P2" and it never landed,
+ # so restore was never idempotent: the same bytes restored at tick 1000 vs
+ # tick 5000 produced different limb/muzzle positions, and a boss's orbiting
+ # weapon circles visibly jumped on load.
+ world.tick=int(data.get("tick",0))
  world.sector=decode_value(data.get("sector",{}))
  world._configure_arena_exits()
  world.sector_cache.clear()
@@ -172,7 +180,18 @@ static func restore(world: Node, data: Dictionary) -> void:
  world._warp_timer=0.0
  world._warp_locked_accum=0.0
  world._warp_push_depth=0.0
- world._warp_swap_done=world.warp_phase==world.WARP_NONE or world.warp_phase==world.WARP_PUSH
+ # Review finding 3: a save can only ever land on a phase past WARP_PUSH via
+ # `_on_warp_committed`, which calls `confirm_warp_swap()` SYNCHRONOUSLY
+ # before `_save_game()` even runs (main.gd:796 then :812) - the sector swap
+ # (campaign.on_enter + combat.start_sector) always happens before the warp
+ # locks the player in. So whenever the saved phase is past PUSH, the swap
+ # is a settled fact of the save, not something to re-derive from the phase
+ # - the previous formula had this backwards (false exactly when it needed
+ # to be true), which meant _update_warp's own TRAVEL-phase check
+ # (`if not _warp_swap_done: _warp_spring_back()`) fired on every restore
+ # taken past commit, pushing the player out along the exit direction into
+ # a phantom warp instead of ever reaching `_warp_arrive()`.
+ world._warp_swap_done=not (world.warp_phase==world.WARP_NONE or world.warp_phase==world.WARP_PUSH)
 static func json_value(value: Variant) -> Variant:
  if value is Vector2: return {"$v2":[value.x,value.y]}
  if value is Vector2i: return {"$v2i":[value.x,value.y]}

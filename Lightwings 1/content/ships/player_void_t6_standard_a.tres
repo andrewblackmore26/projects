@@ -380,335 +380,312 @@ tp_cost = 0.25
 
 [sub_resource type="Resource" id="Resource_r5vlc"]
 script = ExtResource("2_rc1oq")
+id = "passive_1"
+position = Vector2(0, -32)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_phase = -1.3
+ability_id = "radar"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_fl778"]
+script = ExtResource("2_rc1oq")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_period = 1.6
+from_id = "core"
+to_id = "passive_1"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_f27oa"]
+script = ExtResource("2_rc1oq")
 id = "topup_0_l"
 position = Vector2(-10.32537, 8.6969385)
 radius = 6.0
 parent_id = "core"
 layer = 2
-light_phase = -1.3
+light_phase = -0.7
 mirror_id = "topup_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_fl778"]
+[sub_resource type="Resource" id="Resource_hmfd6"]
 script = ExtResource("2_rc1oq")
 id = "topup_0_r"
 position = Vector2(10.32537, 8.6969385)
 radius = 6.0
 parent_id = "core"
 layer = 2
-light_period = 1.6
+light_phase = -1.3
 mirror_id = "topup_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_f27oa"]
+[sub_resource type="Resource" id="Resource_gwfpd"]
 script = ExtResource("2_rc1oq")
 id = "topup_0_link_l"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -0.7
 from_id = "core"
 to_id = "topup_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_hmfd6"]
+[sub_resource type="Resource" id="Resource_5uhog"]
 script = ExtResource("2_rc1oq")
 id = "topup_0_link_r"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -1.3
+light_period = 1.6
+light_phase = -0.7
 from_id = "core"
 to_id = "topup_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_gwfpd"]
+[sub_resource type="Resource" id="Resource_ffh1q"]
 script = ExtResource("2_rc1oq")
 id = "topup_1_l"
 position = Vector2(0.3941939, 13.494244)
 radius = 6.5
 parent_id = "core"
 layer = 2
+light_phase = -1.3
 mirror_id = "topup_1_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_5uhog"]
+[sub_resource type="Resource" id="Resource_0ctom"]
 script = ExtResource("2_rc1oq")
 id = "topup_1_r"
 position = Vector2(-0.3941939, 13.494244)
 radius = 6.5
 parent_id = "core"
 layer = 2
-light_period = 1.6
-light_phase = -0.7
 mirror_id = "topup_1_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ffh1q"]
+[sub_resource type="Resource" id="Resource_ltplm"]
 script = ExtResource("2_rc1oq")
 id = "topup_1_link_l"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -1.3
+light_phase = -0.7
 from_id = "core"
 to_id = "topup_1_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_0ctom"]
+[sub_resource type="Resource" id="Resource_bp6xb"]
 script = ExtResource("2_rc1oq")
 id = "topup_1_link_r"
 shape = "line"
 radius = 1.0
 layer = 1
+light_period = 1.6
+light_phase = -1.3
 from_id = "core"
 to_id = "topup_1_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ltplm"]
+[sub_resource type="Resource" id="Resource_pdbn6"]
 script = ExtResource("2_rc1oq")
 id = "topup_2_l"
 position = Vector2(10.815438, 8.079373)
 radius = 7.0
 parent_id = "core"
 layer = 2
-light_phase = -0.7
 mirror_id = "topup_2_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_bp6xb"]
+[sub_resource type="Resource" id="Resource_g1udk"]
 script = ExtResource("2_rc1oq")
 id = "topup_2_r"
 position = Vector2(-10.815438, 8.079373)
 radius = 7.0
 parent_id = "core"
 layer = 2
-light_period = 1.6
-light_phase = -1.3
+light_phase = -0.7
 mirror_id = "topup_2_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_pdbn6"]
+[sub_resource type="Resource" id="Resource_6ys4q"]
 script = ExtResource("2_rc1oq")
 id = "topup_2_link_l"
 shape = "line"
 radius = 1.0
 layer = 1
+light_phase = -1.3
 from_id = "core"
 to_id = "topup_2_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_g1udk"]
+[sub_resource type="Resource" id="Resource_dwd0u"]
 script = ExtResource("2_rc1oq")
 id = "topup_2_link_r"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -0.7
+light_period = 1.6
 from_id = "core"
 to_id = "topup_2_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_6ys4q"]
+[sub_resource type="Resource" id="Resource_5i6pf"]
 script = ExtResource("2_rc1oq")
 id = "topup_3_l"
 position = Vector2(13.051776, -3.4498062)
 radius = 7.5
 parent_id = "core"
 layer = 2
-light_phase = -1.3
+light_phase = -0.7
 mirror_id = "topup_3_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_dwd0u"]
+[sub_resource type="Resource" id="Resource_3yng7"]
 script = ExtResource("2_rc1oq")
 id = "topup_3_r"
 position = Vector2(-13.051776, -3.4498062)
 radius = 7.5
 parent_id = "core"
 layer = 2
-light_period = 1.6
+light_phase = -1.3
 mirror_id = "topup_3_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_5i6pf"]
+[sub_resource type="Resource" id="Resource_s0lj0"]
 script = ExtResource("2_rc1oq")
 id = "topup_3_link_l"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -0.7
 from_id = "core"
 to_id = "topup_3_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_3yng7"]
+[sub_resource type="Resource" id="Resource_0iav0"]
 script = ExtResource("2_rc1oq")
 id = "topup_3_link_r"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -1.3
+light_period = 1.6
+light_phase = -0.7
 from_id = "core"
 to_id = "topup_3_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_s0lj0"]
+[sub_resource type="Resource" id="Resource_7s4lf"]
 script = ExtResource("2_rc1oq")
 id = "topup_4_l"
 position = Vector2(5.4107866, -12.368241)
 radius = 8.0
 parent_id = "core"
 layer = 2
+light_phase = -1.3
 mirror_id = "topup_4_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_0iav0"]
+[sub_resource type="Resource" id="Resource_a0dso"]
 script = ExtResource("2_rc1oq")
 id = "topup_4_r"
 position = Vector2(-5.4107866, -12.368241)
 radius = 8.0
 parent_id = "core"
 layer = 2
-light_period = 1.6
-light_phase = -0.7
 mirror_id = "topup_4_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_7s4lf"]
+[sub_resource type="Resource" id="Resource_ibw16"]
 script = ExtResource("2_rc1oq")
 id = "topup_4_link_l"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -1.3
+light_phase = -0.7
 from_id = "core"
 to_id = "topup_4_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_a0dso"]
+[sub_resource type="Resource" id="Resource_00imo"]
 script = ExtResource("2_rc1oq")
 id = "topup_4_link_r"
 shape = "line"
 radius = 1.0
 layer = 1
+light_period = 1.6
+light_phase = -1.3
 from_id = "core"
 to_id = "topup_4_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ibw16"]
+[sub_resource type="Resource" id="Resource_fwt3b"]
 script = ExtResource("2_rc1oq")
 id = "topup_5_l"
 position = Vector2(-6.3249726, -11.926639)
 radius = 8.5
 parent_id = "core"
 layer = 2
-light_phase = -0.7
 mirror_id = "topup_5_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_00imo"]
+[sub_resource type="Resource" id="Resource_n1d6s"]
 script = ExtResource("2_rc1oq")
 id = "topup_5_r"
 position = Vector2(6.3249726, -11.926639)
 radius = 8.5
 parent_id = "core"
 layer = 2
-light_period = 1.6
-light_phase = -1.3
-mirror_id = "topup_5_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_fwt3b"]
-script = ExtResource("2_rc1oq")
-id = "topup_5_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "topup_5_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_n1d6s"]
-script = ExtResource("2_rc1oq")
-id = "topup_5_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
 light_phase = -0.7
-from_id = "core"
-to_id = "topup_5_r"
+mirror_id = "topup_5_l"
 stat_id = "structure"
 tp_cost = 0.25
 
 [sub_resource type="Resource" id="Resource_8kkqn"]
 script = ExtResource("2_rc1oq")
-id = "topup_6_l"
-position = Vector2(-13.274124, -2.4591951)
-radius = 9.0
-parent_id = "core"
-layer = 2
+id = "topup_5_link_l"
+shape = "line"
+radius = 1.0
+layer = 1
 light_phase = -1.3
-mirror_id = "topup_6_r"
+from_id = "core"
+to_id = "topup_5_l"
 stat_id = "structure"
 tp_cost = 0.25
 
 [sub_resource type="Resource" id="Resource_p0pqv"]
 script = ExtResource("2_rc1oq")
-id = "topup_6_r"
-position = Vector2(13.274124, -2.4591951)
-radius = 9.0
-parent_id = "core"
-layer = 2
+id = "topup_5_link_r"
+shape = "line"
+radius = 1.0
+layer = 1
 light_period = 1.6
-mirror_id = "topup_6_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_44746"]
-script = ExtResource("2_rc1oq")
-id = "topup_6_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
 from_id = "core"
-to_id = "topup_6_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_eddmj"]
-script = ExtResource("2_rc1oq")
-id = "topup_6_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "topup_6_r"
+to_id = "topup_5_r"
 stat_id = "structure"
 tp_cost = 0.25
 
@@ -720,13 +697,13 @@ element = "void"
 tier = 6
 is_player = true
 hull_radius = 39.0
-parts = Array[ExtResource("2_rc1oq")]([SubResource("Resource_tcm38"), SubResource("Resource_mgr86"), SubResource("Resource_4f4xq"), SubResource("Resource_6o2ue"), SubResource("Resource_cr0wl"), SubResource("Resource_oc88h"), SubResource("Resource_sk05r"), SubResource("Resource_sl0dq"), SubResource("Resource_tuqhn"), SubResource("Resource_n2c14"), SubResource("Resource_2f7k8"), SubResource("Resource_r7gsb"), SubResource("Resource_ef8ql"), SubResource("Resource_jra0v"), SubResource("Resource_ioo6p"), SubResource("Resource_x11ur"), SubResource("Resource_ft4j8"), SubResource("Resource_p84n2"), SubResource("Resource_juufy"), SubResource("Resource_ycb13"), SubResource("Resource_avhrs"), SubResource("Resource_4jp84"), SubResource("Resource_0n3xw"), SubResource("Resource_7ghac"), SubResource("Resource_mcl2w"), SubResource("Resource_jj6qi"), SubResource("Resource_r5vlc"), SubResource("Resource_fl778"), SubResource("Resource_f27oa"), SubResource("Resource_hmfd6"), SubResource("Resource_gwfpd"), SubResource("Resource_5uhog"), SubResource("Resource_ffh1q"), SubResource("Resource_0ctom"), SubResource("Resource_ltplm"), SubResource("Resource_bp6xb"), SubResource("Resource_pdbn6"), SubResource("Resource_g1udk"), SubResource("Resource_6ys4q"), SubResource("Resource_dwd0u"), SubResource("Resource_5i6pf"), SubResource("Resource_3yng7"), SubResource("Resource_s0lj0"), SubResource("Resource_0iav0"), SubResource("Resource_7s4lf"), SubResource("Resource_a0dso"), SubResource("Resource_ibw16"), SubResource("Resource_00imo"), SubResource("Resource_fwt3b"), SubResource("Resource_n1d6s"), SubResource("Resource_8kkqn"), SubResource("Resource_p0pqv"), SubResource("Resource_44746"), SubResource("Resource_eddmj")])
+parts = Array[ExtResource("2_rc1oq")]([SubResource("Resource_tcm38"), SubResource("Resource_mgr86"), SubResource("Resource_4f4xq"), SubResource("Resource_6o2ue"), SubResource("Resource_cr0wl"), SubResource("Resource_oc88h"), SubResource("Resource_sk05r"), SubResource("Resource_sl0dq"), SubResource("Resource_tuqhn"), SubResource("Resource_n2c14"), SubResource("Resource_2f7k8"), SubResource("Resource_r7gsb"), SubResource("Resource_ef8ql"), SubResource("Resource_jra0v"), SubResource("Resource_ioo6p"), SubResource("Resource_x11ur"), SubResource("Resource_ft4j8"), SubResource("Resource_p84n2"), SubResource("Resource_juufy"), SubResource("Resource_ycb13"), SubResource("Resource_avhrs"), SubResource("Resource_4jp84"), SubResource("Resource_0n3xw"), SubResource("Resource_7ghac"), SubResource("Resource_mcl2w"), SubResource("Resource_jj6qi"), SubResource("Resource_r5vlc"), SubResource("Resource_fl778"), SubResource("Resource_f27oa"), SubResource("Resource_hmfd6"), SubResource("Resource_gwfpd"), SubResource("Resource_5uhog"), SubResource("Resource_ffh1q"), SubResource("Resource_0ctom"), SubResource("Resource_ltplm"), SubResource("Resource_bp6xb"), SubResource("Resource_pdbn6"), SubResource("Resource_g1udk"), SubResource("Resource_6ys4q"), SubResource("Resource_dwd0u"), SubResource("Resource_5i6pf"), SubResource("Resource_3yng7"), SubResource("Resource_s0lj0"), SubResource("Resource_0iav0"), SubResource("Resource_7s4lf"), SubResource("Resource_a0dso"), SubResource("Resource_ibw16"), SubResource("Resource_00imo"), SubResource("Resource_fwt3b"), SubResource("Resource_n1d6s"), SubResource("Resource_8kkqn"), SubResource("Resource_p0pqv")])
 groups = Array[ExtResource("1_3d2wp")]([SubResource("Resource_lumca"), SubResource("Resource_hsvwh"), SubResource("Resource_ul8qr"), SubResource("Resource_trenq"), SubResource("Resource_5ha3p"), SubResource("Resource_t3s83"), SubResource("Resource_qjwqj"), SubResource("Resource_chibg"), SubResource("Resource_de05u"), SubResource("Resource_xhirr")])
-abilities = Array[String](["homing_beam", "orbital_blockers", "shield", "virus", "magnet"])
+abilities = Array[String](["homing_beam", "orbital_blockers", "shield", "virus", "magnet", "radar"])
 footprint = 87.0
 magnet_radius = 130.0
 primary = "homing_beam"
 secondaries = Array[String](["orbital_blockers", "shield", "virus"])
-passives = Array[String](["magnet"])
-tp_used = 23.0
+passives = Array[String](["magnet", "radar"])
+tp_used = 23.25
 tp_max = 36.0

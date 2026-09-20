@@ -195,7 +195,22 @@ static func build_player(element: String, tier: int, family: String) -> ShipDefi
 	ship.primary = "ricochet" if family == "standard_b" else str(Catalog.ABILITIES[element][0])
 	var limits: Dictionary = GameTuning.slots(ship.tier, ship.role)
 	for index: int in range(int(limits.secondary)): ship.secondaries.append(str(Catalog.ABILITIES[element][1 + index % 3]))
-	if ship.tier >= 4: ship.passives.append("radar" if family == "standard_b" else "health_readout" if family == "compact" else str(Catalog.ABILITIES[element][4]))
+	# Spec §9: T4/T5 grant 1 passive, T6 grants 2. The element's own signature
+	# passive (or family's radar/health_readout override) fills the first
+	# slot; T6's second slot is filled from a fixed generic pool, skipping
+	# whichever entry the first slot already used, so a T6 hull never mounts
+	# the same passive id twice (measured bug: every T6 hull minted only 1
+	# of the 2 slots §9 grants it -- GameTuning.slots already returned 2,
+	# this loop just never read it).
+	if ship.tier >= 4:
+		var first_passive: String = "radar" if family == "standard_b" else "health_readout" if family == "compact" else str(Catalog.ABILITIES[element][4])
+		ship.passives.append(first_passive)
+		var passive_pool: Array[String] = ["radar", "health_readout", "magnet", "siphon", "thrusters", "forcefield", "orbital_seekers"]
+		var slot: int = 1
+		while ship.passives.size() < int(limits.passive) and slot <= passive_pool.size():
+			var candidate: String = str(passive_pool[(slot - 1) % passive_pool.size()])
+			if not candidate in ship.passives: ship.passives.append(candidate)
+			slot += 1
 	match element:
 		"fire": _grow_fire(ship, ship.tier)
 		"lightning": _grow_lightning(ship, ship.tier)

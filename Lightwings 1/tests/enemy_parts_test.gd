@@ -17,6 +17,8 @@ func run() -> void:
 	_test_destroyed_weapon_never_fires(t)
 	_test_core_full_damage_from_tick_zero(t)
 	_test_light_conservation(t)
+	_test_pickup_cap_conservation(t)
+	_test_debris_pickup_split(t)
 	_test_snapshot_round_trip(t)
 	_test_snapshot_allow_list(t)
 	_test_pose_collider_muzzle_agreement(t)
@@ -181,6 +183,90 @@ func _test_light_conservation(t: RefCounted) -> void:
 	t.check(w.sector_energy_paid == paid_before, "Control: light is not paid before the debris fades or the node exits")
 	w._exit_tree() # simulate a premature node exit mid-fade; real engine teardown will call this again harmlessly
 	t.check(w.sector_energy_paid > paid_before, "No light is lost when the node is exited mid-fade")
+	release(w)
+
+## Review finding 7: `_drop_pickup` debited `sector_energy_remaining` (the
+## node's finite light budget) BEFORE checking the `MAX_PICKUPS` cap. At the
+## cap it merges into a SAME-element pickup if one exists; with none, the
+## budget was already spent and the light was simply dropped on the floor -
+## gone from both the pickup pool and the remaining budget. Saturates the
+## pool with pickups of every OTHER element, then drops one of a fresh
+## element with no same-element pickup to merge into, and asserts the
+## node's total light (paid + remaining) is unaffected.
+func _test_pickup_cap_conservation(t: RefCounted) -> void:
+	var w: CombatWorld = make_world()
+	w.pickups.clear()
+	w.sector_energy_remaining = 100000
+	w.sector_energy_paid = 0
+	var other_elements: PackedStringArray = ["fire", "lightning", "void", "corruption"]
+	for i: int in range(World.MAX_PICKUPS):
+		w.pickups.append({"pos": Vector2(500, 500), "vel": Vector2.ZERO, "element": other_elements[i % other_elements.size()], "value": 1.0, "size": 1, "phase": 0.0})
+	t.check(w.pickups.size() == World.MAX_PICKUPS, "Control: the pool really is saturated (%d)" % w.pickups.size())
+	# The conserved quantity is light still IN PLAY: the remaining node
+	# budget plus every existing pickup's own value. `sector_energy_paid` is
+	# NOT part of it - a paid amount is only "conserved" if it actually
+	# landed in a pickup (or was refunded back to `remaining`), which is
+	# exactly the thing under test, so folding `paid` into the total would
+	# make this check trivially pass no matter what (paid+remaining alone is
+	# invariant under `_spend_energy` by construction, refund or not).
+	var in_play_before: float = float(w.sector_energy_remaining)
+	for pickup: Dictionary in w.pickups: in_play_before += float(pickup.value)
+	w._drop_pickup(Vector2(500, 500), "plasma", 5, false) # "plasma" has no pickup in the saturated pool
+	var in_play_after: float = float(w.sector_energy_remaining)
+	for pickup: Dictionary in w.pickups: in_play_after += float(pickup.value)
+	t.check(w.pickups.size() == World.MAX_PICKUPS, "The pool stays at its cap (no new pickup created)")
+	t.check(is_equal_approx(in_play_after, in_play_before), "Light still in play (remaining budget + every pickup's value) is unchanged when a drop finds no slot (before=%.1f after=%.1f)" % [in_play_before, in_play_after])
+	# Negative control: replay the exact PRE-FIX sequence directly (spend via
+	# `_spend_energy`, saturated pool, no same-element match, no refund) -
+	# the SAME conservation quantity the check above reads must now show a
+	# real loss, proving the check is sensitive to the refund line.
+	var control_w: CombatWorld = make_world()
+	control_w.pickups.clear()
+	control_w.sector_energy_remaining = 100000
+	control_w.sector_energy_paid = 0
+	for i: int in range(World.MAX_PICKUPS):
+		control_w.pickups.append({"pos": Vector2(500, 500), "vel": Vector2.ZERO, "element": other_elements[i % other_elements.size()], "value": 1.0, "size": 1, "phase": 0.0})
+	var control_in_play_before: float = float(control_w.sector_energy_remaining)
+	for pickup: Dictionary in control_w.pickups: control_in_play_before += float(pickup.value)
+	var control_amount: int = control_w._spend_energy(roundi(5.0)) # mirrors `_drop_pickup`'s own requested amount for size 5, no enemy multiplier
+	# Pre-fix cap branch stops here: spend already happened above, pool is
+	# saturated with no same-element match, and (unlike the fix) nothing
+	# refunds it or creates a pickup.
+	var control_in_play_after: float = float(control_w.sector_energy_remaining)
+	for pickup: Dictionary in control_w.pickups: control_in_play_after += float(pickup.value)
+	t.control("the pre-fix cap branch (spend, no match, no refund)", control_amount > 0 and not is_equal_approx(control_in_play_after, control_in_play_before))
+	release(control_w)
+	release(w)
+
+## Review finding 8 (spec §10: exactly three pickup sizes, 1/5/20): the kill
+## path (`_kill_reward`) already split a reward across correctly-sized
+## pickups; the debris path (a detached limb's fade-out) passed its raw
+## light value straight through as `size`, so a 62-light limb dropped ONE
+## pickup with size=62 (drawn saturated at radius 20 by pickup_canvas.gd,
+## silently carrying 3x the light a size-20 pickup should).
+func _test_debris_pickup_split(t: RefCounted) -> void:
+	var w: CombatWorld = make_world()
+	w.pickups.clear()
+	w.debris.append({"offsets": [], "radii": [], "color": Color.WHITE, "element": "fire", "position": Vector2(700, 500), "velocity": Vector2.ZERO, "angle": 0.0, "spin": 0.0, "age": 0.0, "life": 1.0, "light": 62.0})
+	for i: int in range(120): w._update_debris(1.0 / 60.0) # 2s > 1s life
+	t.check(w.debris.is_empty(), "Control: the debris record actually expired")
+	var sizes: Array = []
+	var total_value: float = 0.0
+	for pickup: Dictionary in w.pickups:
+		sizes.append(int(pickup.size))
+		total_value += float(pickup.value)
+	t.check(sizes.size() > 1, "A 62-light limb drops more than one pickup (found %d)" % sizes.size())
+	var all_valid_sizes: bool = true
+	for size: int in sizes:
+		if size != 1 and size != 5 and size != 20: all_valid_sizes = false
+	t.check(all_valid_sizes, "Every debris-dropped pickup uses one of the three spec §10 sizes (1/5/20): %s" % str(sizes))
+	# Debris is an enemy-sourced drop (spec §10: 3x a floating pickup of the same size).
+	t.check(is_equal_approx(total_value, 62.0 * GameTuning.ENEMY_DROP_MULTIPLIER), "Total value across the split pickups equals the debris light x the enemy multiplier (%.1f)" % total_value)
+	# Negative control: replay the exact pre-fix call directly - the old
+	# debris code passed the raw light value straight through as `size`.
+	w.pickups.clear()
+	w._drop_pickup(Vector2(700, 500), "fire", 62, true)
+	t.control("dropping one pickup at size=62 directly (the pre-fix debris call)", w.pickups.size() == 1 and int(w.pickups[0].size) != 1 and int(w.pickups[0].size) != 5 and int(w.pickups[0].size) != 20)
 	release(w)
 
 func _test_snapshot_round_trip(t: RefCounted) -> void:

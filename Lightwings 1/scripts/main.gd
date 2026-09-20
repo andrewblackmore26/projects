@@ -370,6 +370,11 @@ func _build_hud() -> void:
 	minimap.position = Vector2(1057,101)
 	minimap.size = Vector2(186,186)
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Review finding 6: the perimeter used to be a circular arc that both had
+	# the wrong shape (the level boundary is a square Chebyshev ring, spec
+	# §11) and spilled outside this panel across the playfield. Clip so
+	# nothing this Control draws can ever leave its own declared rect.
+	minimap.clip_contents = true
 	hud.add_child(minimap)
 	minimap.draw.connect(_draw_minimap)
 	hud.visible = false
@@ -1072,19 +1077,26 @@ func _draw_minimap() -> void:
 	var center := Vector2(93,93)
 	var model: MinimapModel = MinimapModel.build(campaign)
 	minimap.draw_rect(Rect2(Vector2(-5,-5),Vector2(196,217)),Color(0.02,0.025,0.035,0.94))
-	var perimeter_radius: int = campaign.level_radius()
-	minimap.draw_arc(center,perimeter_radius*CELL,0,TAU,64,Color(MUTED,0.5),2.0,true) # perimeter as a solid wall
+	# Review finding 6: the level boundary is a square Chebyshev ring around
+	# the origin (§11's own "bounded disc" is `in_bounds`, a Chebyshev test -
+	# see minimap_model.gd), not a Euclidean circle, and it does not move
+	# with the player. The full map screen already draws this correctly as a
+	# border on `ring == radius` (main.gd's own `_show_map`); this matches
+	# that model instead of an independent (and wrong) circle.
 	for map_cell: MinimapModel.Cell in model.cells:
 		var offset: Vector2i = map_cell.coord-campaign.current_sector
 		if maxi(absi(offset.x),absi(offset.y)) > 4: continue # local window only; boss marker (below) is unwindowed
 		if not map_cell.in_bounds: continue
 		var at: Vector2 = center+Vector2(offset)*CELL
+		var is_perimeter: bool = CampaignState.ring(map_cell.coord) == model.radius
 		if not map_cell.explored:
 			minimap.draw_circle(at,4.0,Color("13161d")) # unexplored: dark, discloses nothing
+			if is_perimeter: minimap.draw_rect(Rect2(at-Vector2(CELL,CELL)*0.5,Vector2(CELL,CELL)),Color(MUTED,0.5),false,2.0)
 			continue
 		var ink: Color = _sector_color(map_cell.coord,true)
 		minimap.draw_circle(at,5.0,Color(ink,0.16))
 		minimap.draw_arc(at,5.0,0,TAU,16,Color(ink,0.7),1.0,true)
+		if is_perimeter: minimap.draw_rect(Rect2(at-Vector2(CELL,CELL)*0.5,Vector2(CELL,CELL)),Color(MUTED,0.5),false,2.0) # perimeter as a solid wall (spec §11), square not circular
 	minimap.draw_circle(center,3,BLUE)
 	# Boss marker + bearing, present from the first tick regardless of the
 	# local window above (spec §11 M3: "always knows which way the boss is").

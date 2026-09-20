@@ -30,6 +30,7 @@ func _run() -> void:
 	await _flare_case()
 	await _collar_case()
 	await _hue_gate_case()
+	await _compositor_stage_case()
 	print("Combat FX rendering: failures=%d, controls %d/%d" % [failures,controls_caught,controls_total])
 	quit(1 if failures or controls_caught != controls_total else 0)
 
@@ -181,6 +182,75 @@ func _hue_gate_case() -> void:
 	var player_distance: float = _hue_distance(player_measured_hue,player_hue)
 	_control("sampling the PLAYER's own (light-blue) projectile",not (player_distance>1.0/24.0))
 	canvas.queue_free()
+	world.queue_free()
+	await process_frame
+
+## Review finding 5 (spec §19 "impact... plus the target rim"): P9's FX
+## batching (`fx_canvas.gd`) reparents only `_bullet_canvas`/`_trail_canvas`
+## into the compositor's `foreground`; `_fx_canvas` (which owns the "above"
+## MultiMesh pass, z_index 41, the finding's own comment says "above the
+## bullet canvas at 40") stayed a child of `world`, which lives INSIDE
+## `background_viewport` - a separate render target composited as one flat
+## texture at the background stage, entirely outside `foreground`'s own
+## z-ordering. So an impact ring on the player composited UNDER the opaque
+## player hull. This goes through the REAL `CombatCompositor`, not a bare
+## FX+canvas fixture (this file's other cases explicitly do NOT, per the
+## header comment), and samples the SAME screen point before/after the ring
+## is emitted: an occluded ring leaves that point statistically unchanged
+## (painted into a separate texture, then fully covered by the opaque hull
+## drawn on top); a visible ring measurably brightens it.
+func _compositor_stage_case() -> void:
+	var world: CombatWorld = CombatWorld.new()
+	scene.add_child(world)
+	world.set_physics_process(false)
+	world.setup_player("neutral",1,40,[],Vector2(896,560))
+	var compositor: CombatCompositor = CombatCompositor.new()
+	scene.add_child(compositor)
+	compositor.attach(world)
+	world._sync_visuals()
+	world.queue_redraw()
+	await _frame()
+	var screen_center: Vector2 = Vector2(640,400) # compositor always centres the player here
+	# r=8 sits well inside the seed hull's solid core fill (radius 15,
+	# filled regardless of angle) so the sample point is guaranteed to be
+	# covered by the OPAQUE hull, not a gap between its circles.
+	var ring_point: Vector2 = screen_center+Vector2(8,0)
+	var image_before: Image = root.get_texture().get_image()
+	var before: float = _sample(image_before,ring_point)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 19
+	world.fx.emit("impact",world.player_position,Color.WHITE,rng,{"r0":8.0,"r1":8.0})
+	world.queue_redraw()
+	await _frame()
+	var image_after: Image = root.get_texture().get_image()
+	var after: float = _sample(image_after,ring_point)
+	_check(after>before+0.15,"an impact ring on the player is visible ON TOP of the player hull (before %.3f, after %.3f)" % [before,after])
+
+	# Negative control: undo exactly the fix (reparent `_fx_canvas` back under
+	# `world`, inside the background stage) and repeat the same before/after
+	# measurement - the ring must now fail to brighten the point, reproducing
+	# the actual shipped bug through the real reparenting code path.
+	world.fx.clear()
+	# `CombatCompositor._process()` re-applies this exact reparent every
+	# frame (process_mode ALWAYS, unconditional on `get_parent() != foreground`),
+	# so it must be paused or it would silently undo the sabotage before the
+	# next capture - proving the fix is what holds the stage, not a one-time
+	# accident of setup order.
+	compositor.set_process(false)
+	world._fx_canvas.reparent(world,false)
+	world._fx_canvas.z_index = 0
+	world.queue_redraw()
+	await _frame()
+	var control_before_image: Image = root.get_texture().get_image()
+	var control_before: float = _sample(control_before_image,ring_point)
+	world.fx.emit("impact",world.player_position,Color.WHITE,rng,{"r0":8.0,"r1":8.0})
+	world.queue_redraw()
+	await _frame()
+	var control_after_image: Image = root.get_texture().get_image()
+	var control_after: float = _sample(control_after_image,ring_point)
+	_control("_fx_canvas reparented back under world (the pre-fix stage)",not (control_after>control_before+0.15))
+
+	compositor.queue_free()
 	world.queue_free()
 	await process_frame
 

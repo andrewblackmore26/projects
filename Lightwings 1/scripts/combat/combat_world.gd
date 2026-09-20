@@ -222,6 +222,12 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  player_invulnerable=0.0
  active=true
  elapsed=0.0
+ # Review finding 4: `tick` (not `elapsed`) is the one clock ShipMotion.step
+ # reads (combat_world.gd:1130), so it drives every orbit/drift/breathe
+ # group - hence collider positions and gun muzzles. It is a process-global
+ # counter otherwise (only ever `tick+=1`), so a new life inherited whatever
+ # tick the PREVIOUS life left behind. Reset it alongside `elapsed` here.
+ tick=0
  run_kills=0
  decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS
  combo_count=0
@@ -1262,7 +1268,7 @@ func _update_debris(dt: float) -> void:
   d.position=Vector2(d.position)+Vector2(d.velocity)*dt
   d.angle=float(d.angle)+float(d.spin)*dt
   if float(d.age)>=float(d.life):
-   _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))),true)
+   for size: int in _pickup_sizes(maxi(0,roundi(float(d.light)))): _drop_pickup(d.position,str(d.element),size,true)
    debris.remove_at(i)
 ## Debris must not silently lose light on a node exit mid-fade: whatever has
 ## not finished its 1s fade yet pays out immediately as a pickup. Called
@@ -1270,7 +1276,7 @@ func _update_debris(dt: float) -> void:
 ## conserved whether the fight continues, is saved, or the node is left.
 func _flush_debris() -> void:
  for d: Dictionary in debris:
-  _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))),true)
+  for size: int in _pickup_sizes(maxi(0,roundi(float(d.light)))): _drop_pickup(d.position,str(d.element),size,true)
  debris.clear()
 func _passives(actor: Dictionary, dt: float) -> void:
  if _has_ability(actor,"orbital_seekers"):
@@ -1536,13 +1542,30 @@ func _update_bullets(dt: float) -> void:
   if not removed:
    bullets.positions[index]=from
    bullets.velocities[index]=velocity
+## Spec §16: "Contact with an enemy body damages the core" - the enemy's
+## whole visible hull, not just its core centre. `_rebuild_actor_grid()`
+## (run earlier this same tick, see the `_step` order above) already
+## populates `core_collider` and, for rigged hulls, `part_colliders` with
+## every ALIVE circle's real world position and visual radius - the exact
+## data bullets already collide against (combat_world.gd's bullet resolver,
+## `_broadphase.query_segment`). Contact reuses those same colliders instead
+## of testing only the core centre, so a 226px elite's outermost weapon
+## circle (107px from its core) now actually touches the player standing on
+## it, not just its core dot.
+const PLAYER_CONTACT_RADIUS: float=3.0
 func _update_contact() -> void:
  if contact_timer>0.0: return
  for actor: Dictionary in enemies:
-  if not bool(actor.dead) and Vector2(actor.pos).distance_to(player.pos)<9.0:
+  if not bool(actor.dead) and _actor_touches_player(actor):
    _damage_actor(player,12.0,int(actor.id),int(actor.faction))
    contact_timer=0.4
    break
+func _actor_touches_player(actor: Dictionary) -> bool:
+ var core: Dictionary=actor.get("core_collider",{})
+ if not core.is_empty() and Vector2(core.pos).distance_to(player.pos)<float(core.radius)+PLAYER_CONTACT_RADIUS: return true
+ for part: Dictionary in actor.get("part_colliders",{}).values():
+  if Vector2(part.pos).distance_to(player.pos)<float(part.radius)+PLAYER_CONTACT_RADIUS: return true
+ return false
 ## Target feedback (spec item 4/§19 "flare the target circle's own rim,
 ## don't just spawn a ring in front of it"): sets a per-circle flare
 ## intensity that decays over `FLARE_DECAY_SECONDS` (>= §16's 0.25s floor),
@@ -1640,6 +1663,21 @@ func _boss_can_die(actor: Dictionary) -> bool:
  for i: int in indices:
   if i<hp.size() and hp[i]>0.0 and (i>=attached.size() or bool(attached[i])): return false
  return true
+## Review finding 8 (spec §10: pickups come in exactly three sizes, 1/5/20).
+## `_kill_reward` already split a reward this way; the debris path
+## (`_update_debris`/`_flush_debris`) passed `d.light` straight through as
+## `size`, so a limb worth e.g. 162 light dropped ONE pickup with
+## `size=54,value=162` - `pickup_canvas.gd`'s radius saturates at 20, so it
+## drew as an ordinary size-20 pickup while silently carrying 8x the light.
+## Single choke point for both call sites.
+func _pickup_sizes(amount: int) -> Array[int]:
+ var sizes: Array[int]=[]
+ var remaining: int=amount
+ while remaining>0:
+  var size: int=20 if remaining>=20 else (5 if remaining>=5 else 1)
+  sizes.append(size)
+  remaining-=size
+ return sizes
 func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -999) -> void:
  # Killing the core kills the enemy regardless of surviving limbs (spec
  # §14/§28); any limb reward share never paid because its circle was still
@@ -1658,10 +1696,8 @@ func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -99
  var reward: int=roundi(pool*_reward_multiplier(actor)*combo_multiplier())
  actor.reward_remaining=0
  actor.reward_unpaid_limb=0.0
- while reward>0:
-  var size: int=20 if reward>=20 else (5 if reward>=5 else 1)
+ for size: int in _pickup_sizes(reward):
   _drop_pickup(Vector2(actor.pos)+Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(3,30),str(actor.element),size,true)
-  reward-=size
  _add_effect("death",actor.pos,_actor_color(actor),0.4,35.0)
  if bool(actor.rival):
   boss_defeated.emit(str(actor.element))
@@ -1680,6 +1716,16 @@ func _drop_pickup(point: Vector2, element: String, size: int, enemy_source: bool
     pickup.value=float(pickup.value)+amount
     pickup.size=maxi(int(pickup.get("size",size)),size)
     return
+  # Review finding 7: the budget was already spent (line above) before this
+  # cap check, so a pool at MAX_PICKUPS with no same-element pickup to merge
+  # into used to drop the light on the floor - the node's finite light
+  # budget spent for nothing anyone could ever collect. Refund it: the light
+  # stays available in the node's remaining budget to be dropped again
+  # later (when a slot frees up or a same-element pickup exists), rather
+  # than merging into a DIFFERENT element (which would break spec §10's
+  # colour rule: "a pickup's colour means exactly one thing: its element").
+  sector_energy_remaining+=amount
+  sector_energy_paid-=amount
   return
  pickups.append({"pos":arena.clamp_point(point,6.0),"vel":Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(2,8),"element":element,"value":float(amount),"size":size,"phase":_rng.randf()*TAU})
 func _spend_energy(requested: int) -> int:

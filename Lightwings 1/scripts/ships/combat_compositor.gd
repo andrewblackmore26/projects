@@ -125,6 +125,26 @@ func _sync_foreground() -> void:
 	if is_instance_valid(trails) and trails.get_parent() != foreground:
 		trails.reparent(foreground, false)
 		trails.z_index = 5
+	# Review finding 5: `_fx_canvas` and `_pickup_canvas` used to stay parented
+	# under `world`, which lives inside `background_viewport` - a SEPARATE
+	# render target composited as one flat texture at the background stage's
+	# z_index 0, entirely outside `foreground`'s own z-ordering. Their
+	# internal MultiMeshInstance2D passes (fx_canvas.gd's `below_mesh`=1 /
+	# `above_mesh`=41, "above the bullet canvas at 40") were correct relative
+	# to EACH OTHER but never actually compared against the bullet canvas,
+	# trails or the player hull at all - so `above_mesh` composited under
+	# all three regardless of its own z_index. Reparenting into `foreground`
+	# (z_index 0 on the container, so its children's z_as_relative absolute
+	# z_index of 1/41 mean what fx_canvas.gd's own comment says they mean)
+	# puts them in the same ordering space as bullets/trails/hulls.
+	var fx: Node2D = world._fx_canvas
+	if is_instance_valid(fx) and fx.get_parent() != foreground:
+		fx.reparent(foreground, false)
+		fx.z_index = 0
+	var pickups: Node2D = world._pickup_canvas
+	if is_instance_valid(pickups) and pickups.get_parent() != foreground:
+		pickups.reparent(foreground, false)
+		pickups.z_index = 0
 	var live_voids: Dictionary = {}
 	for actor: Dictionary in world.actors_by_id.values():
 		var source: ShipRenderer = actor.get("renderer") as ShipRenderer

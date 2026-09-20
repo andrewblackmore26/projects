@@ -97,13 +97,23 @@ static func capacity(tier: int, _max_tier: int = MAX_TIER) -> float:
 static func regression_floor(tier: int) -> float:
 	return 0.0 if tier <= 1 else THRESHOLDS[clampi(tier - 2, 0, THRESHOLDS.size() - 1)] * REGRESSION_RATIO
 
+## Exactly three secondary bindings exist anywhere in the control scheme
+## (spec §26: Space/Shift/Q, LB/RB/X; `ShipCommand.secondaries` is a 3-long
+## array and `_update_player` only ever reads index 0..2). A T6 Heavy's
+## base 3 + role bonus 1 = 4 is therefore a slot the player can never press
+## -- capping it here (the single source of the slot count) is the fix,
+## not a defensive clamp at every reader. See tasks/lessons.md and P9
+## review notes: adding a 4th binding would touch §26, Steam Input and
+## every rebinding surface for a slot four heavy hulls out of 101 would use.
+const MAX_SECONDARY_SLOTS: int = 3
+
 ## Spec §9: T1 1/0/0, T2 1/1/0, T3 1/1/0, T4 1/2/1, T5 1/2/1, T6 1/3/2.
 ## Compact takes -1 secondary (floor 1, once a secondary exists at all);
-## Heavy takes +1 on top of the base count.
+## Heavy takes +1 on top of the base count, capped at MAX_SECONDARY_SLOTS.
 static func slots(tier: int, role: String) -> Dictionary:
 	var base_secondary: int = [0, 1, 1, 2, 2, 3][clampi(tier - 1, 0, 5)]
 	var base_passive: int = [0, 0, 0, 1, 1, 2][clampi(tier - 1, 0, 5)]
 	var secondary: int = base_secondary
 	if tier > 1:
 		secondary = maxi(1, base_secondary - 1) if role == "compact" else base_secondary + (1 if role == "heavy" else 0)
-	return {"primary": 1, "secondary": secondary, "passive": base_passive}
+	return {"primary": 1, "secondary": mini(secondary, MAX_SECONDARY_SLOTS), "passive": base_passive}

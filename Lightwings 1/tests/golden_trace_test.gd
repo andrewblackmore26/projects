@@ -71,6 +71,18 @@ func _route(sabotage: bool) -> Array:
 	app._enter_sector(Vector2i(2,0),app.combat.arena.entry_position(Vector2i.RIGHT),false)
 	_fly(Vector2.RIGHT,Vector2.UP,90)
 	_record(steps,"fought_2_0")
+	# Review finding 4: every hull on the route up to here is rigid (no
+	# ShipMotion group), so `tick` -- the clock groups actually read, not
+	# `elapsed` -- never affected a single fingerprinted field, and a
+	# process-global `tick` that outlives a life could not be caught by the
+	# "first run == second run in one process" check below. A corruption
+	# chain hull always carries a `whip` group (ship_roster_test asserts
+	# this for every corruption hull), so spawning one here and letting a
+	# few frames run makes the check real.
+	var motion_hull: String = ShipGenerator.hull_id("enemy","chain","corruption",4)
+	app.combat._spawn_named_enemy(motion_hull,"corruption",4,app.combat.arena.center,false,false)
+	_fly(Vector2.ZERO,Vector2.UP,30)
+	_record(steps,"corruption_motion_group")
 	app.combat.player_invulnerable = 0.0
 	app.combat.player.invulnerable = 0.0
 	app.combat._damage_actor(app.combat.player,1000000.0,1,1)

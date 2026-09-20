@@ -622,6 +622,31 @@ to_id = "passive_0"
 stat_id = "structure"
 tp_cost = 0.25
 
+[sub_resource type="Resource" id="Resource_wfw4k"]
+script = ExtResource("2_ava6l")
+id = "passive_1"
+position = Vector2(0, -32)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+ability_id = "health_readout"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_jmyck"]
+script = ExtResource("2_ava6l")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "passive_1"
+stat_id = "structure"
+tp_cost = 0.25
+
 [resource]
 script = ExtResource("3_qd6uk")
 id = "player_lightning_t6_standard_b"
@@ -629,8 +654,8 @@ display_name = "Maelstrom Standard B"
 element = "lightning"
 tier = 6
 is_player = true
-parts = Array[ExtResource("2_ava6l")]([SubResource("Resource_ts6jj"), SubResource("Resource_geyee"), SubResource("Resource_ulrnb"), SubResource("Resource_ao8k4"), SubResource("Resource_nl25y"), SubResource("Resource_tboq2"), SubResource("Resource_7vf03"), SubResource("Resource_v4apr"), SubResource("Resource_khi6f"), SubResource("Resource_ur5vw"), SubResource("Resource_tvl0q"), SubResource("Resource_05a4l"), SubResource("Resource_n84e6"), SubResource("Resource_q3ga5"), SubResource("Resource_cutcs"), SubResource("Resource_fhjhy"), SubResource("Resource_48v2j"), SubResource("Resource_n85l2"), SubResource("Resource_bdrb6"), SubResource("Resource_dxlvi"), SubResource("Resource_rjxjk"), SubResource("Resource_vcrnq"), SubResource("Resource_vl1i8"), SubResource("Resource_upjkh"), SubResource("Resource_2hwhc"), SubResource("Resource_nlexq"), SubResource("Resource_kvfrp"), SubResource("Resource_dld06"), SubResource("Resource_yeieo"), SubResource("Resource_bm1tl"), SubResource("Resource_0hbg6"), SubResource("Resource_pavr1"), SubResource("Resource_00vir"), SubResource("Resource_8ndk0"), SubResource("Resource_dx62x"), SubResource("Resource_yp4nk"), SubResource("Resource_fm4my"), SubResource("Resource_ea6rv"), SubResource("Resource_plcss"), SubResource("Resource_xfjct"), SubResource("Resource_1xd31"), SubResource("Resource_n6eof"), SubResource("Resource_1dn3p"), SubResource("Resource_hepty"), SubResource("Resource_4hl5f"), SubResource("Resource_iuarb"), SubResource("Resource_5ddo1"), SubResource("Resource_r4huo"), SubResource("Resource_ab24k"), SubResource("Resource_raqed"), SubResource("Resource_qk6xg")])
-abilities = Array[String](["ricochet", "laser_prong", "shield", "seeker_missiles", "radar"])
+parts = Array[ExtResource("2_ava6l")]([SubResource("Resource_ts6jj"), SubResource("Resource_geyee"), SubResource("Resource_ulrnb"), SubResource("Resource_ao8k4"), SubResource("Resource_nl25y"), SubResource("Resource_tboq2"), SubResource("Resource_7vf03"), SubResource("Resource_v4apr"), SubResource("Resource_khi6f"), SubResource("Resource_ur5vw"), SubResource("Resource_tvl0q"), SubResource("Resource_05a4l"), SubResource("Resource_n84e6"), SubResource("Resource_q3ga5"), SubResource("Resource_cutcs"), SubResource("Resource_fhjhy"), SubResource("Resource_48v2j"), SubResource("Resource_n85l2"), SubResource("Resource_bdrb6"), SubResource("Resource_dxlvi"), SubResource("Resource_rjxjk"), SubResource("Resource_vcrnq"), SubResource("Resource_vl1i8"), SubResource("Resource_upjkh"), SubResource("Resource_2hwhc"), SubResource("Resource_nlexq"), SubResource("Resource_kvfrp"), SubResource("Resource_dld06"), SubResource("Resource_yeieo"), SubResource("Resource_bm1tl"), SubResource("Resource_0hbg6"), SubResource("Resource_pavr1"), SubResource("Resource_00vir"), SubResource("Resource_8ndk0"), SubResource("Resource_dx62x"), SubResource("Resource_yp4nk"), SubResource("Resource_fm4my"), SubResource("Resource_ea6rv"), SubResource("Resource_plcss"), SubResource("Resource_xfjct"), SubResource("Resource_1xd31"), SubResource("Resource_n6eof"), SubResource("Resource_1dn3p"), SubResource("Resource_hepty"), SubResource("Resource_4hl5f"), SubResource("Resource_iuarb"), SubResource("Resource_5ddo1"), SubResource("Resource_r4huo"), SubResource("Resource_ab24k"), SubResource("Resource_raqed"), SubResource("Resource_qk6xg"), SubResource("Resource_wfw4k"), SubResource("Resource_jmyck")])
+abilities = Array[String](["ricochet", "laser_prong", "shield", "seeker_missiles", "radar", "health_readout"])
 family = "standard_b"
 footprint = 312.62881958007813
 magnet_radius = 114.0
@@ -638,6 +663,6 @@ speed = 236.0
 motion_signature = "snap"
 primary = "ricochet"
 secondaries = Array[String](["laser_prong", "shield", "seeker_missiles"])
-passives = Array[String](["radar"])
-tp_used = 22.75
+passives = Array[String](["radar", "health_readout"])
+tp_used = 24.0
 tp_max = 36.0

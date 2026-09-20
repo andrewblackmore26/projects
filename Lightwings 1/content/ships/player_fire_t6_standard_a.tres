@@ -574,6 +574,31 @@ to_id = "passive_0"
 stat_id = "structure"
 tp_cost = 0.25
 
+[sub_resource type="Resource" id="Resource_6wyxs"]
+script = ExtResource("2_yrpdb")
+id = "passive_1"
+position = Vector2(0, -32)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "radar"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_6w6le"]
+script = ExtResource("2_yrpdb")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "passive_1"
+stat_id = "structure"
+tp_cost = 0.25
+
 [resource]
 script = ExtResource("3_47cbw")
 id = "player_fire_t6_standard_a"
@@ -581,14 +606,14 @@ display_name = "Cataclysm Standard A"
 element = "fire"
 tier = 6
 is_player = true
-parts = Array[ExtResource("2_yrpdb")]([SubResource("Resource_70m81"), SubResource("Resource_av4td"), SubResource("Resource_l72wt"), SubResource("Resource_g55fr"), SubResource("Resource_toon3"), SubResource("Resource_xrc45"), SubResource("Resource_40en4"), SubResource("Resource_elfic"), SubResource("Resource_t2pjs"), SubResource("Resource_0chpb"), SubResource("Resource_1hfaf"), SubResource("Resource_sskcx"), SubResource("Resource_gg27s"), SubResource("Resource_v2jeg"), SubResource("Resource_h55f7"), SubResource("Resource_46hnp"), SubResource("Resource_0tein"), SubResource("Resource_olxd8"), SubResource("Resource_jmks3"), SubResource("Resource_xtu05"), SubResource("Resource_16pv8"), SubResource("Resource_5e167"), SubResource("Resource_l0xyd"), SubResource("Resource_526xj"), SubResource("Resource_45fxd"), SubResource("Resource_pak7m"), SubResource("Resource_qxg7u"), SubResource("Resource_fu2iv"), SubResource("Resource_ifuc6"), SubResource("Resource_2os8s"), SubResource("Resource_myi6r"), SubResource("Resource_ginr7"), SubResource("Resource_1sh1q"), SubResource("Resource_cjpcf"), SubResource("Resource_j61mk"), SubResource("Resource_hcm5x"), SubResource("Resource_7mb60"), SubResource("Resource_yqg42"), SubResource("Resource_2ny1x"), SubResource("Resource_wdi1y"), SubResource("Resource_guuyd"), SubResource("Resource_rcd5w"), SubResource("Resource_hjkk7"), SubResource("Resource_ihwp8"), SubResource("Resource_2dd6v"), SubResource("Resource_nmjly"), SubResource("Resource_uq6it")])
-abilities = Array[String](["flame_cone", "mine_layer", "explosives", "rocket_launcher", "forcefield"])
+parts = Array[ExtResource("2_yrpdb")]([SubResource("Resource_70m81"), SubResource("Resource_av4td"), SubResource("Resource_l72wt"), SubResource("Resource_g55fr"), SubResource("Resource_toon3"), SubResource("Resource_xrc45"), SubResource("Resource_40en4"), SubResource("Resource_elfic"), SubResource("Resource_t2pjs"), SubResource("Resource_0chpb"), SubResource("Resource_1hfaf"), SubResource("Resource_sskcx"), SubResource("Resource_gg27s"), SubResource("Resource_v2jeg"), SubResource("Resource_h55f7"), SubResource("Resource_46hnp"), SubResource("Resource_0tein"), SubResource("Resource_olxd8"), SubResource("Resource_jmks3"), SubResource("Resource_xtu05"), SubResource("Resource_16pv8"), SubResource("Resource_5e167"), SubResource("Resource_l0xyd"), SubResource("Resource_526xj"), SubResource("Resource_45fxd"), SubResource("Resource_pak7m"), SubResource("Resource_qxg7u"), SubResource("Resource_fu2iv"), SubResource("Resource_ifuc6"), SubResource("Resource_2os8s"), SubResource("Resource_myi6r"), SubResource("Resource_ginr7"), SubResource("Resource_1sh1q"), SubResource("Resource_cjpcf"), SubResource("Resource_j61mk"), SubResource("Resource_hcm5x"), SubResource("Resource_7mb60"), SubResource("Resource_yqg42"), SubResource("Resource_2ny1x"), SubResource("Resource_wdi1y"), SubResource("Resource_guuyd"), SubResource("Resource_rcd5w"), SubResource("Resource_hjkk7"), SubResource("Resource_ihwp8"), SubResource("Resource_2dd6v"), SubResource("Resource_nmjly"), SubResource("Resource_uq6it"), SubResource("Resource_6wyxs"), SubResource("Resource_6w6le")])
+abilities = Array[String](["flame_cone", "mine_layer", "explosives", "rocket_launcher", "forcefield", "radar"])
 footprint = 139.2551025390625
 magnet_radius = 106.0
 speed = 244.0
 motion_signature = "flicker"
 primary = "flame_cone"
 secondaries = Array[String](["mine_layer", "explosives", "rocket_launcher"])
-passives = Array[String](["forcefield"])
-tp_used = 22.75
+passives = Array[String](["forcefield", "radar"])
+tp_used = 24.0
 tp_max = 36.0

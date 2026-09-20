@@ -23,6 +23,7 @@ func run() -> void:
  test_progression()
  test_arena_collision()
  test_elites()
+ test_contact_limb()
  test_components()
  test_persistence()
  test_catalogue_execution()
@@ -139,6 +140,39 @@ func test_arena_collision() -> void:
  w._update_bullets(0.03)
  check(is_equal_approx(enemy.hp,hp-7) and w.bullets.count()==0,"Shield intercepts incoming projectile before core")
  release(w)
+## Review finding 2 (spec §16 "Contact with an enemy body damages the core"):
+## _update_contact() used to test only the enemy CORE centre (actor.pos)
+## against a 9px radius, so an elite's peripheral circles - which the
+## broadphase already registers every tick via `part_colliders`, the same
+## data bullets collide against - never touched the player. Parks the
+## player directly on an irregular elite's outermost limb and asserts real
+## damage over simulated time, with a negative control that replays the OLD
+## core-distance-only formula on the same position and shows it would have
+## read zero.
+func test_contact_limb() -> void:
+ var w: CombatWorld=make_world()
+ var elite: Dictionary=w._spawn_named_enemy("elite_irregular_fire_t3","fire",3,Vector2(1100,500),false,true)
+ w._rebuild_actor_grid()
+ var outer_pos: Vector2=elite.pos
+ var outer_dist: float=0.0
+ for part: Dictionary in elite.part_colliders.values():
+  var d: float=Vector2(part.pos).distance_to(elite.pos)
+  if d>outer_dist:
+   outer_dist=d
+   outer_pos=part.pos
+ check(outer_dist>50.0,"Control: the picked circle really is a peripheral limb, not the core (%.1f px out)" % outer_dist)
+ var old_check_would_miss: bool=elite.pos.distance_to(outer_pos)>=9.0
+ check(old_check_would_miss,"Control: the old core-distance-only formula would have read zero at this limb (%.1f px from the core, radius 9)" % outer_dist)
+ w.player.pos=outer_pos
+ w.player.invulnerable=0.0
+ w.player_invulnerable=0.0
+ var before: float=w.light_total
+ for i: int in range(40):
+  w.contact_timer=maxf(0.0,w.contact_timer-0.1)
+  w._update_contact()
+ var lost_on_limb: float=before-w.light_total
+ check(lost_on_limb>0.0,"Standing on a peripheral limb for 4s damages the player core (lost %.2f)" % lost_on_limb)
+ release(w)
 func test_elites() -> void:
  var w: CombatWorld=make_world()
  var elite: Dictionary=w._spawn_elite("fire",3,Vector2(1100,500))
@@ -253,12 +287,35 @@ func test_persistence() -> void:
  w.player_invulnerable=1.234
  w.reshape_remaining=0.234
  w.bullets.add(Vector2(600,400),Vector2.RIGHT*500,-1,12,3,0,0,0,Pool.RICOCHET)
+ # Review finding 4: `tick` (not `elapsed`, which decides nothing geometric)
+ # is the clock ShipMotion.step actually reads - every orbit/drift/breathe
+ # group, hence every collider position and gun muzzle. A life that has
+ # been running for a while has a real, nonzero tick; the round trip below
+ # must reproduce it exactly, not silently drop back to 0.
+ w.tick=54321
  var snapshot: Dictionary=JSON.parse_string(JSON.stringify(w.snapshot()))
+ check(int(snapshot.tick)==54321,"tick is a first-class snapshot field, not dropped on the way to JSON")
+ w.tick=1
  w.restore(snapshot)
+ check(w.tick==54321,"Restore reproduces the exact tick a save was taken at (not the tick restore() happened to run at)")
  check(w.hull_id=="player_fire_t4_standard_a" and w.hull_history.size()==4,"Hull and history survive JSON resume")
  check(w.light_total==750 and w.absorption.plasma==12.5,"Fractional bar/diet survive resume")
  check(is_equal_approx(w.player_invulnerable,1.234),"Resume preserves remaining grace without granting more")
  check(w.bullets.lives[w.bullets.active_indices[0]]==-1,"Boundary-lived projectile remains boundary-lived on resume")
+ # Negative control: the OLD restore() never read a "tick" key at all, so a
+ # restore performed at a different live tick kept whatever that tick was
+ # (proven by replaying that exact omission here, not a literal comparison).
+ var without_tick_key: Dictionary=snapshot.duplicate(true)
+ without_tick_key.erase("tick")
+ w.tick=999
+ w.restore(without_tick_key)
+ check(w.tick==0,"Control: restore falls back to 0 (its own documented default), not the live tick, when the key is absent")
+ # `setup_player` (a fresh life, e.g. `_reboot()` on an EXISTING CombatWorld
+ # - main.gd never recreates the object there) must reset tick to 0 even
+ # when the world has already ticked a long time.
+ w.tick=8888
+ w.setup_player("fire",1,40,[],Vector2(500,500))
+ check(w.tick==0,"setup_player resets tick to 0 for a new life, even on a world that has already ticked")
  release(w)
 func test_catalogue_execution() -> void:
  var w: CombatWorld=make_world()

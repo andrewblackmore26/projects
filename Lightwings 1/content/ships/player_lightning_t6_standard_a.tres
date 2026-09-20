@@ -622,6 +622,31 @@ to_id = "passive_0"
 stat_id = "structure"
 tp_cost = 0.25
 
+[sub_resource type="Resource" id="Resource_iwtmr"]
+script = ExtResource("2_egq8a")
+id = "passive_1"
+position = Vector2(0, -32)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+ability_id = "radar"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_2fh1a"]
+script = ExtResource("2_egq8a")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "passive_1"
+stat_id = "structure"
+tp_cost = 0.25
+
 [resource]
 script = ExtResource("3_l0a3o")
 id = "player_lightning_t6_standard_a"
@@ -629,14 +654,14 @@ display_name = "Maelstrom Standard A"
 element = "lightning"
 tier = 6
 is_player = true
-parts = Array[ExtResource("2_egq8a")]([SubResource("Resource_cvpyw"), SubResource("Resource_54np0"), SubResource("Resource_8pfsw"), SubResource("Resource_14522"), SubResource("Resource_5x138"), SubResource("Resource_n0ewy"), SubResource("Resource_aq4ih"), SubResource("Resource_568fi"), SubResource("Resource_qttlf"), SubResource("Resource_krxoi"), SubResource("Resource_sh3bn"), SubResource("Resource_ydqab"), SubResource("Resource_2ghpc"), SubResource("Resource_ukvna"), SubResource("Resource_r3iwq"), SubResource("Resource_kk4fy"), SubResource("Resource_e0c6e"), SubResource("Resource_4lwqu"), SubResource("Resource_jmy4h"), SubResource("Resource_s8wfw"), SubResource("Resource_mc3p8"), SubResource("Resource_fxexm"), SubResource("Resource_bsst4"), SubResource("Resource_scass"), SubResource("Resource_6w6j0"), SubResource("Resource_cltai"), SubResource("Resource_mthvj"), SubResource("Resource_662rd"), SubResource("Resource_tbunf"), SubResource("Resource_6ecbr"), SubResource("Resource_biiiq"), SubResource("Resource_8uls6"), SubResource("Resource_88of8"), SubResource("Resource_wgrji"), SubResource("Resource_tmds0"), SubResource("Resource_xf31a"), SubResource("Resource_bbfs2"), SubResource("Resource_kid5r"), SubResource("Resource_m6mbg"), SubResource("Resource_8m2oe"), SubResource("Resource_ec267"), SubResource("Resource_xk5op"), SubResource("Resource_jp4ef"), SubResource("Resource_358s1"), SubResource("Resource_xu8jn"), SubResource("Resource_nn1f1"), SubResource("Resource_7ouao"), SubResource("Resource_xmfy7"), SubResource("Resource_cxiu6"), SubResource("Resource_y3ung"), SubResource("Resource_d8kmf")])
-abilities = Array[String](["bolt", "laser_prong", "shield", "seeker_missiles", "thrusters"])
+parts = Array[ExtResource("2_egq8a")]([SubResource("Resource_cvpyw"), SubResource("Resource_54np0"), SubResource("Resource_8pfsw"), SubResource("Resource_14522"), SubResource("Resource_5x138"), SubResource("Resource_n0ewy"), SubResource("Resource_aq4ih"), SubResource("Resource_568fi"), SubResource("Resource_qttlf"), SubResource("Resource_krxoi"), SubResource("Resource_sh3bn"), SubResource("Resource_ydqab"), SubResource("Resource_2ghpc"), SubResource("Resource_ukvna"), SubResource("Resource_r3iwq"), SubResource("Resource_kk4fy"), SubResource("Resource_e0c6e"), SubResource("Resource_4lwqu"), SubResource("Resource_jmy4h"), SubResource("Resource_s8wfw"), SubResource("Resource_mc3p8"), SubResource("Resource_fxexm"), SubResource("Resource_bsst4"), SubResource("Resource_scass"), SubResource("Resource_6w6j0"), SubResource("Resource_cltai"), SubResource("Resource_mthvj"), SubResource("Resource_662rd"), SubResource("Resource_tbunf"), SubResource("Resource_6ecbr"), SubResource("Resource_biiiq"), SubResource("Resource_8uls6"), SubResource("Resource_88of8"), SubResource("Resource_wgrji"), SubResource("Resource_tmds0"), SubResource("Resource_xf31a"), SubResource("Resource_bbfs2"), SubResource("Resource_kid5r"), SubResource("Resource_m6mbg"), SubResource("Resource_8m2oe"), SubResource("Resource_ec267"), SubResource("Resource_xk5op"), SubResource("Resource_jp4ef"), SubResource("Resource_358s1"), SubResource("Resource_xu8jn"), SubResource("Resource_nn1f1"), SubResource("Resource_7ouao"), SubResource("Resource_xmfy7"), SubResource("Resource_cxiu6"), SubResource("Resource_y3ung"), SubResource("Resource_d8kmf"), SubResource("Resource_iwtmr"), SubResource("Resource_2fh1a")])
+abilities = Array[String](["bolt", "laser_prong", "shield", "seeker_missiles", "thrusters", "radar"])
 footprint = 312.62881958007813
 magnet_radius = 114.0
 speed = 236.0
 motion_signature = "snap"
 primary = "bolt"
 secondaries = Array[String](["laser_prong", "shield", "seeker_missiles"])
-passives = Array[String](["thrusters"])
-tp_used = 22.75
+passives = Array[String](["thrusters", "radar"])
+tp_used = 24.0
 tp_max = 36.0

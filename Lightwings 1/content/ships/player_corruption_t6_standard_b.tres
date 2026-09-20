@@ -720,21 +720,46 @@ to_id = "passive_0"
 stat_id = "structure"
 tp_cost = 0.25
 
+[sub_resource type="Resource" id="Resource_ns4qk"]
+script = ExtResource("2_ktvmw")
+id = "passive_1"
+position = Vector2(0, -32)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "health_readout"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_i2vk8"]
+script = ExtResource("2_ktvmw")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "passive_1"
+stat_id = "structure"
+tp_cost = 0.25
+
 [resource]
 script = ExtResource("3_ms45y")
 id = "player_corruption_t6_standard_b"
 display_name = "Leviathan Standard B"
 tier = 6
 is_player = true
-parts = Array[ExtResource("2_ktvmw")]([SubResource("Resource_q68yn"), SubResource("Resource_bpoj6"), SubResource("Resource_7hfh5"), SubResource("Resource_o4ske"), SubResource("Resource_jftr0"), SubResource("Resource_sxtfg"), SubResource("Resource_05o47"), SubResource("Resource_pvn37"), SubResource("Resource_yugb7"), SubResource("Resource_ucfup"), SubResource("Resource_exjhg"), SubResource("Resource_n381i"), SubResource("Resource_e4fh8"), SubResource("Resource_rtf48"), SubResource("Resource_56ssd"), SubResource("Resource_nmdnt"), SubResource("Resource_g05fp"), SubResource("Resource_75t6a"), SubResource("Resource_7ew6n"), SubResource("Resource_lyk0i"), SubResource("Resource_3moe0"), SubResource("Resource_oi0ik"), SubResource("Resource_rcmqj"), SubResource("Resource_oi16s"), SubResource("Resource_2jvpx"), SubResource("Resource_ha66b"), SubResource("Resource_2q0iu"), SubResource("Resource_hii8m"), SubResource("Resource_0ke1l"), SubResource("Resource_5fjll"), SubResource("Resource_lugkx"), SubResource("Resource_kqwfx"), SubResource("Resource_71upi"), SubResource("Resource_ibe6u"), SubResource("Resource_lu5dc"), SubResource("Resource_u0wtr"), SubResource("Resource_gkk01"), SubResource("Resource_q64ae"), SubResource("Resource_f7uhe"), SubResource("Resource_mmt2r"), SubResource("Resource_vifls"), SubResource("Resource_soao7"), SubResource("Resource_8wkxs"), SubResource("Resource_boif7"), SubResource("Resource_vjipb"), SubResource("Resource_h0n6e"), SubResource("Resource_e8nmn"), SubResource("Resource_qgnim"), SubResource("Resource_x7fcv"), SubResource("Resource_15bvk"), SubResource("Resource_ajkb3"), SubResource("Resource_fp6dl"), SubResource("Resource_5ttx6"), SubResource("Resource_uk8fd"), SubResource("Resource_3edty"), SubResource("Resource_yiflb"), SubResource("Resource_g8ccd"), SubResource("Resource_a1h6s"), SubResource("Resource_y6h00")])
+parts = Array[ExtResource("2_ktvmw")]([SubResource("Resource_q68yn"), SubResource("Resource_bpoj6"), SubResource("Resource_7hfh5"), SubResource("Resource_o4ske"), SubResource("Resource_jftr0"), SubResource("Resource_sxtfg"), SubResource("Resource_05o47"), SubResource("Resource_pvn37"), SubResource("Resource_yugb7"), SubResource("Resource_ucfup"), SubResource("Resource_exjhg"), SubResource("Resource_n381i"), SubResource("Resource_e4fh8"), SubResource("Resource_rtf48"), SubResource("Resource_56ssd"), SubResource("Resource_nmdnt"), SubResource("Resource_g05fp"), SubResource("Resource_75t6a"), SubResource("Resource_7ew6n"), SubResource("Resource_lyk0i"), SubResource("Resource_3moe0"), SubResource("Resource_oi0ik"), SubResource("Resource_rcmqj"), SubResource("Resource_oi16s"), SubResource("Resource_2jvpx"), SubResource("Resource_ha66b"), SubResource("Resource_2q0iu"), SubResource("Resource_hii8m"), SubResource("Resource_0ke1l"), SubResource("Resource_5fjll"), SubResource("Resource_lugkx"), SubResource("Resource_kqwfx"), SubResource("Resource_71upi"), SubResource("Resource_ibe6u"), SubResource("Resource_lu5dc"), SubResource("Resource_u0wtr"), SubResource("Resource_gkk01"), SubResource("Resource_q64ae"), SubResource("Resource_f7uhe"), SubResource("Resource_mmt2r"), SubResource("Resource_vifls"), SubResource("Resource_soao7"), SubResource("Resource_8wkxs"), SubResource("Resource_boif7"), SubResource("Resource_vjipb"), SubResource("Resource_h0n6e"), SubResource("Resource_e8nmn"), SubResource("Resource_qgnim"), SubResource("Resource_x7fcv"), SubResource("Resource_15bvk"), SubResource("Resource_ajkb3"), SubResource("Resource_fp6dl"), SubResource("Resource_5ttx6"), SubResource("Resource_uk8fd"), SubResource("Resource_3edty"), SubResource("Resource_yiflb"), SubResource("Resource_g8ccd"), SubResource("Resource_a1h6s"), SubResource("Resource_y6h00"), SubResource("Resource_ns4qk"), SubResource("Resource_i2vk8")])
 groups = Array[ExtResource("1_lp4u7")]([SubResource("Resource_xojc2"), SubResource("Resource_sd08y")])
-abilities = Array[String](["ricochet", "virus", "poison_cloud", "seeker_missiles", "radar"])
+abilities = Array[String](["ricochet", "virus", "poison_cloud", "seeker_missiles", "radar", "health_readout"])
 family = "standard_b"
 footprint = 145.0
 magnet_radius = 106.0
 speed = 244.0
 primary = "ricochet"
 secondaries = Array[String](["virus", "poison_cloud", "seeker_missiles"])
-passives = Array[String](["radar"])
-tp_used = 24.25
+passives = Array[String](["radar", "health_readout"])
+tp_used = 25.5
 tp_max = 36.0

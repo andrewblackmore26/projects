@@ -600,51 +600,51 @@ tp_cost = 0.25
 
 [sub_resource type="Resource" id="Resource_lpsfe"]
 script = ExtResource("2_5q57e")
-id = "secondary_3"
-position = Vector2(0, 52)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_phase = -0.7
-ability_id = "laser_prong"
-mount_id = "secondary_3"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_65bjt"]
-script = ExtResource("2_5q57e")
-id = "secondary_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "secondary_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_fc6l5"]
-script = ExtResource("2_5q57e")
 id = "passive_0"
 position = Vector2(0, -26)
 radius = 3.5
 parent_id = "core"
 color_role = "yellow"
 layer = 4
-light_period = 1.6
+light_phase = -0.7
 ability_id = "thrusters"
 mount_id = "passive_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_cgcsi"]
+[sub_resource type="Resource" id="Resource_65bjt"]
 script = ExtResource("2_5q57e")
 id = "passive_0_link"
 shape = "line"
 radius = 1.0
 layer = 1
-light_phase = -0.7
+light_phase = -1.3
 from_id = "core"
 to_id = "passive_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_fc6l5"]
+script = ExtResource("2_5q57e")
+id = "passive_1"
+position = Vector2(0, -35)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+ability_id = "radar"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_cgcsi"]
+script = ExtResource("2_5q57e")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -0.7
+from_id = "core"
+to_id = "passive_1"
 stat_id = "structure"
 tp_cost = 0.25
 
@@ -656,18 +656,20 @@ element = "lightning"
 tier = 6
 is_player = true
 parts = Array[ExtResource("2_5q57e")]([SubResource("Resource_u2wjk"), SubResource("Resource_s3ub1"), SubResource("Resource_hgob8"), SubResource("Resource_e3usj"), SubResource("Resource_jghuu"), SubResource("Resource_ocxr4"), SubResource("Resource_jf7g6"), SubResource("Resource_e7jnd"), SubResource("Resource_l5hc8"), SubResource("Resource_8omfa"), SubResource("Resource_s6qpv"), SubResource("Resource_x7mxi"), SubResource("Resource_oyl57"), SubResource("Resource_qj1mr"), SubResource("Resource_77eff"), SubResource("Resource_6dcpp"), SubResource("Resource_kpj2j"), SubResource("Resource_a24a8"), SubResource("Resource_3udfi"), SubResource("Resource_ar7ug"), SubResource("Resource_okq17"), SubResource("Resource_7bcn2"), SubResource("Resource_5unix"), SubResource("Resource_blur2"), SubResource("Resource_v1flv"), SubResource("Resource_sa65t"), SubResource("Resource_qa40e"), SubResource("Resource_f58b1"), SubResource("Resource_84dxy"), SubResource("Resource_1jf7q"), SubResource("Resource_wh4jc"), SubResource("Resource_untmp"), SubResource("Resource_30vdj"), SubResource("Resource_2o7k7"), SubResource("Resource_oxjsg"), SubResource("Resource_8imsy"), SubResource("Resource_tqpwv"), SubResource("Resource_fceub"), SubResource("Resource_hwywq"), SubResource("Resource_yp063"), SubResource("Resource_y8mpu"), SubResource("Resource_32mdf"), SubResource("Resource_2h6r3"), SubResource("Resource_53kme"), SubResource("Resource_qyrou"), SubResource("Resource_xetky"), SubResource("Resource_h6qus"), SubResource("Resource_ieb8e"), SubResource("Resource_d2m2j"), SubResource("Resource_lpsfe"), SubResource("Resource_65bjt"), SubResource("Resource_fc6l5"), SubResource("Resource_cgcsi")])
-abilities = Array[String](["bolt", "laser_prong", "shield", "seeker_missiles", "laser_prong", "thrusters"])
+abilities = Array[String](["bolt", "laser_prong", "shield", "seeker_missiles", "thrusters", "radar"])
 role = "heavy"
 family = "heavy"
 footprint = 366.7726794433594
 magnet_radius = 114.0
 speed = 200.6
 turn_rate = 8.0
+accel = 700.0
+drag = 3.5
 hp_buffer = 1.3
 damage_multiplier = 1.15
 motion_signature = "snap"
 primary = "bolt"
-secondaries = Array[String](["laser_prong", "shield", "seeker_missiles", "laser_prong"])
-passives = Array[String](["thrusters"])
-tp_used = 25.25
+secondaries = Array[String](["laser_prong", "shield", "seeker_missiles"])
+passives = Array[String](["thrusters", "radar"])
+tp_used = 24.25
 tp_max = 36.0

@@ -553,50 +553,50 @@ tp_cost = 0.25
 
 [sub_resource type="Resource" id="Resource_2jo8t"]
 script = ExtResource("2_g3fd6")
-id = "secondary_3"
-position = Vector2(0, 52)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-ability_id = "mine_layer"
-mount_id = "secondary_3"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_2bawg"]
-script = ExtResource("2_g3fd6")
-id = "secondary_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "secondary_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_3ddxt"]
-script = ExtResource("2_g3fd6")
 id = "passive_0"
 position = Vector2(0, -26)
 radius = 3.5
 parent_id = "core"
 color_role = "red"
 layer = 4
-light_period = 1.6
-light_phase = -1.3
 ability_id = "forcefield"
 mount_id = "passive_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_6ejdk"]
+[sub_resource type="Resource" id="Resource_2bawg"]
 script = ExtResource("2_g3fd6")
 id = "passive_0_link"
 shape = "line"
 radius = 1.0
 layer = 1
+light_phase = -0.7
 from_id = "core"
 to_id = "passive_0"
+stat_id = "structure"
+tp_cost = 0.25
+
+[sub_resource type="Resource" id="Resource_3ddxt"]
+script = ExtResource("2_g3fd6")
+id = "passive_1"
+position = Vector2(0, -35)
+radius = 3.5
+parent_id = "core"
+color_role = "yellow"
+layer = 4
+light_period = 1.6
+light_phase = -1.3
+ability_id = "radar"
+mount_id = "passive_1"
+tp_cost = 0.0
+
+[sub_resource type="Resource" id="Resource_6ejdk"]
+script = ExtResource("2_g3fd6")
+id = "passive_1_link"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
+to_id = "passive_1"
 stat_id = "structure"
 tp_cost = 0.25
 
@@ -608,18 +608,20 @@ element = "fire"
 tier = 6
 is_player = true
 parts = Array[ExtResource("2_g3fd6")]([SubResource("Resource_sxtu6"), SubResource("Resource_pkg7t"), SubResource("Resource_vn6x0"), SubResource("Resource_itn6l"), SubResource("Resource_ntin2"), SubResource("Resource_bsx14"), SubResource("Resource_5p65i"), SubResource("Resource_yko0k"), SubResource("Resource_1ullf"), SubResource("Resource_pftpe"), SubResource("Resource_51tho"), SubResource("Resource_8y2bh"), SubResource("Resource_4lmb6"), SubResource("Resource_3k1od"), SubResource("Resource_jfh0u"), SubResource("Resource_v8pu0"), SubResource("Resource_eg0bp"), SubResource("Resource_ete8n"), SubResource("Resource_8chj0"), SubResource("Resource_1qqoo"), SubResource("Resource_ig1d3"), SubResource("Resource_jbbvp"), SubResource("Resource_jp32t"), SubResource("Resource_0te83"), SubResource("Resource_buoob"), SubResource("Resource_07bbj"), SubResource("Resource_ts7il"), SubResource("Resource_2ibjp"), SubResource("Resource_02spn"), SubResource("Resource_o01qo"), SubResource("Resource_gu24w"), SubResource("Resource_dc1ol"), SubResource("Resource_m8xf6"), SubResource("Resource_ooe3b"), SubResource("Resource_uwrja"), SubResource("Resource_2xq1a"), SubResource("Resource_cmdmw"), SubResource("Resource_1qjqc"), SubResource("Resource_06lbs"), SubResource("Resource_8rray"), SubResource("Resource_7e0d7"), SubResource("Resource_l3vnf"), SubResource("Resource_tdxv8"), SubResource("Resource_rlley"), SubResource("Resource_705ps"), SubResource("Resource_2jo8t"), SubResource("Resource_2bawg"), SubResource("Resource_3ddxt"), SubResource("Resource_6ejdk")])
-abilities = Array[String](["flame_cone", "mine_layer", "explosives", "rocket_launcher", "mine_layer", "forcefield"])
+abilities = Array[String](["flame_cone", "mine_layer", "explosives", "rocket_launcher", "forcefield", "radar"])
 role = "heavy"
 family = "heavy"
 footprint = 166.4316326904297
 magnet_radius = 106.0
 speed = 207.4
 turn_rate = 8.0
+accel = 700.0
+drag = 3.5
 hp_buffer = 1.3
 damage_multiplier = 1.15
 motion_signature = "flicker"
 primary = "flame_cone"
-secondaries = Array[String](["mine_layer", "explosives", "rocket_launcher", "mine_layer"])
-passives = Array[String](["forcefield"])
-tp_used = 26.25
+secondaries = Array[String](["mine_layer", "explosives", "rocket_launcher"])
+passives = Array[String](["forcefield", "radar"])
+tp_used = 25.25
 tp_max = 36.0
