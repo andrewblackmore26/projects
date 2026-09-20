@@ -148,16 +148,18 @@ func _initialize() -> void:
 		if group.orbit_speed != 0.0: any_orbit = true
 	h.control("a plasma hull with every orbit_speed zeroed", not any_orbit)
 
-	# --- Every (faction, element, tier) the world can request resolves to a hull ---
+	# --- Every (faction, kind, element, tier) the world can request resolves to a hull ---
+	var kinds_by_faction: Dictionary = {"enemy": ["drone", "sentry", "chain"], "elite": ["radial", "irregular"], "boss": ["boss"]}
 	var resolve_ok: bool = true
-	for faction: String in ["enemy", "elite", "boss"]:
-		for element: String in ShipCatalog.ELEMENTS:
-			for tier: int in range(1, GameTuning.MAX_TIER + 1):
-				var id: String = ShipCatalog.pick_enemy(faction, element, tier)
-				if id.is_empty() or ShipCatalog.get_ship(id) == null: resolve_ok = false
-	h.check(resolve_ok, "Every (faction, element, tier) combination the world can request resolves to a real hull")
-	h.control("an unknown element", ShipCatalog.pick_enemy("enemy", "does_not_exist", 3).is_empty())
-	h.control("an unknown faction", ShipCatalog.pick_enemy("does_not_exist", "fire", 3).is_empty())
+	for faction: String in kinds_by_faction:
+		for kind: String in kinds_by_faction[faction]:
+			for element: String in ShipCatalog.ELEMENTS:
+				for tier: int in range(1, GameTuning.MAX_TIER + 1):
+					var id: String = ShipGenerator.hull_id(faction, kind, element, tier)
+					if id.is_empty() or ShipCatalog.get_ship(id) == null: resolve_ok = false
+	h.check(resolve_ok, "Every (faction, kind, element, tier) combination the world can request resolves to a real hull")
+	h.control("an unknown element", ShipGenerator.hull_id("enemy", "drone", "does_not_exist", 3).is_empty())
+	h.control("an unknown faction", ShipGenerator.hull_id("does_not_exist", "drone", "fire", 3).is_empty())
 
 	# --- TP used <= budget for every hull; >= 60% of budget for player hulls ---
 	var tp_ok: bool = true
@@ -192,17 +194,19 @@ func _initialize() -> void:
 	crooked.symmetry = "spiral"
 	h.control("a hull with an unknown symmetry", not ShipCatalog.validate(crooked).is_empty())
 
-	# V02-ADAPTER (remove with the shim in P5): an element is only authored across its campaign
-	# level's tier band, so a v0.2 wedge sector asking for a low tier of a late element is handed a
-	# much higher-tier hull. Slots are a hard cap, so the substitute must fight with the REQUESTED
-	# tier's allowance; without this a ring-1 corruption drone carried tier-3 weaponry and out-damaged
-	# its own reward and HP by enough to cost the regrowth route ~25 light over 180 s.
+	# P5: an element is only authored across its campaign level's tier band (ShipGenerator.
+	# ELEMENT_TIER_BAND), so a low-ring node asking for a late element (weighted heavily by the
+	# element-block roll, spec §8) or a high-ring node asking for an early element is handed a hull
+	# from the nearer end of that band. Slots are a hard cap, so the resolved hull must fight with the
+	# REQUESTED tier's allowance via ShipCatalog.cap_to_tier; without this a ring-1 corruption drone
+	# carried tier-3 weaponry and out-damaged its own reward and HP by enough to cost the regrowth
+	# route ~25 light over 180 s (measured in P2b-1, same underlying mechanism, moved here in P5).
 	var substituted: int = 0
 	for element: String in GameTuning.ELEMENTS:
 		for tier: int in range(1, GameTuning.MAX_TIER + 1):
-			var id: String = ShipCatalog.pick_enemy("enemy", element, tier)
+			var id: String = ShipGenerator.hull_id("enemy", "drone", element, tier)
 			if not h.check(not id.is_empty(), "%s tier %d resolves to a hull" % [element, tier]): continue
-			var trimmed: ShipDefinition = ShipCatalog.trim_to_tier(ShipCatalog.get_ship(id), tier)
+			var trimmed: ShipDefinition = ShipCatalog.cap_to_tier(ShipCatalog.get_ship(id), tier)
 			var limits: Dictionary = GameTuning.slots(tier, trimmed.role)
 			h.check(trimmed.secondaries.size() <= int(limits.secondary) and trimmed.passives.size() <= int(limits.passive),
 				"%s tier %d fights within tier %d slots (%d secondary, %d passive)" % [id, tier, tier, trimmed.secondaries.size(), trimmed.passives.size()])
@@ -213,9 +217,9 @@ func _initialize() -> void:
 				if part.shape == "line":
 					h.check(_has_circle(trimmed, part.from_id) and _has_circle(trimmed, part.to_id), "%s keeps no line with a removed endpoint (%s)" % [id, part.id])
 			if ShipCatalog.get_ship(id).tier > tier: substituted += 1
-	h.check(substituted > 0, "the shim really does substitute higher-tier hulls somewhere (%d cases)" % substituted)
-	var untrimmed: ShipDefinition = ShipCatalog.get_ship(ShipCatalog.pick_enemy("enemy", "plasma", 1))
-	h.control("a substituted hull read without the tier cap", untrimmed.secondaries.size() > int(GameTuning.slots(1, untrimmed.role).secondary))
+	h.check(substituted > 0, "the band clamp really does substitute higher-tier hulls somewhere (%d cases)" % substituted)
+	var uncapped: ShipDefinition = ShipCatalog.get_ship(ShipGenerator.hull_id("enemy", "drone", "plasma", 1))
+	h.control("a substituted hull read without the tier cap", uncapped.secondaries.size() > int(GameTuning.slots(1, uncapped.role).secondary))
 
 	h.finish(self)
 

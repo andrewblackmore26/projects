@@ -10,17 +10,43 @@ Godot 4.7.2, typed GDScript. GameTuning owns the approved five-tier thresholds, 
 
 The UI saves pending offers, previous offers and an offer serial. Combat saves absorption and the selected hull/history. Regrowth asks the rules for a new offer, rather than automatically restoring a lost build.
 
-## Campaign state
+## Campaign state (v0.3, schema 4)
 
-`CampaignState.configure(is_demo)` starts fresh progression. Coordinates are `Vector2i`; serialized keys are canonical `"x,y"` strings. `sector_at(coord)` is read-only and generates a descriptor without populating the persistent map. Its fields include `id`, `coord`, `element`, Euclidean `distance`, `tier`, `kind`, `core_id`, `cleared`, `exits`, `encounter_seed`, `encounter_epoch`, `enemy_count`, `elite_count`, `resource_budget` and `ambient_budget`. Kinds are `origin`, `regular`, `core` and `demo_core`. `layer` and `leader_id` are compatibility aliases for floored distance and core identity.
+`CampaignState` is a **square Chebyshev lattice** (spec §11), not the v0.2 wedge/core world. Coordinates are `Vector2i`; serialized keys are canonical `"x,y"` strings via `coord_key`/`key_coord`/`valid_key`.
 
-`can_enter(from, to, light = 0)` returns `{allowed, reason}`. Only cardinal adjacency matters; it never checks a gate, tier, energy requirement or remaining opponent. `on_enter(coord)` updates the current node, discovery, region unlock and distance waypoint; it returns `{waypoint, checkpoint, unlocked}`. The UI must call it on actual entry, not when previewing map tiles.
+**Persistent fields** (survive death): `mode`, `world_seed`, `epoch`, `deaths`, `unlocked` (elements earned by absorbing their light, spec §8), `levels_completed`, `best_ring` (Dictionary level -> best ring reached), `story_flags`.
 
-`defeat_core(core_id)` records the objective as soon as its rival dies, even while regular opponents survive; `core_defeated` remains distinct from whole-node `cleared`. `clear_sector(coord)` records encounter completion and returns `{waypoint, checkpoint, core, leader, completed, demo_completed, unlocked}`. Core rewards are idempotent. `defeated_leaders` is retained as the persisted collection name but now stores the five element core IDs. No separate finale exists.
+**Per-life fields** (reset whenever `epoch` changes - on death OR on `travel_to_level`): `level`, `current_sector`, `discovered`, `ring_reached`, `boss_down`, and the node light-pool bookkeeping (`_node_state`, private).
 
-`checkpoints[coordinate_key]` stores `{tier, distance, source}` with source `distance` or `core`. `can_teleport(coord, current_tier)` allows jumps only from origin to an earned waypoint whose tier requirement is met. `known_cores()` returns `{id, element, coord, direction, beaten}` entries for eligible known elements; demo exposes only its Fire objective. `core_coordinate(element)` supplies its deterministic node.
+`level_seed()` mixes `(world_seed, epoch, level)`, so every life is a fresh, reproducible layout (spec §7 "a fresh seed every life"). `ring(coord)` is Chebyshev (`max(|x|,|y|)`); `tier_of(coord)` is `1 + ring/2` clamped to `GameTuning.MAX_TIER`; `in_bounds(coord)` is `ring(coord) <= level_radius()` (a bounded disc, `GameTuning.LEVEL_RADIUS` per level). `exits_of(coord)` and `boss_coord()` are pure functions of `level_seed()` and the coordinate (see the class doc comment in `campaign_state.gd` for the membrane construction and the boss-placement rule). `archetype_of(coord)` returns one of `transit`/`skirmish`/`dense`/`elite_lair`/`boss`; `element_of(coord)` returns one of the level's revealed elements, rolled per `ELEMENT_BLOCK_SIZE`x`ELEMENT_BLOCK_SIZE` block so territories read on a map.
 
-`on_death()` preserves seed, discoveries, waypoints, cores, unlocks and story progress, advances the encounter epoch and resets regular clear flags. `to_dict()` emits gameplay schema 3 and sparse progress, not a generated infinite map. `from_dict()` validates canonical coordinates and collection fields. `import_demo(profile)` preserves earned coordinates and compatible progression, recalculates full-map waypoint requirements and resets to origin.
+### `sector_at(coord, now = 0.0) -> Dictionary` (the descriptor contract)
+
+Pure and read-only — never mutates the profile, never populates a persistent map, and gives the same result regardless of call order. Keys:
+
+| Key | Meaning |
+|---|---|
+| `coord`, `id` | The coordinate and its canonical string key |
+| `in_bounds` | False beyond the level's perimeter (a sealed cell still gets a descriptor, with empty `exits`/`enemy_hulls`) |
+| `ring`, `tier` | Chebyshev ring and the ring-derived difficulty tier |
+| `element`, `archetype` | This node's rolled element and archetype |
+| `kind` | `origin`, `boss`, or `regular` |
+| `exits` | `Array[Vector2i]` of open cardinal directions (`Vector2i.UP/RIGHT/DOWN/LEFT`) |
+| `encounter_seed`, `encounter_epoch` | Deterministic RNG seed for the node's own local rolls, and the profile's current epoch (combat clears its sector cache whenever this changes) |
+| `pool_size`, `pool_remaining`, `resource_budget` | The node's light pool (spec §7): authored size, remaining after refill-since-last-visit, and the same remaining value combat reads as its economy budget |
+| `respawn_cooldown` | `GameTuning.ENEMY_RESPAWN_COOLDOWN` - enemies respawn on this cooldown; the pool does not follow (spec §7) |
+| `boss_down`, `cleared` | True only for the level's boss cell once its boss is beaten (a defeated boss never respawns; everything else always repopulates on return) |
+| `enemy_hulls`, `elite_hulls` | `Array[String]` of EXACT roster hull ids to spawn, named directly by the descriptor (see `ShipGenerator.hull_id`) - combat never guesses a hull from `(element, tier)` at spawn time |
+| `boss_hull` | The boss's exact roster hull id, only set when `kind == "boss"` |
+| `starter_pickups` | `Array[String]` of elements to drop at the origin, only set when `kind == "origin"` - always drawn from the level's own revealed prefix, never a hard-coded list |
+
+`can_enter(from, to, light = 0)` checks cardinal adjacency, `in_bounds(to)`, and that `to - from` is actually one of `exits_of(from)` - a sealed perimeter or a missing membrane both refuse entry. `on_enter(coord)` updates `current_sector`, `discovered` and `ring_reached`; it has no return value (no waypoint/unlock side effects - those are separate calls, below).
+
+`unlock_element(element, amount) -> bool` is the single place spec §8's "first time you absorb a light type" unlock happens; it returns true only on the call that newly unlocks it (`amount <= 0`, an unknown element, or an already-unlocked element all return false with no side effect). `complete_level() -> {level_completed, revealed_element, next_level}` is idempotent: call it every time a boss dies; it only fires `level_completed` and reveals the next element the first time a given level is finished, and always updates `best_ring`. `is_level_complete(level = current)` and `campaign_complete()` read `levels_completed`. `travel_to_level(new_level)` is a level-select jump: it is also an epoch change (fresh layout, spec preamble "the short inverted warp plays on death and on level travel").
+
+`node_pool_state(coord, now)` and `record_node_left(coord, now, remaining)` implement the light-pool refill (`GameTuning.NODE_POOL_REFILL_PER_MINUTE`), keyed by the campaign's own elapsed-seconds clock (never a wall clock, per lessons.md) so refill during time away from a node is deterministic and testable.
+
+`on_death()` preserves everything in the persistent list, advances `epoch`, and resets the per-life fields via `_reset_life()`. `to_dict()` emits gameplay schema 4. `from_dict()` migrates any schema `< 4` profile (including genuine v0.2 schema-3 saves) by keeping `deaths` and whitelisted `reboot_*` story flags and resetting everything else to a fresh campaign, per the approved preamble ("unlocks reset to Lightning"). `import_demo(profile)` is a P5a stopgap (full demo/dev mode plumbing is P5b): it carries over compatible fields and always starts at level 1, origin, epoch 0.
 
 ## Combat and presentation
 

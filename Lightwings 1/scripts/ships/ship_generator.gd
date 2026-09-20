@@ -78,28 +78,34 @@ static func build_ship(element: String, tier: int, is_player: bool = false, fami
 	if faction == "boss": return build_boss(element, tier)
 	return build_enemy("drone" if tier % 2 == 0 else "sentry", element, tier)
 
-## V02-ADAPTER: see ShipCatalog.pick_enemy. Returns "" (never a silent
-## nearest-tier substitute) when the combination has no roster entry at
-## all; the caller is responsible for treating "" as a hard error, so a
-## test can probe this without a push_error appearing in its own output.
-static func pick_enemy(faction: String, element: String, tier: int) -> String:
+## P5: deterministic (no search/fallback) resolver from a world descriptor's
+## (faction, kind, element, requested difficulty tier) onto the exact,
+## always-existing roster id. Each element is only authored across its
+## ELEMENT_TIER_BAND, so `tier` is clamped into that band -- a node whose
+## Chebyshev difficulty tier sits outside the band gets the nearer authored
+## hull and fights at the REQUESTED tier's HP/reward (set by the caller,
+## see combat_world.gd `_make_actor`) and slot budget (see
+## ShipCatalog.cap_to_tier), not the hull's own authored tier. This replaces
+## the old runtime "pick nearest, then trim" shim: the world descriptor now
+## names the hull directly, so this function never guesses or falls back --
+## an element/kind combination with no roster entry is a hard "" (the
+## caller must treat that as a bug, not silently substitute).
+static func hull_id(faction: String, kind: String, element: String, tier: int) -> String:
 	if not ELEMENT_TIER_BAND.has(element): return ""
 	var band: Dictionary = ELEMENT_TIER_BAND[element]
 	var lo: int = int(band.lo)
 	var hi: int = int(band.hi)
-	if faction == "boss":
-		return "boss_%s" % element
-	if faction == "elite":
-		return "elite_radial_%s_t%d" % [element, hi] if tier % 2 == 0 else "elite_irregular_%s_t%d" % [element, hi]
-	if faction == "enemy":
-		var candidates: Array[String] = ["enemy_drone_%s_t%d" % [element, lo], "enemy_drone_%s_t%d" % [element, hi], "enemy_sentry_%s_t%d" % [element, lo], "enemy_sentry_%s_t%d" % [element, hi], "enemy_chain_%s_t%d" % [element, hi]]
-		var candidate_tiers: Array[int] = [lo, hi, lo, hi, hi]
-		var best: String = candidates[0]
-		var best_delta: int = 999
-		for i: int in range(candidates.size()):
-			var delta: int = absi(candidate_tiers[i] - tier)
-			if delta < best_delta: best_delta = delta; best = candidates[i]
-		return best
+	match faction:
+		"boss": return "boss_%s" % element
+		"elite":
+			if kind not in ["radial", "irregular"]: return ""
+			return "elite_%s_%s_t%d" % [kind, element, hi]
+		"enemy":
+			if kind == "chain": return "enemy_chain_%s_t%d" % [element, hi]
+			if kind not in ["drone", "sentry"]: return ""
+			var midpoint: int = roundi(float(lo + hi) / 2.0)
+			var hull_tier: int = hi if tier >= midpoint else lo
+			return "enemy_%s_%s_t%d" % [kind, element, hull_tier]
 	return ""
 
 ## --- Shared helpers -----------------------------------------------------

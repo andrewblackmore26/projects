@@ -1,49 +1,72 @@
 class_name CampaignState
 extends RefCounted
+## v0.3 world model (spec §7, §8, §11). Replaces the v0.2 wedge/core world.
+##
+## Persistent across death: mode, world_seed, epoch, deaths, unlocked
+## (absorb-earned elements), levels_completed, best_ring (per level), story
+## flags.
+## Reset on an epoch change (death OR travelling to a different level):
+## current_sector, discovered, ring_reached, boss_down, and the per-life node
+## light-pool bookkeeping. `level` itself is only changed by `travel_to_level`;
+## dying does not change which level you are on.
+##
+## `epoch` increments on every epoch change, and `level_seed()` mixes
+## (world_seed, epoch, level), so every life is a fresh, reproducible layout
+## (spec §7 "a fresh seed every life"; §11 "deterministic hash of (level
+## seed, x, y)").
+##
+## Hash helpers (`level_seed`, `_parent_of`, `_pair_hash01`, `boss_coord`) are
+## ordinary INSTANCE methods, not static, precisely so a test can subclass
+## CampaignState and override exactly one of them to build a deliberate
+## mutant (see tests/world_generation_test.gd).
 
 const Tuning = preload("res://scripts/data/game_tuning.gd")
 const DEFAULT_CAMPAIGN = preload("res://content/campaign/default_campaign.tres")
 const DIRECTIONS: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
 const ELEMENTS: Array[String] = Tuning.ELEMENTS
-const GAMEPLAY_VERSION: int = 3
+const GAMEPLAY_VERSION: int = 4
+
+var mode: String = "campaign"
 var demo: bool = false
-var current_sector: Vector2i = Vector2i.ZERO
-var unlocked: Array = []
-var checkpoints: Dictionary = {}
-var defeated_leaders: Array = []
-var discovered: Array = []
-var deaths: int = 0
-var completed: bool = false
-var demo_completed: bool = false
-var cleared: Dictionary = {}
-var territories: Dictionary = {}
-var native_elements: Dictionary = {}
-var story_flags: Dictionary = {}
 var world_seed: int = DEFAULT_CAMPAIGN.campaign_seed
-var border_changes: Array = []
-var deepest_distance: int = 0
-var legacy_history: Dictionary = {}
+var epoch: int = 0
+var deaths: int = 0
+var unlocked: Array = []
+var levels_completed: Array = []
+var best_ring: Dictionary = {}
+var story_flags: Dictionary = {}
+
+var level: int = 1
+var current_sector: Vector2i = Vector2i.ZERO
+var discovered: Array = []
+var ring_reached: int = 0
+var boss_down: bool = false
+## Per-life node light-pool bookkeeping, keyed by coord_key. Cleared whenever
+## the epoch changes (a new layout has nothing to remember). Never touched by
+## sector_at() itself, which stays a pure read.
+var _node_state: Dictionary = {}
 
 func _init() -> void:
 	configure(false)
 
 func configure(is_demo: bool) -> void:
+	mode = "demo" if is_demo else "campaign"
 	demo = is_demo
-	current_sector = Vector2i.ZERO
-	unlocked = Array(Tuning.START_ELEMENTS).duplicate()
-	checkpoints.clear()
-	defeated_leaders.clear()
-	discovered = ["0,0"]
+	epoch = 0
 	deaths = 0
-	completed = false
-	demo_completed = false
-	cleared = {"0,0": true}
-	territories = {"0,0": "player"}
-	native_elements.clear()
-	story_flags.clear()
-	border_changes.clear()
-	deepest_distance = 0
-	legacy_history.clear()
+	unlocked = [ELEMENTS[0]]
+	levels_completed = []
+	best_ring = {}
+	story_flags = {}
+	level = 1
+	_reset_life()
+
+func _reset_life() -> void:
+	current_sector = Vector2i.ZERO
+	discovered = ["0,0"]
+	ring_reached = 0
+	boss_down = false
+	_node_state.clear()
 
 static func coord_key(coord: Vector2i) -> String:
 	return "%d,%d" % [coord.x, coord.y]
@@ -57,203 +80,348 @@ static func key_coord(key: String) -> Vector2i:
 	var pieces: PackedStringArray = key.split(",")
 	return Vector2i(int(pieces[0]), int(pieces[1]))
 
-static func distance_of(coord: Vector2i) -> float:
-	return Vector2(coord).length()
+## --- Pure geometry (Chebyshev world, spec §11) --------------------------
 
-static func layer_of(coord: Vector2i) -> int:
-	return floori(distance_of(coord))
+static func ring(coord: Vector2i) -> int:
+	return maxi(absi(coord.x), absi(coord.y))
 
-static func tier_at_distance(distance: float) -> int:
-	return mini(Tuning.MAX_TIER, 1 + floori(distance / Tuning.WAYPOINT_INTERVAL))
+static func _manhattan(coord: Vector2i) -> int:
+	return absi(coord.x) + absi(coord.y)
 
-func in_bounds(_coord: Vector2i) -> bool:
-	return true
+func level_radius() -> int:
+	return int(Tuning.LEVEL_RADIUS[clampi(level - 1, 0, Tuning.LEVEL_RADIUS.size() - 1)])
 
-func _region_elements() -> Array:
-	return Array(Tuning.START_ELEMENTS) if demo else Array(ELEMENTS)
+func in_bounds(coord: Vector2i) -> bool:
+	return ring(coord) <= level_radius()
 
-func _initial_element(coord: Vector2i) -> String:
-	var elements: Array = _region_elements()
-	var angle: float = fposmod(Vector2(coord).angle() + PI / elements.size(), TAU)
-	return str(elements[int(floor(angle / (TAU / elements.size()))) % elements.size()])
+func tier_of(coord: Vector2i) -> int:
+	return clampi(1 + ring(coord) / Tuning.RING_TIER_DIVISOR, 1, GameTuning.MAX_TIER)
 
-func core_coordinate(element: String) -> Vector2i:
-	var elements: Array = _region_elements()
-	var index: int = elements.find(element)
-	if index < 0: return Vector2i.ZERO
-	var angle: float = TAU * index / elements.size()
-	var radius: int = Tuning.CORE_DISTANCES[ELEMENTS.find(element)]
-	return Vector2i(roundi(cos(angle) * radius), roundi(sin(angle) * radius))
+## `level_seed` is the seam a mutant control overrides to prove the
+## fresh-seed-every-life check can fail (see tests/world_generation_test.gd).
+func level_seed() -> int:
+	return hash("%d:%d:%d" % [world_seed, epoch, level])
 
-func known_cores() -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	for element: String in unlocked:
-		if demo and element != "fire": continue
-		var coord: Vector2i = core_coordinate(element)
-		result.append({"id": element, "element": element, "coord": coord, "direction": Vector2(coord - current_sector).normalized(), "beaten": element in defeated_leaders})
+func _hash_cell(x: int, y: int, salt: String) -> int:
+	return absi(hash("%d:%d:%d:%s" % [level_seed(), x, y, salt]))
+
+## --- Membranes (pure function of level_seed, x, y; spec §11) ------------
+## Construction: every non-origin in-bounds cell names exactly one "parent"
+## neighbour whose Manhattan distance to the origin is strictly smaller (a
+## hash choice among the candidates); that edge is ALWAYS open, which makes
+## the origin structurally reachable from every cell without asserting it --
+## Manhattan distance strictly decreases along the parent chain, so it must
+## terminate at the origin. Any other edge opens independently when a hash of
+## the UNORDERED pair falls below EDGE_OPEN_PROBABILITY, which is what keeps
+## the edge symmetric (A->B and B->A always agree) without extra bookkeeping.
+
+func _parent_candidates(coord: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var d: int = _manhattan(coord)
+	for dir: Vector2i in DIRECTIONS:
+		var n: Vector2i = coord + dir
+		if _manhattan(n) < d: result.append(n)
 	return result
 
-func sector_at(coord: Vector2i) -> Dictionary:
-	var distance: float = distance_of(coord)
+## Overridable seam: a mutant that removes the parent term (e.g. always
+## returns Vector2i.ZERO regardless of adjacency, breaking the "strictly
+## closer" invariant) is expected to fail the BFS-reaches-everyone check.
+func _parent_of(coord: Vector2i) -> Vector2i:
+	if coord == Vector2i.ZERO: return coord
+	var candidates: Array[Vector2i] = _parent_candidates(coord)
+	if candidates.is_empty(): return Vector2i.ZERO
+	var choice: int = _hash_cell(coord.x, coord.y, "parent") % candidates.size()
+	return candidates[choice]
+
+## Overridable seam: a mutant that hashes the ORDERED pair (a,b) instead of a
+## canonical/sorted pair is expected to fail the exit-symmetry check.
+func _pair_hash01(a: Vector2i, b: Vector2i) -> float:
+	var lo: Vector2i = a
+	var hi: Vector2i = b
+	if hi.x < lo.x or (hi.x == lo.x and hi.y < lo.y):
+		lo = b
+		hi = a
+	var h: int = absi(hash("%d:%d:%d:%d:%d:edge" % [level_seed(), lo.x, lo.y, hi.x, hi.y]))
+	return float(h % 100000) / 100000.0
+
+func _is_edge_open(coord: Vector2i, neighbor: Vector2i) -> bool:
+	if not in_bounds(coord) or not in_bounds(neighbor): return false
+	if neighbor == _parent_of(coord) or coord == _parent_of(neighbor): return true
+	return _pair_hash01(coord, neighbor) < Tuning.EDGE_OPEN_PROBABILITY
+
+func exits_of(coord: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for dir: Vector2i in DIRECTIONS:
+		if _is_edge_open(coord, coord + dir): result.append(dir)
+	return result
+
+## --- The boss cell (spec §11: "sits on the perimeter... never a corner or
+## adjacent to an axis" -- those are the forced single-exit highways this
+## construction always produces). ----------------------------------------
+
+func _boss_candidates() -> Array[Vector2i]:
+	var r: int = level_radius()
+	var result: Array[Vector2i] = []
+	for x: int in range(-r, r + 1):
+		for y: int in range(-r, r + 1):
+			var coord: Vector2i = Vector2i(x, y)
+			if ring(coord) != r: continue
+			var ax: int = absi(x)
+			var ay: int = absi(y)
+			if ax == r and ay == r: continue # corner
+			var free: int = ay if ax == r else ax
+			if free <= 1: continue # on/adjacent to an axis
+			result.append(coord)
+	return result
+
+## Overridable seam: a mutant that biases this to ring R-1 is expected to
+## fail the boss-on-the-perimeter check.
+func boss_coord() -> Vector2i:
+	var candidates: Array[Vector2i] = _boss_candidates()
+	if candidates.is_empty(): return Vector2i(level_radius(), 0)
+	var choice: int = _hash_cell(0, 0, "boss") % candidates.size()
+	return candidates[choice]
+
+## --- Archetypes, elements, enemy population (spec §7, §11) --------------
+
+func archetype_of(coord: Vector2i) -> String:
+	if coord == boss_coord(): return "boss"
+	var band: int = clampi(ring(coord) / Tuning.RING_BAND_WIDTH, 0, Tuning.ARCHETYPE_TABLE.size() - 1)
+	var table: Dictionary = Tuning.ARCHETYPE_TABLE[band]
+	var roll: float = float(_hash_cell(coord.x, coord.y, "archetype") % 100000) / 100000.0
+	var cumulative: float = 0.0
+	for key: String in ["transit", "skirmish", "dense", "elite_lair"]:
+		cumulative += float(table.get(key, 0.0))
+		if roll < cumulative: return key
+	return "dense"
+
+static func _floor_div(value: int, divisor: int) -> int:
+	return int(floori(float(value) / float(divisor)))
+
+func _element_block(coord: Vector2i) -> Vector2i:
+	var size: int = Tuning.ELEMENT_BLOCK_SIZE
+	return Vector2i(_floor_div(coord.x, size), _floor_div(coord.y, size))
+
+func _revealed_elements() -> Array:
+	return Array(ELEMENTS).slice(0, clampi(level, 1, ELEMENTS.size()))
+
+func element_of(coord: Vector2i) -> String:
+	if coord == boss_coord(): return str(_revealed_elements()[-1])
+	var pool: Array = _revealed_elements()
+	if pool.size() <= 1: return str(pool[0])
+	var block: Vector2i = _element_block(coord)
+	var roll: float = float(_hash_cell(block.x, block.y, "element") % 100000) / 100000.0
+	if roll < Tuning.NEW_ELEMENT_WEIGHT: return str(pool[-1])
+	var pick: int = _hash_cell(block.x, block.y, "element2") % pool.size()
+	return str(pool[pick])
+
+func enemy_count_for(coord: Vector2i) -> int:
+	var archetype: String = archetype_of(coord)
+	var base: int = int(Tuning.ARCHETYPE_ENEMY_BASE.get(archetype, 2))
+	return maxi(0, base + ring(coord) / 3)
+
+func elite_chance_for(coord: Vector2i) -> float:
+	var archetype: String = archetype_of(coord)
+	var base: float = float(Tuning.ARCHETYPE_ELITE_BASE.get(archetype, 0.0))
+	return clampf(base + ring(coord) * 0.01, 0.0, 0.95)
+
+func pool_size_for(coord: Vector2i) -> int:
+	var archetype: String = archetype_of(coord)
+	var base: float = float(Tuning.ARCHETYPE_POOL_BASE.get(archetype, 100.0))
+	return int(roundi(base * (1.0 + ring(coord) * 0.06)))
+
+func _kinds_for(archetype: String) -> Array[String]:
+	match archetype:
+		"transit": return ["drone"]
+		"skirmish": return ["drone", "sentry"]
+		"dense": return ["drone", "sentry", "chain"]
+		_: return []
+
+func _enemy_hulls_for(coord: Vector2i, archetype: String, element: String, tier: int) -> Array[String]:
+	var kinds: Array[String] = _kinds_for(archetype)
+	if kinds.is_empty(): return []
+	var result: Array[String] = []
+	for i: int in range(enemy_count_for(coord)):
+		result.append(ShipGenerator.hull_id("enemy", kinds[i % kinds.size()], element, tier))
+	return result
+
+func _elite_hulls_for(coord: Vector2i, archetype: String, element: String, tier: int, roll: int) -> Array[String]:
+	if archetype == "elite_lair":
+		var kinds: Array[String] = ["radial", "irregular"]
+		return [ShipGenerator.hull_id("elite", kinds[roll % kinds.size()], element, tier)]
+	if float(roll % 100000) / 100000.0 < elite_chance_for(coord):
+		return [ShipGenerator.hull_id("elite", "radial" if roll % 2 == 0 else "irregular", element, tier)]
+	return []
+
+## --- Node pool / respawn bookkeeping (spec §7) ---------------------------
+## `now` is the campaign's own elapsed-seconds clock (caller-supplied, so this
+## stays deterministic and testable rather than reading a wall clock). Time
+## spent away from a node still refills its pool (spec: "refills slowly...
+## including time spent away" per the P5a brief); enemies themselves respawn
+## on a flat cooldown that does NOT wait on the pool (spec §7).
+
+func node_pool_state(coord: Vector2i, now: float) -> Dictionary:
+	var size: float = float(pool_size_for(coord))
 	var key: String = coord_key(coord)
-	var element: String = _initial_element(coord)
-	var tier: int = mini(3 if demo else Tuning.MAX_TIER, tier_at_distance(distance))
-	var core_id: String = ""
-	var elite_ring: bool = false
-	for candidate: String in _region_elements():
-		if demo and candidate != "fire": continue
-		var gap: float = Vector2(coord - core_coordinate(candidate)).length()
-		if gap == 0.0: core_id = candidate
-		elif gap <= 2.0: elite_ring = true
-	var roll: int = absi(hash("%d:%s:%d" % [world_seed, key, deaths]))
-	var elite_probability: float = 0.8 if elite_ring else clampf(0.04 + distance * 0.012, 0.04, 0.50)
-	var kind: String = "origin" if coord == Vector2i.ZERO else "regular"
-	if not core_id.is_empty(): kind = "demo_core" if demo else "core"
-	var result: Dictionary = {"coord": coord, "id": key, "element": element, "distance": distance, "layer": floori(distance), "tier": tier, "owner": "player" if cleared.has(key) else element, "kind": kind, "core_id": core_id, "leader_id": core_id, "cleared": bool(cleared.get(key, false)), "in_bounds": true, "boss_tier": tier, "encounter_seed": roll, "exits": DIRECTIONS.duplicate(), "elite_heavy": elite_ring, "elite_probability": elite_probability, "elite": float(roll % 10000) / 10000.0 < elite_probability, "enemy_count": mini(48, 4 + floori(distance * 0.65)), "roaming_rival": false, "mirror": false, "rival_element": element, "rival_tier": tier, "mirror_buff": ""}
-	result["elite_count"] = 2 if elite_ring else 1 if distance >= Tuning.WAYPOINT_INTERVAL and bool(result["elite"]) else 0
-	result["core_defeated"] = not core_id.is_empty() and core_id in defeated_leaders
-	result.merge(economy_profile(coord), true)
+	var stored: Dictionary = _node_state.get(key, {})
+	var remaining: float = float(stored.get("remaining", size))
+	var left_at: float = float(stored.get("left_at", now))
+	var elapsed: float = maxf(0.0, now - left_at)
+	var refilled: float = minf(size, remaining + size * (Tuning.NODE_POOL_REFILL_PER_MINUTE / 60.0) * elapsed)
+	return {"size": size, "remaining": refilled}
+
+func record_node_left(coord: Vector2i, now: float, remaining: float) -> void:
+	_node_state[coord_key(coord)] = {"remaining": maxf(0.0, remaining), "left_at": now}
+
+## --- The descriptor (spec §11 "generation is a deterministic hash of
+## (level seed, x, y)"; read-only, never mutates the profile) -------------
+
+func sector_at(coord: Vector2i, now: float = 0.0) -> Dictionary:
+	var key: String = coord_key(coord)
+	var bounded: bool = in_bounds(coord)
+	var archetype: String = archetype_of(coord) if bounded else ""
+	var element: String = element_of(coord) if bounded else ""
+	var tier: int = tier_of(coord) if bounded else 1
+	var kind: String = "origin" if coord == Vector2i.ZERO else ("boss" if archetype == "boss" else "regular")
+	var roll: int = _hash_cell(coord.x, coord.y, "encounter") % 1000000000
+	var pool: Dictionary = node_pool_state(coord, now)
+	var result: Dictionary = {
+		"coord": coord, "id": key, "in_bounds": bounded, "ring": ring(coord), "tier": tier,
+		"element": element, "archetype": archetype, "kind": kind,
+		"exits": exits_of(coord) if bounded else [],
+		"encounter_seed": roll, "encounter_epoch": epoch,
+		"pool_size": int(pool.size), "pool_remaining": pool.remaining,
+		"resource_budget": int(roundi(pool.remaining)),
+		"respawn_cooldown": Tuning.ENEMY_RESPAWN_COOLDOWN,
+		"boss_down": boss_down if kind == "boss" else false,
+		"cleared": boss_down if kind == "boss" else false,
+		"enemy_hulls": [], "elite_hulls": [], "boss_hull": "",
+		"starter_pickups": [],
+	}
+	if not bounded: return result
+	if kind == "origin":
+		var starter_element: String = str(_revealed_elements()[-1])
+		result["starter_pickups"] = [starter_element, starter_element, starter_element]
+		return result
+	result["enemy_hulls"] = _enemy_hulls_for(coord, archetype, element, tier)
+	result["elite_hulls"] = _elite_hulls_for(coord, archetype, element, tier, roll)
+	if kind == "boss":
+		result["boss_hull"] = ShipGenerator.hull_id("boss", "boss", element, tier)
 	return result
+
+## --- Mutating world/travel API -------------------------------------------
 
 func can_enter(from: Vector2i, to: Vector2i, _light: float = 0) -> Dictionary:
 	var adjacent: bool = absi(from.x - to.x) + absi(from.y - to.y) == 1
-	return {"allowed": adjacent, "reason": "" if adjacent else "Nodes must share an edge"}
-
-func on_enter(coord: Vector2i) -> Dictionary:
-	current_sector = coord
-	discover(coord)
-	var event: Dictionary = {"waypoint": false, "checkpoint": false, "unlocked": ""}
-	var element: String = _initial_element(coord)
-	if element not in unlocked:
-		unlocked.append(element)
-		event["unlocked"] = element
-	var distance: int = layer_of(coord)
-	var previous_band: int = floori(float(deepest_distance) / Tuning.WAYPOINT_INTERVAL)
-	deepest_distance = maxi(deepest_distance, distance)
-	if floori(float(distance) / Tuning.WAYPOINT_INTERVAL) > previous_band:
-		_add_waypoint(coord, "distance")
-		event["waypoint"] = true
-		event["checkpoint"] = true
-	return event
-
-func _add_waypoint(coord: Vector2i, source: String) -> void:
-	checkpoints[coord_key(coord)] = {"tier": mini(3 if demo else Tuning.MAX_TIER, tier_at_distance(distance_of(coord))), "distance": distance_of(coord), "source": source}
-
-func clear_sector(coord: Vector2i) -> Dictionary:
-	var event: Dictionary = {"checkpoint": false, "waypoint": false, "unlocked": "", "leader": "", "core": "", "completed": false, "demo_completed": false}
-	var key: String = coord_key(coord)
-	if bool(cleared.get(key, false)): return event
-	var data: Dictionary = sector_at(coord)
-	cleared[key] = true
-	territories[key] = "player"
-	discover(coord)
-	var core_id: String = str(data["core_id"])
-	if not core_id.is_empty(): event = defeat_core(core_id)
-	return event
-
-## Core death is an objective event, independent of surviving node opponents.
-func defeat_core(core_id: String) -> Dictionary:
-	var event: Dictionary = {"checkpoint": false, "waypoint": false, "unlocked": "", "leader": "", "core": "", "completed": false, "demo_completed": false}
-	if core_id not in ELEMENTS or core_id in defeated_leaders or (demo and core_id != "fire"): return event
-	var coord: Vector2i = core_coordinate(core_id)
-	defeated_leaders.append(core_id)
-	discover(coord)
-	_add_waypoint(coord, "core")
-	event.merge({"waypoint": true, "checkpoint": true, "leader": core_id, "core": core_id}, true)
-	story_flags["core_" + core_id] = true
-	if demo:
-		demo_completed = true
-		event["demo_completed"] = true
-	elif defeated_leaders.size() == ELEMENTS.size():
-		completed = true
-		event["completed"] = true
-	return event
+	if not adjacent: return {"allowed": false, "reason": "Nodes must share an edge"}
+	if not in_bounds(to): return {"allowed": false, "reason": "The perimeter is sealed"}
+	var direction: Vector2i = to - from
+	return {"allowed": direction in exits_of(from), "reason": "" if direction in exits_of(from) else "No membrane in that direction"}
 
 func discover(coord: Vector2i) -> void:
 	var key: String = coord_key(coord)
 	if key not in discovered: discovered.append(key)
 
-func can_teleport(coord: Vector2i, current_tier: int) -> bool:
-	var waypoint: Dictionary = checkpoints.get(coord_key(coord), {})
-	return current_sector == Vector2i.ZERO and not waypoint.is_empty() and current_tier >= int(waypoint.get("tier", Tuning.MAX_TIER))
+func on_enter(coord: Vector2i) -> void:
+	current_sector = coord
+	discover(coord)
+	ring_reached = maxi(ring_reached, ring(coord))
 
-func highest_checkpoint_threshold() -> int:
-	var tier: int = 1
-	for waypoint: Dictionary in checkpoints.values(): tier = maxi(tier, int(waypoint.get("tier", 1)))
-	return int(Tuning.THRESHOLDS[tier - 2]) if tier > 1 else 0
+## First absorption of a light type unlocks its branch permanently (spec §8).
+## Returns true only when this call is the one that newly unlocks it.
+func unlock_element(element: String, amount: float = 1.0) -> bool:
+	if amount <= 0.0: return false
+	if element not in ELEMENTS: return false
+	if element in unlocked: return false
+	unlocked.append(element)
+	return true
 
-func economy_profile(coord: Vector2i) -> Dictionary:
-	var distance: float = distance_of(coord)
-	var recovery: float = clampf(float(highest_checkpoint_threshold()) / 150.0, 1.0, 5.0) if deaths > 0 and distance <= Tuning.WAYPOINT_INTERVAL else 1.0
-	var budget: int = 30 if coord == Vector2i.ZERO else roundi((100.0 + minf(distance, 40.0) * 40.0) * recovery)
-	return {"energy_budget": budget, "resource_budget": budget, "recovery_multiplier": recovery, "encounter_epoch": deaths, "ambient_budget": 30 if coord == Vector2i.ZERO else mini(20, roundi(budget * 0.1)), "renewable": true}
+## Beating the level's boss completes the level (spec §11) and reveals the
+## next level's element into the pool. Idempotent: calling this again after
+## the level is already recorded complete changes nothing but boss_down.
+func complete_level() -> Dictionary:
+	var event: Dictionary = {"level_completed": false, "revealed_element": "", "next_level": level}
+	boss_down = true
+	best_ring[level] = maxi(int(best_ring.get(level, 0)), ring_reached)
+	if level not in levels_completed:
+		levels_completed.append(level)
+		event.level_completed = true
+		if level < Tuning.LEVEL_RADIUS.size():
+			event.revealed_element = str(ELEMENTS[level])
+			event.next_level = level + 1
+	return event
+
+func is_level_complete(target_level: int = -1) -> bool:
+	return (level if target_level < 0 else target_level) in levels_completed
+
+func campaign_complete() -> bool:
+	return levels_completed.size() >= Tuning.LEVEL_RADIUS.size()
+
+## Travelling to a different level is an epoch change (spec: "a fresh seed
+## every life" applies on level travel too, per the P5a brief).
+func travel_to_level(new_level: int) -> void:
+	level = clampi(new_level, 1, Tuning.LEVEL_RADIUS.size())
+	epoch += 1
+	_reset_life()
 
 func on_death() -> void:
 	deaths += 1
-	current_sector = Vector2i.ZERO
+	epoch += 1
 	story_flags["reboot_%d" % deaths] = true
-	_reset_encounter_clears()
+	_reset_life()
 
-func _reset_encounter_clears() -> void:
-	cleared = {"0,0": true}
-	territories = {"0,0": "player"}
-
-func radiation_icons(_center: Vector2i, _player_tier: int) -> Array[Dictionary]:
-	return []
-
+## P5a stopgap (full demo-import semantics are ModeConfig/P5b territory,
+## per tasks/todo.md "ModeConfig rows campaign / dev / demo"): carries
+## compatible progress into a fresh full-campaign profile and always starts
+## at level 1, origin, epoch 0 -- a demo import is not itself a life, so it
+## should not need to look like a fresh death.
 func import_demo(data: Dictionary) -> void:
 	from_dict(data)
 	demo = false
-	current_sector = Vector2i.ZERO
-	_reset_encounter_clears()
-	# Coordinates remain valid in the full grid. Recompute their tier requirement
-	# against the full curve while preserving earned discoveries and waypoints.
-	for key: String in checkpoints.keys():
-		_add_waypoint(key_coord(key), str(checkpoints[key]["source"]))
-	if "fire" in defeated_leaders:
-		var coord: Vector2i = core_coordinate("fire")
-		discover(coord)
-		_add_waypoint(coord, "core")
+	mode = "campaign"
+	level = 1
+	epoch = 0
+	_reset_life()
 
 func to_dict() -> Dictionary:
-	return {"schema_version": GAMEPLAY_VERSION, "demo": demo, "current_sector": coord_key(current_sector), "unlocked": unlocked.duplicate(), "checkpoints": checkpoints.duplicate(true), "defeated_leaders": defeated_leaders.duplicate(), "discovered": discovered.duplicate(), "deaths": deaths, "completed": completed, "demo_completed": demo_completed, "cleared": cleared.duplicate(true), "story_flags": story_flags.duplicate(true), "world_seed": world_seed, "deepest_distance": deepest_distance, "legacy_history": legacy_history.duplicate(true)}
+	return {
+		"schema_version": GAMEPLAY_VERSION, "mode": mode, "demo": demo, "world_seed": world_seed,
+		"epoch": epoch, "deaths": deaths, "unlocked": unlocked.duplicate(),
+		"levels_completed": levels_completed.duplicate(), "best_ring": best_ring.duplicate(true),
+		"story_flags": story_flags.duplicate(true), "level": level,
+		"current_sector": coord_key(current_sector), "discovered": discovered.duplicate(),
+		"ring_reached": ring_reached, "boss_down": boss_down,
+	}
 
 func from_dict(data: Dictionary) -> void:
 	configure(bool(data.get("demo", false)))
-	world_seed = int(data.get("world_seed", DEFAULT_CAMPAIGN.campaign_seed))
-	deaths = maxi(0, int(data.get("deaths", 0)))
-	for element: Variant in _array_field(data, "unlocked"):
-		if element in _region_elements() and element not in unlocked: unlocked.append(element)
 	if int(data.get("schema_version", 1)) < GAMEPLAY_VERSION:
+		# Pre-v4 (wedge/core) saves have no equivalent world state. Their
+		# bytes are archived untouched by SaveService; here we only carry
+		# forward what still means something: deaths and whitelisted story
+		# flags. Unlocks reset to the starting element (approved preamble:
+		# "v0.2 (schema 3) saves: unlocks reset to Lightning").
+		deaths = maxi(0, int(data.get("deaths", 0)))
 		var old_story: Dictionary = _dictionary_field(data, "story_flags")
 		for flag: String in old_story:
-			if flag.begins_with("reboot_") or flag in ["first_evolution", "first_regression", "first_elite"]:
-				story_flags[flag] = bool(old_story[flag])
-		legacy_history = {"defeated_leaders": _array_field(data, "defeated_leaders").duplicate(), "completed": bool(data.get("completed", false)), "story_flags": old_story.duplicate(true)}
+			if flag.begins_with("reboot_"): story_flags[flag] = bool(old_story[flag])
 		return
+	mode = str(data.get("mode", "campaign"))
+	world_seed = int(data.get("world_seed", DEFAULT_CAMPAIGN.campaign_seed))
+	epoch = maxi(0, int(data.get("epoch", 0)))
+	deaths = maxi(0, int(data.get("deaths", 0)))
+	for element: Variant in _array_field(data, "unlocked"):
+		if element in ELEMENTS and element not in unlocked: unlocked.append(element)
+	for entry: Variant in _array_field(data, "levels_completed"):
+		if entry is int or (entry is float): levels_completed.append(int(entry))
+	best_ring = _dictionary_field(data, "best_ring").duplicate(true)
 	story_flags = _dictionary_field(data, "story_flags").duplicate(true)
+	level = clampi(int(data.get("level", 1)), 1, Tuning.LEVEL_RADIUS.size())
 	current_sector = key_coord(str(data.get("current_sector", "0,0")))
-	deepest_distance = maxi(0, int(data.get("deepest_distance", 0)))
 	for key: Variant in _array_field(data, "discovered"):
 		if key is String and valid_key(key) and key not in discovered: discovered.append(key)
-	for key: String in _dictionary_field(data, "cleared"):
-		if valid_key(key) and data["cleared"][key] == true:
-			cleared[key] = true
-			territories[key] = "player"
-	for key: String in _dictionary_field(data, "checkpoints"):
-		var value: Variant = data["checkpoints"][key]
-		if valid_key(key) and value is Dictionary and str(value.get("source", "")) in ["distance", "core"]:
-			_add_waypoint(key_coord(key), str(value["source"]))
-	for element: Variant in _array_field(data, "defeated_leaders"):
-		if element in _region_elements() and element not in defeated_leaders: defeated_leaders.append(element)
-	for element: String in _region_elements():
-		var key: String = coord_key(core_coordinate(element))
-		if element not in defeated_leaders and str(sector_at(key_coord(key))["kind"]) in ["core", "demo_core"]:
-			cleared.erase(key)
-			territories.erase(key)
-	completed = not demo and defeated_leaders.size() == ELEMENTS.size()
-	demo_completed = "fire" in defeated_leaders if demo else bool(data.get("demo_completed", false))
-	legacy_history = _dictionary_field(data, "legacy_history").duplicate(true)
+	ring_reached = maxi(0, int(data.get("ring_reached", 0)))
+	boss_down = bool(data.get("boss_down", false))
 
 static func _array_field(data: Dictionary, key: String) -> Array:
 	return data[key] if data.get(key) is Array else []

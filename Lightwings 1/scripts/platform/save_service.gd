@@ -151,10 +151,16 @@ static func decode_snapshot(bytes: PackedByteArray) -> Dictionary:
 		return {}
 	return _validate_snapshot(snapshot)
 
+## Highest CampaignState gameplay schema this build understands (P5: v0.3
+## world model bumped CampaignState.GAMEPLAY_VERSION 3 -> 4). Kept as a
+## literal, not a preload of campaign_state.gd, to avoid a load-order cycle;
+## bump this whenever GAMEPLAY_VERSION moves.
+const MAX_KNOWN_GAMEPLAY_SCHEMA: int = 4
+
 static func _validate_snapshot(snapshot: Dictionary) -> Dictionary:
 	if not snapshot.get("profile") is Dictionary or not snapshot.get("run") is Dictionary:
 		return {}
-	if int(snapshot["profile"].get("schema_version", 1)) > 3:
+	if int(snapshot["profile"].get("schema_version", 1)) > MAX_KNOWN_GAMEPLAY_SCHEMA:
 		return {}
 	return {"profile": snapshot["profile"].duplicate(true), "run": snapshot["run"].duplicate(true)}
 

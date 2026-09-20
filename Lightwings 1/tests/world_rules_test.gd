@@ -24,77 +24,56 @@ func _test_world() -> void:
 	var first: CampaignState = Campaign.new()
 	var second: CampaignState = Campaign.new()
 	var initial: Dictionary = first.to_dict()
-	for coord: Vector2i in [Vector2i(10000, -2400), Vector2i(-31, 12), Vector2i(4, 17), Vector2i.ZERO]:
+	for coord: Vector2i in [Vector2i(3, -2), Vector2i(-4, 1), Vector2i(0, 5), Vector2i.ZERO]:
 		var descriptor: Dictionary = first.sector_at(coord)
 		expect(descriptor == second.sector_at(coord), "Seed and coordinate determine node independent of exploration")
-		expect(descriptor.tier >= 1 and descriptor.tier <= GameTuning.MAX_TIER, "Distance tier stays within supported roster")
-		for direction: Vector2i in Campaign.DIRECTIONS:
-			expect(first.can_enter(coord, coord + direction, 0).allowed and first.can_enter(coord + direction, coord, 0).allowed, "Every cardinal exit is reciprocal and has no resource gate")
+		expect(descriptor.tier >= 1 and descriptor.tier <= GameTuning.MAX_TIER, "Ring-derived tier stays within supported roster")
 	expect(first.to_dict() == initial, "Reading procedural nodes does not inflate profile")
-	expect(not first.can_enter(Vector2i.ZERO, Vector2i.ONE, 1500).allowed, "Travel requires an actual neighboring exit")
-	expect(first.sector_at(Vector2i(36,0)).tier == GameTuning.MAX_TIER and first.sector_at(Vector2i(36,0)).enemy_count > first.sector_at(Vector2i(1,0)).enemy_count, "Outward travel increases capped tier and population")
-	var core_ids: Array = []
-	for element: String in Campaign.ELEMENTS:
-		var coord: Vector2i = first.core_coordinate(element)
-		var node: Dictionary = first.sector_at(coord)
-		core_ids.append(node.core_id)
-		expect(node.kind == "core" and node.element == element and node.core_id == element, "Each core is placed within its own angular region")
-		expect(absf(Campaign.distance_of(coord) - GameTuning.CORE_DISTANCES[Campaign.ELEMENTS.find(element)]) <= 0.71, "Core rounding stays within one cell of configured radius")
-		expect(first.sector_at(coord + Vector2i.RIGHT).elite_heavy, "Elite-heavy neighborhood surrounds each core")
-		expect(first.can_enter(coord, coord + Vector2i.UP, 0).allowed, "An undefeated core never traps the player")
-	expect(core_ids.size() == 5, "Five distinct core objectives replace gates and finale")
-	expect(first.radiation_icons(Vector2i.ZERO, 1).is_empty(), "Unknown node threat is not exposed by legacy radar")
+	expect(not first.can_enter(Vector2i.ZERO, Vector2i.ONE, 0).allowed, "Travel requires an actual cardinal edge")
+	expect(first.sector_at(Vector2i(6, 0)).tier >= first.sector_at(Vector2i(1, 0)).tier, "Outward travel does not decrease difficulty tier")
+	expect(not first.in_bounds(Vector2i(7, 0)) and first.in_bounds(Vector2i(6, 0)), "L1's bounded disc is exactly radius 6 (spec preamble)")
 	expect(Campaign.valid_key("-10,24") and not Campaign.valid_key("01,0") and not Campaign.valid_key("garbage"), "Coordinate persistence uses canonical signed integer keys")
+	expect(Campaign.ring(Vector2i(-4, 3)) == 4, "Ring is Chebyshev distance, not Euclidean")
+	var boss: Vector2i = first.boss_coord()
+	expect(Campaign.ring(boss) == first.level_radius(), "Boss sits on the level's perimeter ring")
+	expect(first.exits_of(boss).size() >= 1, "The boss node is never sealed shut on every side")
 
 func _test_progression() -> void:
 	var campaign: CampaignState = Campaign.new()
-	expect(campaign.unlocked == ["fire", "corruption", "plasma"], "Three launch elements are immediately eligible")
-	for element: String in ["lightning", "void"]:
-		var event: Dictionary = campaign.on_enter(campaign.core_coordinate(element))
-		expect(event.unlocked == element and element in campaign.unlocked, "Entering a new region unlocks its element immediately")
-		var repeat: Dictionary = campaign.on_enter(campaign.current_sector)
-		expect(repeat.unlocked == "", "Returning to region cannot duplicate its unlock")
-	campaign.configure(false)
-	for x: int in range(1, 13):
-		var event: Dictionary = campaign.on_enter(Vector2i(x,0))
-		expect(bool(event.waypoint) == (x == 6 or x == 12), "Distance waypoints occur once per six-node milestone")
-	expect(campaign.checkpoints["6,0"].tier == 2 and campaign.checkpoints["12,0"].tier == 3, "Waypoint requirement follows distance threat tier")
-	expect(not campaign.can_teleport(Vector2i(6,0),5), "Waypoint jumping is only available from origin")
+	expect(campaign.unlocked == [GameTuning.ELEMENTS[0]], "Campaign starts with only Lightning unlocked (spec §8)")
+	expect(not campaign.unlock_element("fire", 0.0), "A zero-amount absorption never unlocks")
+	expect(campaign.unlock_element("fire", 5.0) and "fire" in campaign.unlocked, "Absorbing an element's light unlocks its branch")
+	expect(not campaign.unlock_element("fire", 5.0), "Re-absorbing an already-unlocked element reports no new unlock")
+	expect(not campaign.unlock_element("not_an_element", 5.0), "An unknown element token never unlocks anything")
 	var seed_value: int = campaign.world_seed
+	var epoch_before: int = campaign.epoch
 	campaign.on_death()
 	expect(campaign.world_seed == seed_value and campaign.current_sector == Vector2i.ZERO and campaign.deaths == 1, "Reboot preserves seed and resets to origin")
-	expect(not campaign.can_teleport(Vector2i(6,0),1) and campaign.can_teleport(Vector2i(6,0),2), "Waypoint tier requirement is enforced at equality without spending progress")
-	for element: String in Campaign.ELEMENTS:
-		var coord: Vector2i = campaign.core_coordinate(element)
-		var event: Dictionary = campaign.clear_sector(coord)
-		expect(event.core == element and event.waypoint and campaign.checkpoints.has(Campaign.coord_key(coord)), "Core victory awards persistent waypoint")
-		expect(campaign.clear_sector(coord).core == "", "Repeated clear never repeats core reward")
-	expect(campaign.completed and campaign.defeated_leaders.size() == 5, "Only all five cores finish the full campaign")
-	var saved: Dictionary = campaign.to_dict()
+	expect(campaign.epoch == epoch_before + 1, "Death advances the epoch, which changes level_seed (spec: a fresh seed every life)")
+	expect("fire" in campaign.unlocked, "Reboot preserves earned unlocks")
+	var travelled: CampaignState = Campaign.new()
+	var epoch_travel: int = travelled.epoch
+	travelled.travel_to_level(2)
+	expect(travelled.level == 2 and travelled.epoch == epoch_travel + 1 and travelled.current_sector == Vector2i.ZERO, "Travelling to a level is also an epoch change (fresh layout, spec preamble)")
+	var boss_campaign: CampaignState = Campaign.new()
+	var boss: Vector2i = boss_campaign.boss_coord()
+	boss_campaign.on_enter(boss)
+	var result: Dictionary = boss_campaign.complete_level()
+	expect(result.level_completed and result.revealed_element == "fire" and boss_campaign.is_level_complete(1), "Beating level 1's boss completes it and reveals Fire (spec §8 table)")
+	var repeat: Dictionary = boss_campaign.complete_level()
+	expect(not repeat.level_completed, "complete_level is idempotent")
+	expect(boss_campaign.best_ring.get(1, 0) == Campaign.ring(boss), "Best ring records how far the run reached before the boss")
+	expect(not boss_campaign.campaign_complete(), "One level does not finish the five-level campaign")
+	var saved: Dictionary = boss_campaign.to_dict()
 	var restored: CampaignState = Campaign.new()
 	restored.from_dict(saved)
 	expect(restored.to_dict() == saved, "New campaign round-trip preserves every serialized field")
-	var unfinished: CampaignState = Campaign.new()
-	var fire_coord: Vector2i = unfinished.core_coordinate("fire")
-	var victory: Dictionary = unfinished.defeat_core("fire")
-	expect(victory.core == "fire" and unfinished.sector_at(fire_coord).core_defeated and not unfinished.sector_at(fire_coord).cleared,"Defeating a rival credits core before remaining enemies are cleared")
-	var continued: CampaignState = Campaign.new()
-	continued.from_dict(unfinished.to_dict())
-	expect(continued.sector_at(fire_coord).core_defeated and not continued.sector_at(fire_coord).cleared,"Saving an unfinished core fight preserves objective and encounter distinction")
-	expect(continued.clear_sector(fire_coord).core == "" and continued.sector_at(fire_coord).cleared,"Subsequent full clear does not repeat the objective reward")
-	continued.on_death()
-	expect(continued.sector_at(fire_coord).core_defeated and not continued.sector_at(fire_coord).cleared,"Reboot refreshes soldiers without resurrecting the beaten rival core")
-	campaign.configure(true)
-	expect(campaign.sector_at(Vector2i(1000,0)).tier == 3, "Demo remains explorable while limiting tier")
-	for coord: Vector2i in [Vector2i(2,4),Vector2i(-12,-40),Vector2i(100,-9)]:
-		expect(campaign.sector_at(coord).element in GameTuning.START_ELEMENTS, "Demo has only its three supported regions")
-	campaign.clear_sector(campaign.core_coordinate("fire"))
-	expect(campaign.demo_completed and not campaign.completed, "Demo finishes at Fire core at distance eight")
-	restored.import_demo(campaign.to_dict())
-	expect(not restored.demo and "fire" in restored.defeated_leaders and not restored.completed and restored.current_sector == Vector2i.ZERO, "Demo import credits Fire and starts safely on full map")
 	var malformed: CampaignState = Campaign.new()
-	malformed.from_dict({"schema_version":3,"unlocked":"bad","checkpoints":{"01,0":{},"1,0":40},"discovered":["bad",4],"current_sector":"bad"})
-	expect(malformed.checkpoints.is_empty() and malformed.current_sector == Vector2i.ZERO and malformed.discovered == ["0,0"], "Malformed collection records recover safely")
+	malformed.from_dict({"schema_version": 4, "unlocked": "bad", "discovered": ["bad", 4], "current_sector": "bad"})
+	expect(malformed.current_sector == Vector2i.ZERO and malformed.discovered == ["0,0"], "Malformed collection records recover safely")
+	var legacy: CampaignState = Campaign.new()
+	legacy.from_dict({"schema_version": 3, "deaths": 7, "unlocked": ["fire", "void"], "story_flags": {"reboot_3": true, "first_evolution": true}})
+	expect(legacy.deaths == 7 and legacy.unlocked == [GameTuning.ELEMENTS[0]] and legacy.story_flags.has("reboot_3") and not legacy.story_flags.has("first_evolution"), "Legacy (schema<4) saves keep deaths and reboot flags but reset unlocks to Lightning (approved preamble)")
 
 func _test_evolution() -> void:
 	expect([Rules.threshold(1),Rules.threshold(2),Rules.threshold(3),Rules.threshold(4),Rules.threshold(5),Rules.threshold(6)] == [100,250,500,900,1500,-1], "Six-tier light thresholds use central tuning")
@@ -102,8 +81,8 @@ func _test_evolution() -> void:
 	var first: Array[String] = Rules.offers("neutral",1,{"void":50,"plasma":30,"fire":20},unlocked,[],42)
 	expect(first.size() == 3 and ShipCatalog.get_ship(first[0]).element == "void" and ShipCatalog.get_ship(first[1]).element == "plasma" and ShipCatalog.get_ship(first[2]).element == "fire", "Seed evolution ranks three absorbed elements")
 	expect(first == Rules.offers("neutral",1,{"void":50,"plasma":30,"fire":20},unlocked,[],42), "Offer seed is reproducible")
-	var zero: Array[String] = Rules.offers("neutral",1,{},Array(GameTuning.START_ELEMENTS))
-	expect(zero.size() == 3, "Zero-diet first evolution still has three distinct starting elements")
+	var zero: Array[String] = Rules.offers("neutral",1,{},[GameTuning.ELEMENTS[0]])
+	expect(zero.size() == 3, "Zero-diet first evolution still has three distinct starting-element hulls")
 	# Fill rule (spec §8): fewer than three unlocked elements still offers three DISTINCT hulls.
 	for unlocked_count: int in [1,2,3,5]:
 		var pool: Array[String] = Array(GameTuning.ELEMENTS).slice(0, unlocked_count)
@@ -135,6 +114,13 @@ func _test_evolution() -> void:
 	expect(Rules.offers("fire",GameTuning.MAX_TIER,{},unlocked).is_empty(), "Terminal tier has no offer")
 
 func _test_saves() -> void:
+	# Note (P5a): full save schema-4 migration (SaveService's own envelope/
+	# legacy-archive behaviour) is unaffected by the CampaignState schema
+	# change - CampaignState.to_dict()/from_dict() are opaque Dictionaries to
+	# SaveService. This section keeps the generic envelope/atomicity/cloud
+	# behaviour and drops the v0.2-schema-specific migration assertions
+	# (checkpoints/core distances no longer exist to migrate); the real
+	# v3->v4 profile-migration test suite is P5b's "Save schema 4" item.
 	var previous_root: String = Saves.storage_root
 	Saves.storage_root = "user://world_v3_tests_%d" % Time.get_ticks_usec()
 	var campaign: CampaignState = Campaign.new()
@@ -148,16 +134,6 @@ func _test_saves() -> void:
 	corrupt.store_string("corrupt")
 	corrupt.close()
 	expect(Saves.load_snapshot().run == old_run and Saves.last_load_source.ends_with(".bak"), "Corrupt primary recovers verified prior save")
-	var legacy_profile: Dictionary = {"schema_version":2,"world_seed":33,"current_sector":"3,0","deaths":4,"unlocked":["fire","void"],"defeated_leaders":["void"],"completed":true,"story_flags":{"reboot_1":true,"veil_2_fire":true}}
-	Saves.save_snapshot(legacy_profile,{"combat":{"version":1,"energy":500,"stolen":["laser"]}},"legacy")
-	var original: PackedByteArray = FileAccess.get_file_as_bytes(Saves.snapshot_path("legacy"))
-	var migrated: Dictionary = Saves.load_snapshot("legacy")
-	expect(migrated.profile.schema_version == 3 and migrated.run.is_empty() and migrated.profile.current_sector == "0,0", "Legacy combat is reset to new origin run")
-	expect(migrated.profile.deaths == 4 and "void" in migrated.profile.unlocked and migrated.profile.defeated_leaders.is_empty() and not migrated.profile.completed, "Compatible legacy meta survives but new cores remain unbeaten")
-	expect(migrated.profile.story_flags.has("reboot_1") and not migrated.profile.story_flags.has("veil_2_fire") and migrated.profile.legacy_history.defeated_leaders == ["void"], "Story whitelist and historical victories remain distinct")
-	expect(FileAccess.get_file_as_bytes(Saves.snapshot_path("legacy") + ".legacy-v2") == original and FileAccess.get_file_as_bytes(Saves.snapshot_path("legacy")) == original, "Migration preserves exact legacy bytes without rewriting source")
-	Saves.save_snapshot(migrated.profile,migrated.run,"legacy")
-	expect(FileAccess.get_file_as_bytes(Saves.snapshot_path("legacy") + ".legacy-v2") == original, "Subsequent autosave never alters legacy archive")
 	expect(Saves.decode_snapshot('{"version":999,"profile":{},"run":{}}'.to_utf8_buffer()).is_empty(), "Future envelope rejects safely")
 	var envelope: Dictionary = JSON.parse_string(Saves.encode_snapshot({"profile":{},"run":{}}).get_string_from_utf8())
 	envelope.sha256 = "bad"
@@ -168,13 +144,6 @@ func _test_saves() -> void:
 	broken.close()
 	expect(Saves.load_snapshot("broken").is_empty() and not Saves.last_error.is_empty(), "Corrupt existing save is distinguishable from an absent campaign")
 	expect(Saves.load_snapshot("missing").is_empty() and Saves.last_error.is_empty(), "Missing save remains an ordinary new-game case")
-	var demo: CampaignState = Campaign.new()
-	demo.configure(true)
-	demo.clear_sector(demo.core_coordinate("fire"))
-	Saves.save_snapshot(demo.to_dict(),run,"demo")
-	expect(Saves.import_demo("broken") == ERR_FILE_CORRUPT and FileAccess.get_file_as_string(Saves.snapshot_path("broken")) == "invalid", "Demo import never treats a corrupt existing campaign as an empty destination")
-	expect(Saves.import_demo("imported") == OK and not Saves.load_snapshot("imported").profile.demo, "Demo import creates distinct full campaign")
-	expect(Saves.import_demo("imported") == ERR_ALREADY_EXISTS, "Demo import cannot overwrite progress")
 	var directory: DirAccess = DirAccess.open(Saves.storage_root)
 	if directory != null:
 		for filename: String in directory.get_files(): DirAccess.remove_absolute(Saves.storage_root.path_join(filename))

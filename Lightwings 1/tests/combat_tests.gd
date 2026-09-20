@@ -213,16 +213,26 @@ func test_components() -> void:
  release(w)
 func test_persistence() -> void:
  var w: CombatWorld=make_world()
- w.start_sector({"id":"origin","kind":"origin","cleared":true,"resource_budget":80,"encounter_epoch":0})
- check(w.pickups.size()==3,"Origin still supplies starter typed light when marked cleared")
- w.start_sector({"id":"a","kind":"regular","element":"fire","tier":1,"resource_budget":200,"encounter_epoch":0,"enemy_count":3})
+ w.start_sector({"id":"origin","kind":"origin","resource_budget":80,"encounter_epoch":0,"starter_pickups":["fire","corruption","plasma"]})
+ check(w.pickups.size()==3,"Origin descriptor names its own starter pickups (spec §8, replaces the old hard-coded three)")
+ var fire_drone: String=ShipGenerator.hull_id("enemy","drone","fire",2)
+ var plasma_drone: String=ShipGenerator.hull_id("enemy","drone","plasma",5)
+ w.start_sector({"id":"a","kind":"regular","element":"fire","tier":1,"resource_budget":200,"encounter_epoch":0,"enemy_hulls":[fire_drone,fire_drone,fire_drone]})
  w.debug_clear()
  var budget: int=w.sector_energy_remaining
  var remaining: int=w.pickups.size()
- w.start_sector({"id":"b","kind":"regular","element":"plasma","tier":1,"resource_budget":200,"encounter_epoch":0,"enemy_count":3})
+ w.start_sector({"id":"b","kind":"regular","element":"plasma","tier":1,"resource_budget":200,"encounter_epoch":0,"enemy_hulls":[plasma_drone,plasma_drone,plasma_drone]})
  w.elapsed+=10000
- w.start_sector({"id":"a","kind":"regular","element":"fire","tier":1,"resource_budget":200,"encounter_epoch":0,"enemy_count":3})
- check(w.enemies.is_empty() and w.sector_energy_remaining==budget and w.pickups.size()==remaining,"Same-life node return never respawns or replenishes")
+ # Retired (P5): "Same-life node return never respawns or replenishes" -
+ # v0.3 removes the permanent per-node `cleared` flag for regular nodes
+ # (spec §7: enemies respawn on a cooldown; a node is a losing strategy to
+ # camp, not a one-time clear). What DOES persist within one epoch, by the
+ # same cache mechanism that existed in v0.2 (`encounter_records`/
+ # `sector_cache`, keyed by descriptor id + encounter_epoch), is the exact
+ # state you LEFT the node in - a quick leave-and-return still finds your
+ # kills gone, not a full repopulation. That is what this now checks.
+ w.start_sector({"id":"a","kind":"regular","element":"fire","tier":1,"resource_budget":200,"encounter_epoch":0,"enemy_hulls":[fire_drone,fire_drone,fire_drone]})
+ check(w.enemies.is_empty() and w.sector_energy_remaining==budget and w.pickups.size()==remaining,"Leaving and returning within one epoch restores the exact state left behind (cache, not a fresh respawn)")
  w.setup_player("fire",4,750,[],Vector2(500,500))
  w.absorption={"plasma":12.5}
  w.player_invulnerable=1.234
@@ -303,16 +313,19 @@ func test_regular_patterns() -> void:
  w.command.movement=Vector2.LEFT
  for i: int in range(6): w._update_player(1.0/60.0)
  check(w.player.pos.x<w.arena.center.x-w.arena.radius,"Slowed ships can traverse membranes without getting trapped at collision margin")
- w.start_sector({"id":"beaten","kind":"core","core_defeated":true,"element":"fire","tier":5,"resource_budget":200,"enemy_count":2})
+ var fire_drone_hi: String=ShipGenerator.hull_id("enemy","drone","fire",5)
+ w.start_sector({"id":"beaten","kind":"boss","boss_down":true,"element":"fire","tier":5,"resource_budget":200,"enemy_hulls":[fire_drone_hi,fire_drone_hi],"boss_hull":"boss_fire"})
  var rivals: int=0
  for actor: Dictionary in w.enemies:
   if actor.rival: rivals+=1
- check(rivals==0 and w.enemies.size()>=2,"Beaten core does not respawn rival when soldiers repopulate after death")
+ check(rivals==0 and w.enemies.is_empty(),"A beaten boss node never respawns its rival, or anything else, on return")
  release(w)
 
 func test_cold_cache() -> void:
  var w: CombatWorld=make_world()
- var first: Dictionary={"id":"cold0","kind":"regular","element":"fire","tier":3,"resource_budget":600,"enemy_count":1,"elite_count":1,"encounter_epoch":0}
+ var fire_drone: String=ShipGenerator.hull_id("enemy","drone","fire",3)
+ var fire_elite: String=ShipGenerator.hull_id("elite","radial","fire",3)
+ var first: Dictionary={"id":"cold0","kind":"regular","element":"fire","tier":3,"resource_budget":600,"enemy_hulls":[fire_drone],"elite_hulls":[fire_elite],"encounter_epoch":0}
  w.start_sector(first)
  var elite: Dictionary=w.enemies[-1]
  w._damage_gun(elite,elite.guns[0],10000.0,w.player)
@@ -325,8 +338,9 @@ func test_cold_cache() -> void:
  w._flush_debris()
  var reward: int=w.sector_energy_remaining
  var pickups: int=w.pickups.size()
+ var filler_drone: String=ShipGenerator.hull_id("enemy","drone","fire",1)
  for i: int in range(1,42):
-  w.start_sector({"id":"cold%d" % i,"kind":"regular","element":"fire","tier":1,"resource_budget":100,"enemy_count":1,"elite_count":0,"encounter_epoch":0})
+  w.start_sector({"id":"cold%d" % i,"kind":"regular","element":"fire","tier":1,"resource_budget":100,"enemy_hulls":[filler_drone],"encounter_epoch":0})
  check(w.sector_cache.size()<=32 and not w.sector_cache.has("cold0"),"Decoded encounter cache is bounded and evicts older full records")
  check(w.encounter_records.has("cold0"),"Cold storage retains authoritative evicted encounter")
  var saved: Dictionary=JSON.parse_string(JSON.stringify(w.snapshot()))

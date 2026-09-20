@@ -87,28 +87,19 @@ static func make_ship(element: String, tier: int, is_player: bool = false, _lega
 	if is_player and tier == 1: return get_ship("player_seed")
 	if not element in ELEMENTS: element = "corruption"
 	if is_player: return get_ship("player_" + element + "_t" + str(tier) + "_standard_a")
-	return get_ship(pick_enemy("enemy", element, tier))
+	return get_ship(ShipGenerator.hull_id("enemy", "drone" if tier % 2 == 0 else "sentry", element, tier))
 
-## V02-ADAPTER: v0.2 built enemy/elite/rival hull ids by formula
-## ("enemy_%s_t%d", "elite_%s_t%d", "rival_%s_t5"). Those exact ids no
-## longer exist under the P2b-1 roster (archetype-first ids, banded tiers).
-## This maps (faction, element, tier) onto the nearest roster hull for that
-## archetype. It is a HARD ERROR (returns "", callers must treat a null
-## `get_ship` result as a bug) when the element/faction combination has no
-## roster entry at all - never a silent nearest-tier substitute that hides
-## a genuinely missing hull. Removed with the rest of the shim in P5.
-static func pick_enemy(faction: String, element: String, tier: int) -> String:
-	return ShipGenerator.pick_enemy(faction, element, tier)
-
-## V02-ADAPTER: each element is only authored across the tier band of the campaign level that
-## introduces it, so a v0.2 wedge sector asking for a low-tier hull of a late element is handed a
-## much higher-tier one. That hull carries the SLOT ALLOWANCE of its own tier, which made ring-1
-## corruption and plasma enemies fight several tiers above their reward and HP (measured: a tier-1
-## request fielded 2 mounts for corruption and 3 for plasma, against the 1 that GameTuning.slots
-## grants tier 1). Slots are a hard cap in this game; apply that cap to the substitute so a tier-N
-## enemy fights like tier N. Every dropped ability takes its mount circle and that circle's line
-## with it, because a visible circle must always be an ability or a stat. Removed with the shim in P5.
-static func trim_to_tier(ship: ShipDefinition, tier: int) -> ShipDefinition:
+## P5: a world descriptor names an exact hull by id, chosen from the element's
+## authored tier band (ShipGenerator.hull_id) rather than the enemy's own
+## Chebyshev difficulty tier. When the authored hull's tier is HIGHER than
+## the difficulty tier it is being fielded at, its slot allowance would let
+## it fight several tiers above its HP/reward (measured pre-fix: a tier-1
+## request fielded 2 mounts for corruption and 3 for plasma, against the 1
+## that GameTuning.slots grants tier 1). Slots are a hard cap in this game,
+## so cap the substitute to the REQUESTED tier's allowance. Every dropped
+## ability takes its mount circle and that circle's line with it, because a
+## visible circle must always be an ability or a stat (spec §17).
+static func cap_to_tier(ship: ShipDefinition, tier: int) -> ShipDefinition:
 	if ship == null or ship.tier <= tier: return ship
 	var limits: Dictionary = GameTuning.slots(tier, ship.role)
 	if ship.secondaries.size() <= int(limits.secondary) and ship.passives.size() <= int(limits.passive): return ship

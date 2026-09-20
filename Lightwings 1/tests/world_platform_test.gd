@@ -136,12 +136,12 @@ func _test_legacy_cloud() -> void:
 	api.cloud[Platform.CLOUD_FILE] = bytes
 	var original_local: PackedByteArray = FileAccess.get_file_as_bytes(Saves.snapshot_path())
 	var inspection: Dictionary = platform.inspect_cloud()
-	expect(inspection.state == "conflict" and inspection.remote.profile.schema_version == 3 and inspection.remote.profile.deaths == 7,"Cloud review compares compatible legacy progress")
+	expect(inspection.state == "conflict" and inspection.remote.profile.schema_version == 4 and inspection.remote.profile.deaths == 7,"Cloud review compares compatible legacy progress")
 	expect(inspection.remote_bytes == bytes and FileAccess.get_file_as_bytes(Saves.snapshot_path()) == original_local,"Cloud preview preserves reviewed original bytes and does not mutate local")
 	expect(platform.resolve_cloud("use_cloud","campaign",inspection.remote_bytes) == OK,"Legacy remote choice installs and archives reviewed bytes")
 	expect(FileAccess.get_file_as_bytes(Saves.snapshot_path()) == bytes and FileAccess.get_file_as_bytes(Saves.snapshot_path()+".legacy-v2") == bytes,"Legacy remote source and archive retain exact transport envelope")
 	var migrated: Dictionary = Saves.load_snapshot()
-	expect(migrated.profile.defeated_leaders.is_empty() and migrated.run.seen_lines == {"reboot_7":true},"Cloud migration retains compatible narrative but no obsolete core victories")
+	expect(migrated.profile.get("levels_completed",[]) == [] and migrated.profile.deaths == 7 and migrated.run.seen_lines == {"reboot_7":true},"Cloud migration retains compatible narrative (deaths, whitelisted flags) but no obsolete v0.2 core-victory progress")
 	expect(platform.inspect_cloud().state == "same","Resolved legacy cloud does not reopen the same conflict forever")
 	var other: Dictionary = legacy.duplicate(true)
 	other.profile.deaths = 8

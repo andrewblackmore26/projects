@@ -139,7 +139,7 @@ func _ready() -> void:
 		elif arg == "--show-combat-boss" and OS.has_feature("editor"):
 			_new_game(false)
 			combat.setup_player("fire",1,400,[],Vector2(896,900))
-			combat.start_sector({"id":"p4b_boss","kind":"core","element":"fire","tier":1,"resource_budget":200,"enemy_count":0})
+			combat.start_sector({"id":"p4b_boss","kind":"boss","element":"fire","tier":1,"resource_budget":200,"enemy_hulls":[],"boss_hull":"boss_fire"})
 			settings.auto_fire = true
 			line_queue.clear()
 
@@ -394,7 +394,7 @@ func _start_game_view() -> void:
 	combat.shot_fired.connect(_on_shot_fired)
 	combat.player_died.connect(_on_death)
 	combat.sector_cleared.connect(_on_sector_clear)
-	combat.rival_defeated.connect(_on_core_defeated)
+	combat.boss_defeated.connect(_on_boss_defeated)
 	combat.event_message.connect(_toast)
 	compositor = CombatCompositor.new()
 	add_child(compositor)
@@ -408,19 +408,16 @@ func _start_game_view() -> void:
 	apply_settings()
 
 func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> void:
-	var discovery: Dictionary = campaign.on_enter(coord)
-	var sector: Dictionary = campaign.sector_at(coord)
+	if is_instance_valid(combat) and not combat.sector.is_empty():
+		campaign.record_node_left(campaign.current_sector,combat.elapsed,float(combat.sector_energy_remaining))
+	campaign.on_enter(coord)
+	var sector: Dictionary = campaign.sector_at(coord,combat.elapsed if is_instance_valid(combat) else 0.0)
 	combat.player_position = spawn
 	combat.start_sector(sector)
 	dialogue.visible = false
 	dialogue_remaining = 0.0
-	var unlocked: String = str(discovery.get("unlocked",""))
-	if not unlocked.is_empty():
-		_queue_line("companion","A new dialect",unlocked.capitalize()+" light now belongs among your possible futures. Absorb it to change the hulls you are offered.","unlocked_"+unlocked)
-	if bool(discovery.get("waypoint",false)):
-		_queue_line("companion","A route remembers you","A waypoint is recorded. From the origin, the map can jump you here once your current tier meets its requirement.","waypoint_"+CampaignState.coord_key(coord))
-	if show_intro and str(sector.get("kind","")) in ["core","demo_core"] and not bool(sector.get("cleared",false)):
-		_queue_line(str(sector.element),"A rival signal",_entry_line(str(sector.element)),"core_intro_"+str(sector.element))
+	if show_intro and str(sector.get("kind","")) == "boss" and not bool(sector.get("boss_down",false)):
+		_queue_line(str(sector.element),"A rival signal",_entry_line(str(sector.element)),"boss_intro_"+str(sector.element))
 	if coord != Vector2i.ZERO:
 		_queue_line("companion","Direction and distance","Direction decides the light you find. Distance decides the danger. Every opening stays open; you can always retreat.","map_tutorial_v2")
 	for actor: Dictionary in combat.enemies:
@@ -547,7 +544,7 @@ func _refresh_hud() -> void:
 	tier_ticks.queue_redraw()
 	radar_overlay.queue_redraw()
 	slot_overlay.queue_redraw()
-	sector_label.text = "%s · NODE %s · DIST %.1f" % ["DEMO" if campaign.demo else "CAMPAIGN",CampaignState.coord_key(campaign.current_sector),Vector2(campaign.current_sector).length()]
+	sector_label.text = "%s · NODE %s · RING %d" % ["DEMO" if campaign.demo else "CAMPAIGN",CampaignState.coord_key(campaign.current_sector),CampaignState.ring(campaign.current_sector)]
 	absorbed = combat.absorption
 	var leading: Array = absorbed.keys()
 	leading.sort_custom(func(a: String,b: String) -> bool: return float(absorbed[a])>float(absorbed[b]))
@@ -574,8 +571,10 @@ func _ability_names(ids: Array) -> String:
 func _on_attack_performed(element: String, ability: String) -> void:
 	sound.play(element if ability == "fire" else "ability")
 
-func _on_energy(_element: String, amount: float) -> void:
+func _on_energy(element: String, amount: float) -> void:
 	absorbed = combat.absorption
+	if campaign.unlock_element(element,amount):
+		_queue_line("companion","A new dialect",element.capitalize()+" light now belongs among your possible futures. Absorb it to change the hulls you are offered.","unlocked_"+element)
 	if amount >= 5 or fmod(elapsed_ui,0.3)<0.04: sound.play("pickup")
 	if combat.light_total >= EvolutionRules.threshold(combat.player_tier) and combat.player_tier < mode_config.max_tier():
 		_queue_line("companion","Enough light to change","Press E or A to choose a complete new lightship. Its labelled weapons and passives are part of the hull. The choice follows the light you absorb.","first_threshold_v2")
@@ -595,32 +594,22 @@ func _on_rival_reward(_component: String, _offered_root: String) -> void:
 	# Legacy signal adapter: rival rewards are light only.
 	_achieve("FIRST_RIVAL")
 
-func _on_core_defeated(core_id: String) -> void:
-	if core_id.is_empty(): return
-	var result: Dictionary = campaign.defeat_core(core_id)
-	if not str(result.get("core","")).is_empty():
-		_queue_line(core_id,"A rival yields",_defeat_line(core_id),"defeat_v2_"+core_id)
-		_achieve("FIRST_RIVAL")
-	if bool(result.get("completed",false)):
-		_achieve("CAMPAIGN_COMPLETE")
-		_show_ending(false)
-	elif bool(result.get("demo_completed",false)): _show_ending(true)
+func _on_boss_defeated(element: String) -> void:
+	if element.is_empty(): return
+	var result: Dictionary = campaign.complete_level()
+	_queue_line(element,"A rival yields",_defeat_line(element),"defeat_v2_"+element)
+	_achieve("FIRST_RIVAL")
+	if bool(result.get("level_completed",false)):
+		if campaign.campaign_complete():
+			_achieve("CAMPAIGN_COMPLETE")
+			_show_ending(false)
+		else:
+			_show_ending(true)
 	_save_game()
 
 func _on_sector_clear() -> void:
-	var sector: Dictionary = campaign.sector_at(campaign.current_sector)
-	var result: Dictionary = campaign.clear_sector(campaign.current_sector)
 	sound.play("clear")
 	_toast("NODE CLEAR · "+CampaignState.coord_key(campaign.current_sector))
-	if str(sector.get("kind","")) in ["core","demo_core"]:
-		_queue_line(str(sector.element),"A rival yields",_defeat_line(str(sector.element)),"defeat_v2_"+str(sector.element))
-		_achieve("FIRST_RIVAL")
-	if bool(result.get("completed",false)):
-		if campaign.demo: _show_ending(true)
-		else:
-			_achieve("CAMPAIGN_COMPLETE")
-			_show_ending(false)
-	elif bool(result.get("demo_completed",false)): _show_ending(true)
 	_save_game()
 
 func _show_evolution() -> void:
@@ -668,6 +657,11 @@ func _choose_evolution(id: String) -> void:
 	_queue_line("companion","A different kind of you","Each visible part belongs to your new build. Follow another dialect's light when you want a different future.","first_evolution_v2")
 	_save_game()
 
+## NOTE (P5a): this is a minimal compiling stand-in for the map screen. The
+## real MinimapModel-backed map/level-select screen is P5b scope (see
+## tasks/todo.md P5); waypoints and teleport are gone per spec (§7: "a fresh
+## seed every life" -- layouts re-roll, so a remembered coordinate means
+## nothing once you die).
 func _show_map() -> void:
 	if mode != "play" or not is_instance_valid(combat) or (not overlay_kind.is_empty() and overlay_kind != "map"): return
 	if overlay_kind != "map": map_center = campaign.current_sector
@@ -682,10 +676,8 @@ func _show_map() -> void:
 			var coord: Vector2i = map_center+Vector2i(x,y)
 			var known: bool = _sector_known(coord)
 			var text: String = ""
-			if known:
-				var sector: Dictionary = campaign.sector_at(coord)
-				text = "◎" if str(sector.get("kind","")) in ["core","demo_core"] else ""
-				if campaign.checkpoints.has(CampaignState.coord_key(coord)): text = "○"
+			if known and coord == campaign.boss_coord() and campaign.in_bounds(coord): text = "◎"
+			if not campaign.in_bounds(coord): text = "▦"
 			if coord == Vector2i.ZERO: text = "O"
 			if coord == campaign.current_sector: text = "●"
 			var tile: Button = button(overlay,text,Rect2(origin+Vector2(x+radius,y+radius)*cell,Vector2(cell-4,cell-4)),_select_map_sector.bind(coord))
@@ -701,21 +693,7 @@ func _show_map() -> void:
 	button(overlay,"YOU",Rect2(469,675,90,36),func() -> void: map_center=campaign.current_sector; _show_map())
 	panel(overlay,Rect2(605,183,588,321),Color("0d1018"),Color("303a49"))
 	map_detail = label(overlay,"",Vector2(630,203),Vector2(536,201),17,WHITE)
-	teleport_button = button(overlay,"JUMP TO WAYPOINT",Rect2(630,434,536,47),_teleport_selected)
-	var waypoint_picker := OptionButton.new()
-	waypoint_picker.position = Vector2(630,519)
-	waypoint_picker.size = Vector2(536,40)
-	overlay.add_child(waypoint_picker)
-	waypoint_picker.add_item("Recorded waypoints")
-	var waypoint_coords: Array[Vector2i] = []
-	for key: String in campaign.checkpoints:
-		var coord: Vector2i = CampaignState.key_coord(key)
-		waypoint_coords.append(coord)
-		waypoint_picker.add_item("%s · distance %.1f" % [key,Vector2(coord).length()])
-	waypoint_picker.item_selected.connect(func(index: int) -> void:
-		if index>0: _select_map_sector(waypoint_coords[index-1])
-	)
-	label(overlay,"● You   ○ Waypoint   ◎ Core\nUnexplored nodes stay dark. All exits remain open.\nJump from the origin when your tier meets the destination's requirement.",Vector2(630,587),Vector2(536,98),15,MUTED)
+	label(overlay,"● You   ◎ Boss   ▦ Sealed perimeter\nUnexplored nodes stay dark. Layouts re-roll every life (spec §7).",Vector2(630,587),Vector2(536,98),15,MUTED)
 	button(overlay,"RETURN TO FLIGHT",Rect2(870,721,320,45),_close_overlay).grab_focus()
 	_select_map_sector(campaign.current_sector)
 
@@ -726,27 +704,18 @@ func _pan_map(offset: Vector2i) -> void:
 func _select_map_sector(coord: Vector2i) -> void:
 	map_selected = coord
 	map_detail.text = _sector_description(coord)
-	teleport_button.disabled = not campaign.can_teleport(coord,combat.player_tier)
-	teleport_button.text = "JUMP TO WAYPOINT" if campaign.current_sector == Vector2i.ZERO else "RETURN TO ORIGIN TO JUMP"
-
-func _teleport_selected() -> void:
-	if campaign.can_teleport(map_selected,combat.player_tier):
-		_close_overlay()
-		_enter_sector(map_selected,GameTuning.ARENA_CENTER,false)
-		sound.play("evolve")
 
 func _sector_description(coord: Vector2i) -> String:
+	if not campaign.in_bounds(coord): return "NODE %s\n\nSealed perimeter." % CampaignState.coord_key(coord)
 	if not _sector_known(coord): return "NODE %s\n\nUnexplored space." % CampaignState.coord_key(coord)
 	var sector: Dictionary = campaign.sector_at(coord)
-	var lines := PackedStringArray(["NODE %s · DISTANCE %.1f" % [CampaignState.coord_key(coord),Vector2(coord).length()]])
+	var lines := PackedStringArray(["NODE %s · RING %d" % [CampaignState.coord_key(coord),int(sector.get("ring",0))]])
 	lines.append("\nSAFE ORIGIN" if coord == Vector2i.ZERO else "\n%s · %s" % [str(sector.get("element","")).to_upper(),str(sector.get("kind","regular")).replace("_"," ").to_upper()])
-	if coord != Vector2i.ZERO: lines.append("Threat tier %d · exits always open" % int(sector.get("tier",1)))
-	if campaign.checkpoints.has(CampaignState.coord_key(coord)):
-		lines.append("Waypoint recorded · requires tier %d" % int(sector.get("tier",1)))
+	if coord != Vector2i.ZERO: lines.append("Threat tier %d" % int(sector.get("tier",1)))
 	return "\n".join(lines)
 
 func _sector_known(coord: Vector2i) -> bool:
-	return coord == Vector2i.ZERO or CampaignState.coord_key(coord) in campaign.discovered or campaign.checkpoints.has(CampaignState.coord_key(coord))
+	return coord == Vector2i.ZERO or CampaignState.coord_key(coord) in campaign.discovered
 
 func _sector_color(coord: Vector2i, known: bool) -> Color:
 	if coord == campaign.current_sector: return WHITE
@@ -759,33 +728,22 @@ func _draw_minimap() -> void:
 	const CELL: float = 18.0
 	var center := Vector2(93,93)
 	minimap.draw_rect(Rect2(Vector2(-5,-5),Vector2(196,217)),Color(0.02,0.025,0.035,0.94))
-	minimap.draw_arc(center,84,0,TAU,64,Color(MUTED,0.24),1.0,true)
-	var origin_at: Vector2 = center-Vector2(campaign.current_sector)*CELL
-	var distance_band: int = maxi(1,ceili(Vector2(campaign.current_sector).length()/6.0))
-	var ring_radius: float = distance_band*6.0*CELL
-	var previous: Vector2 = origin_at+Vector2.RIGHT*ring_radius
-	for point_index: int in range(1,257):
-		var next_point: Vector2 = origin_at+Vector2.from_angle(TAU*point_index/256.0)*ring_radius
-		if Rect2(0,0,186,186).has_point(previous) and Rect2(0,0,186,186).has_point(next_point):
-			minimap.draw_line(previous,next_point,Color(MUTED,0.28),1.0,true)
-		previous = next_point
+	var perimeter_radius: int = campaign.level_radius()
+	minimap.draw_arc(center,perimeter_radius*CELL,0,TAU,64,Color(MUTED,0.5),2.0,true)
 	for y: int in range(-4,5):
 		for x: int in range(-4,5):
 			var coord: Vector2i = campaign.current_sector+Vector2i(x,y)
-			if not _sector_known(coord): continue
+			if not campaign.in_bounds(coord) or not _sector_known(coord): continue
 			var at: Vector2 = center+Vector2(x,y)*CELL
 			var ink: Color = _sector_color(coord,true)
 			minimap.draw_circle(at,5.0,Color(ink,0.16))
 			minimap.draw_arc(at,5.0,0,TAU,16,Color(ink,0.7),1.0,true)
-			if campaign.checkpoints.has(CampaignState.coord_key(coord)): minimap.draw_circle(at,2.0,WHITE)
 	minimap.draw_circle(center,3,BLUE)
-	for element: String in campaign.unlocked:
-		var at: Vector2i = campaign.core_coordinate(element)
-		if campaign.demo and element != "fire": continue
-		var direction: Vector2 = Vector2(at-campaign.current_sector).normalized()
-		if direction == Vector2.ZERO: continue
-		minimap.draw_circle(center+direction*87,3,ShipCatalog.get_color(element))
-	minimap.draw_string(ThemeDB.fallback_font,Vector2(3,203),"DIST %.1f · T%d" % [Vector2(campaign.current_sector).length(),combat.player_tier],HORIZONTAL_ALIGNMENT_LEFT,180,12,MUTED)
+	var boss: Vector2i = campaign.boss_coord()
+	var direction: Vector2 = Vector2(boss-campaign.current_sector)
+	if not direction.is_zero_approx():
+		minimap.draw_circle(center+direction.normalized()*87,3,ShipCatalog.get_color(str(campaign.sector_at(boss).get("element",""))))
+	minimap.draw_string(ThemeDB.fallback_font,Vector2(3,203),"RING %d · T%d" % [CampaignState.ring(campaign.current_sector),combat.player_tier],HORIZONTAL_ALIGNMENT_LEFT,180,12,MUTED)
 
 func _show_rival_intro(sector: Dictionary) -> void:
 	var element: String = str(sector.get("element","fire"))

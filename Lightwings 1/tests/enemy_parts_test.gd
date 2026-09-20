@@ -161,12 +161,15 @@ func _test_snapshot_round_trip(t: RefCounted) -> void:
 	var restored: Dictionary = w.enemies[-1]
 	t.check(is_equal_approx(float(restored.part_hp[restored.gun_indices[0]]), hp_before), "Per-circle state round-trips through snapshot()/restore() and the JSON cold path")
 	# Cold cache path too.
-	w.start_sector({"id": "parts_cold_a", "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 200, "enemy_count": 1, "elite_count": 1, "encounter_epoch": 5})
+	var fire_drone_cold: String = ShipGenerator.hull_id("enemy", "drone", "fire", 3)
+	var fire_elite_cold: String = ShipGenerator.hull_id("elite", "radial", "fire", 3)
+	var fire_drone_cold_t1: String = ShipGenerator.hull_id("enemy", "drone", "fire", 1)
+	w.start_sector({"id": "parts_cold_a", "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 200, "enemy_hulls": [fire_drone_cold], "elite_hulls": [fire_elite_cold], "encounter_epoch": 5})
 	var cold_elite: Dictionary = w.enemies[-1]
 	w._damage_part(cold_elite, cold_elite.gun_indices[0], 5.0, w.player)
 	var cold_hp: float = float(cold_elite.part_hp[cold_elite.gun_indices[0]])
-	for i: int in range(1, 42): w.start_sector({"id": "parts_cold_%d" % i, "kind": "regular", "element": "fire", "tier": 1, "resource_budget": 100, "enemy_count": 1, "encounter_epoch": 5})
-	w.start_sector({"id": "parts_cold_a", "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 200, "enemy_count": 1, "elite_count": 1, "encounter_epoch": 5})
+	for i: int in range(1, 42): w.start_sector({"id": "parts_cold_%d" % i, "kind": "regular", "element": "fire", "tier": 1, "resource_budget": 100, "enemy_hulls": [fire_drone_cold_t1], "encounter_epoch": 5})
+	w.start_sector({"id": "parts_cold_a", "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 200, "enemy_hulls": [fire_drone_cold], "elite_hulls": [fire_elite_cold], "encounter_epoch": 5})
 	var revisited: Dictionary = w.enemies[-1]
 	t.check(is_equal_approx(float(revisited.part_hp[revisited.gun_indices[0]]), cold_hp), "Per-circle state round-trips through the deflate+base64 cold cache")
 	# Control: hand-edit one part_hp in the payload and confirm it is actually read back.
@@ -232,10 +235,14 @@ func _test_play_census(t: RefCounted) -> void:
 	var first_core_ticks: Array[int] = []
 	var total_parts_destroyed: int = 0
 	var total_debris: int = 0
+	var census_drones: Array = []
+	for i: int in range(8): census_drones.append(ShipGenerator.hull_id("enemy", "drone", "fire", 3))
+	var census_elites: Array = []
+	for i: int in range(2): census_elites.append(ShipGenerator.hull_id("elite", "radial", "fire", 3))
 	for seed: int in seeds:
 		var w: CombatWorld = make_world()
 		w.setup_player("fire", 3, 400, [], w.arena.center)
-		w.start_sector({"id": "census_%d" % seed, "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 2000, "enemy_count": 8, "elite_count": 2, "encounter_epoch": seed})
+		w.start_sector({"id": "census_%d" % seed, "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 2000, "enemy_hulls": census_drones, "elite_hulls": census_elites, "encounter_epoch": seed})
 		var pilot: RefCounted = BotPilot.perfect(seed)
 		var first_limb: int = -1
 		var first_core: int = -1
@@ -254,7 +261,7 @@ func _test_play_census(t: RefCounted) -> void:
 				actor._census_attached = attached
 				if bool(actor.dead) and first_core < 0: first_core = tick
 			debris_seen += w.debris.size()
-			if w.enemies.is_empty(): w.start_sector({"id": "census_%d_r" % seed, "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 2000, "enemy_count": 8, "elite_count": 2, "encounter_epoch": seed})
+			if w.enemies.is_empty(): w.start_sector({"id": "census_%d_r" % seed, "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 2000, "enemy_hulls": census_drones, "elite_hulls": census_elites, "encounter_epoch": seed})
 		for actor: Dictionary in w.enemies:
 			for i: int in range(1, actor.rig.ids.size()):
 				if not bool(actor.part_attached[i]): parts_destroyed += 1
@@ -274,7 +281,7 @@ func _test_play_census(t: RefCounted) -> void:
 	# Control: disable firing and both counts must be 0.
 	var w2: CombatWorld = make_world()
 	w2.setup_player("fire", 3, 400, [], w2.arena.center)
-	w2.start_sector({"id": "census_control", "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 2000, "enemy_count": 8, "elite_count": 2, "encounter_epoch": 99})
+	w2.start_sector({"id": "census_control", "kind": "regular", "element": "fire", "tier": 3, "resource_budget": 2000, "enemy_hulls": census_drones, "elite_hulls": census_elites, "encounter_epoch": 99})
 	var no_fire: ShipCommand = ShipCommand.new()
 	no_fire.movement = Vector2.ZERO
 	no_fire.fire = false

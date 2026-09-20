@@ -7,7 +7,6 @@ signal player_died
 signal player_regressed(from_tier: int, to_tier: int)
 signal sector_cleared
 signal rival_reward(component: String, mirror_root: String)
-signal rival_defeated(core_id: String) # V02-ADAPTER: kept for campaign_state.gd; P5 consumes boss_defeated instead.
 signal boss_defeated(level_id: String)
 signal event_message(text: String)
 signal attack_performed(element: String, ability: String)
@@ -184,34 +183,42 @@ func collect_energy(amount: float, element: String) -> void: collect_light(amoun
 func _make_actor(id: int, element: String, tier: int, position: Vector2, faction: int, rival: bool) -> Dictionary:
  var hp: float=(140.0+80.0*tier) if rival else (24.0+14.0*tier)
  return {"id":id,"element":element,"tier":clampi(tier,1,GameTuning.MAX_TIER),"pos":position,"vel":Vector2.ZERO,"aim":Vector2.DOWN,"faction":faction,"native_faction":faction,"rival":rival,"elite":false,"hp":hp,"max_hp":hp,"energy":40.0,"fire_cd":0.0,"primary_cd":0.0,"secondary_cd":0.0,"decision_cd":0.0,"target":0,"desired":Vector2.ZERO,"age":_rng.randf()*TAU,"dead":false,"renderer":null,"invulnerable":0.0,"reward_remaining":(80+30*tier) if rival else 24+10*tier,"reward_damage":0.0,"reward_unpaid_limb":0.0,"cooldowns":{},"guns":[],"shield":0.0,"blockers":0.0,"blocker_hits":0,"orbit_stock":0,"orbit_cd":0.0,"slow":0.0,"stored":0,"stolen":[],"infected":0.0,"charge":0.0}
+## Convenience spawner for callers that only have (element, tier) - not a
+## specific roster hull id - such as a deployment_ramp reinforcement, the
+## benchmark's stress population, or a test fixture. Resolves a plain drone
+## hull for the element via ShipGenerator.hull_id (drone is every element's
+## richest secondary loadout - a sentry's secondaries are overwritten with
+## laser_prong, see ship_generator.gd build_enemy_sentry) and caps it to the
+## requested tier's slot budget.
 func _spawn_enemy(element: String, tier: int, position: Vector2, rival: bool) -> Dictionary:
+ var hull_id: String=ShipGenerator.hull_id("boss" if rival else "enemy","boss" if rival else "drone",element,tier)
+ return _spawn_named_enemy(hull_id,element,tier,position,rival,false)
+func _spawn_elite(element: String, tier: int, position: Vector2) -> Dictionary:
+ var kinds: Array[String]=["radial","irregular"]
+ var hull_id: String=ShipGenerator.hull_id("elite",kinds[tier%2],element,tier)
+ return _spawn_named_enemy(hull_id,element,tier,position,false,true)
+## The world descriptor names an exact hull id directly (spec P5 "the
+## descriptor names the hulls to spawn directly" - no runtime nearest-tier
+## guessing). `tier` here is the node's Chebyshev DIFFICULTY tier, used for
+## HP/reward scaling (_make_actor) and for ShipCatalog.cap_to_tier, which may
+## differ from the resolved hull's own authored tier when an element's roster
+## band does not cover this difficulty (see ShipGenerator.ELEMENT_TIER_BAND).
+func _spawn_named_enemy(hull_id: String, element: String, tier: int, position: Vector2, rival: bool, elite: bool) -> Dictionary:
+ if hull_id.is_empty(): push_error("No roster hull for element=%s tier=%d rival=%s elite=%s" % [element,tier,rival,elite]); return {}
+ var template: ShipDefinition=ShipCatalog.get_ship(hull_id)
+ if template==null: push_error("Unknown roster hull id: %s" % hull_id); return {}
  if enemies.size()>=MAX_ACTORS: return {}
- var actor: Dictionary=_make_actor(next_actor_id,element,tier,arena.clamp_point(position,30.0),ELEMENTS.find(element)+1,rival)
+ var actor: Dictionary=_make_actor(next_actor_id,template.element,tier,arena.clamp_point(position,30.0),ELEMENTS.find(template.element)+1,rival)
  next_actor_id+=1
- # V02-ADAPTER: v0.2 asked for ids by formula ("enemy_%s_t%d" / "rival_%s_t5");
- # those ids no longer exist under the P2b-1 roster. ShipCatalog.pick_enemy
- # maps (faction, element, tier) onto the nearest roster hull for that
- # archetype; it hard-errors (returns null) rather than silently
- # substituting a wrong tier. Removed with the rest of the shim in P5.
- actor.hull_id=ShipCatalog.pick_enemy("boss" if rival else "enemy",element,tier)
- if actor.hull_id.is_empty(): push_error("V02-ADAPTER: no roster hull for faction=%s element=%s tier=%d" % ["boss" if rival else "enemy",element,tier])
- var definition: ShipDefinition=ShipCatalog.trim_to_tier(ShipCatalog.get_ship(actor.hull_id),int(actor.tier)) # V02-ADAPTER
- if definition==null: definition=ShipCatalog.make_ship(element,tier,false)
- _configure_actor(actor,definition,true)
+ actor.hull_id=hull_id
+ actor.elite=elite
+ if elite:
+  actor.max_hp=180.0+110.0*tier
+  actor.hp=actor.max_hp
+  actor.reward_remaining=150+60*tier
+ _configure_actor(actor,ShipCatalog.cap_to_tier(template,int(actor.tier)),true)
  enemies.append(actor)
  actors_by_id[int(actor.id)]=actor
- _update_visual(actor)
- return actor
-func _spawn_elite(element: String, tier: int, position: Vector2) -> Dictionary:
- var actor: Dictionary=_spawn_enemy(element,tier,position,false)
- if actor.is_empty(): return actor
- actor.elite=true
- actor.hull_id=ShipCatalog.pick_enemy("elite",element,tier) # V02-ADAPTER
- if actor.hull_id.is_empty(): push_error("V02-ADAPTER: no roster hull for faction=elite element=%s tier=%d" % [element,tier])
- actor.max_hp=180.0+110.0*tier
- actor.hp=actor.max_hp
- actor.reward_remaining=150+60*tier
- _configure_actor(actor,ShipCatalog.trim_to_tier(ShipCatalog.get_ship(actor.hull_id),int(actor.tier)),true) # V02-ADAPTER
  _update_visual(actor)
  return actor
 func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool = false) -> void:
@@ -421,26 +428,32 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   CombatPersistence.restore_encounter(self,CombatPersistence.read_cached_encounter(self,key))
   return
  var kind: String=str(sector.get("kind","regular"))
+ # Spec §8: the origin's freebies must never exceed what the level has
+ # revealed - the descriptor names them, never a hard-coded element list.
  if kind=="origin":
-  for i: int in range(3): _drop_pickup(arena.center+Vector2((i-1)*64,190),["fire","corruption","plasma"][i],5)
+  var starters: Array=sector.get("starter_pickups",[])
+  for i: int in range(starters.size()): _drop_pickup(arena.center+Vector2((i-1)*64,190),str(starters[i]),5)
   cleared_emitted=true
   return
- if bool(sector.get("cleared",false)):
+ # A defeated boss never respawns; regular/elite content always repopulates
+ # on return (spec §7: enemies respawn on a cooldown, the light pool does
+ # not follow - the pool itself is reflected in resource_budget, below).
+ if kind=="boss" and bool(sector.get("boss_down",false)):
   cleared_emitted=true
   return
- var element: String=str(sector.get("element","fire"))
+ var element: String=str(sector.get("element","lightning"))
  var tier: int=clampi(int(sector.get("tier",1)),1,GameTuning.MAX_TIER)
- var distance: float=float(sector.get("distance",tier*3))
- var population: int=mini(45,int(sector.get("enemy_count",4+int(distance)*0.7)))
- for i: int in range(population):
-  var p: Vector2=arena.center+Vector2.from_angle(TAU*i/maxi(1,population))*(arena.radius*0.55)
+ var enemy_hulls: Array=sector.get("enemy_hulls",[])
+ for i: int in range(enemy_hulls.size()):
+  var p: Vector2=arena.center+Vector2.from_angle(TAU*i/maxi(1,enemy_hulls.size()))*(arena.radius*0.55)
   if p.distance_to(player_position)<180.0: p=arena.center*2.0-p
-  _spawn_enemy(element,tier,p,false)
- var elite_count: int=int(sector.get("elite_count",1 if distance>=6.0 and _rng.randf()<minf(0.65,distance*0.02) else 0))
- for i: int in range(elite_count): _spawn_elite(element,tier,arena.center+Vector2(150*(i-1),-200))
- if kind in ["core","demo_core"] and not bool(sector.get("core_defeated",false)):
-  var rival: Dictionary=_spawn_enemy(element,tier,arena.center+Vector2(0,-230),true)
-  if not rival.is_empty(): rival.core_id=str(sector.get("core_id",element))
+  _spawn_named_enemy(str(enemy_hulls[i]),element,tier,p,false,false)
+ var elite_hulls: Array=sector.get("elite_hulls",[])
+ for i: int in range(elite_hulls.size()):
+  _spawn_named_enemy(str(elite_hulls[i]),element,tier,arena.center+Vector2(150*(i-1),-200),false,true)
+ var boss_hull: String=str(sector.get("boss_hull",""))
+ if kind=="boss" and not boss_hull.is_empty():
+  _spawn_named_enemy(boss_hull,element,tier,arena.center+Vector2(0,-230),true,false)
  for i: int in range(3): _drop_pickup(arena.center+Vector2(_rng.randf_range(-400,400),_rng.randf_range(-220,220)),element,1)
 
 func _physics_process(delta: float) -> void:
@@ -1149,8 +1162,7 @@ func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -99
   reward-=size
  _add_effect("death",actor.pos,_actor_color(actor),0.4,35.0)
  if bool(actor.rival):
-  rival_defeated.emit(str(actor.get("core_id",""))) # V02-ADAPTER: campaign_state.gd still consumes this
-  boss_defeated.emit(str(actor.get("core_id",actor.element)))
+  boss_defeated.emit(str(actor.element))
 func _drop_pickup(point: Vector2, element: String, value: int) -> void:
  var amount: int=_spend_energy(value)
  if amount<=0: return
