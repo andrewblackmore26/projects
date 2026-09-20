@@ -4,7 +4,6 @@ const BLUE := Color("6fd3ff")
 const WHITE := Color("efeee8")
 const MUTED := Color("9099a8")
 const GOLD := Color("ffd23f")
-const RIVAL_NAMES: Dictionary = {"fire":"PYRE", "lightning":"KERA", "void":"NOX", "corruption":"VERDANT", "companion":"ECHO", "plasma":"VESPER"}
 ## Rendered-frame gate budgets, ms/frame in the stress case: 2000 live bullets AND the 400-pickup
 ## cap AND 17 actors, mobile renderer, HDR 2D and glow on, 1280x800, vsync off, on the development
 ## desktop (RTX 5070 Ti / Ryzen 7 9800X3D). Two immediate-mode draw loops were found here and both
@@ -78,8 +77,20 @@ var tier_ticks: Control
 var radar_overlay: Control
 var slot_overlay: Control
 var slot: String = "campaign"
-var line_queue: Array[Dictionary] = []
-var seen_lines: Dictionary = {}
+## scripts/ui/dialogue_director.gd (plan P9): owns the queue, the seen_lines
+## dedupe, the between-fights gate and the static line tables. `line_queue`/
+## `seen_lines` stay as forwarding properties -- tests/support/make_v3_fixtures.gd
+## and tests/golden_trace_test.gd read and write `app.seen_lines`/`app.line_queue`
+## directly (tests/facade_contract_test.gd keeps that honest), and both getters
+## return the director's own live containers, so `.clear()`/`.assign()` on the
+## forwarded value still mutates the director's state.
+var dialogue_director: DialogueDirector = DialogueDirector.new()
+var line_queue: Array[Dictionary]:
+	get: return dialogue_director.line_queue
+	set(value): dialogue_director.line_queue = value
+var seen_lines: Dictionary:
+	get: return dialogue_director.seen_lines
+	set(value): dialogue_director.seen_lines = value
 var settings: Dictionary = {"volume":0.7,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false,"reduced_warp":false}
 var elapsed_ui: float = 0.0
 var toast_remaining: float = 0.0
@@ -256,6 +267,23 @@ func _ready() -> void:
 			# ever confirming the (nonexistent, in this debug capture) swap.
 			_new_game(false)
 			_debug_show_warp = true
+			line_queue.clear()
+		elif arg == "--show-dialogue" and OS.has_feature("editor"):
+			# Debug-only capture aid (plan P9 "LOOK at it"): the companion box
+			# with a line up. `_new_game_as` already queues "welcome_v2" and the
+			# origin node has no enemies (combat_clear from tick 1), so no extra
+			# state is needed -- just do NOT clear line_queue the way the other
+			# --show-* aids do.
+			_new_game(false)
+		elif arg == "--show-demo-ending" and OS.has_feature("editor"):
+			# Debug-only capture aid (plan P9 "LOOK at it"): the demo ending,
+			# reached by the real _on_boss_defeated path (not a hand-built
+			# overlay) after both of the demo's two levels report complete.
+			_new_game_as("demo")
+			campaign.level = 1
+			campaign.complete_level()
+			campaign.travel_to_level(2)
+			_on_boss_defeated("fire")
 			line_queue.clear()
 
 func _verify_package() -> void:
@@ -459,19 +487,20 @@ func _show_menu() -> void:
 	if not OS.has_feature("demo") and not SaveService.load_snapshot("demo").is_empty():
 		button(menu,"IMPORT DEMO",Rect2(271,637,182,36),_import_demo)
 	label(menu,"WASD + MOUSE  /  CONTROLLER",Vector2(78,718),Vector2(600,24),12,MUTED)
-	label(menu,"DEMO  ·  FIRE / CORRUPTION / PLASMA · T1–T3" if OS.has_feature("demo") else "FIVE ELEMENTS / 81 LIGHTSHIPS",Vector2(78,751),Vector2(650,20),11,Color("586271"))
+	# Approved preamble: the demo is campaign levels 1-2 (Lightning + Fire), no tier cap.
+	label(menu,"DEMO  ·  LIGHTNING / FIRE · LEVELS 1–2 · NO TIER CAP" if OS.has_feature("demo") else "FIVE ELEMENTS / %d LIGHTSHIPS" % ShipGenerator.player_hull_count(),Vector2(78,751),Vector2(650,20),11,Color("586271"))
 	if platform.online and not OS.has_feature("demo"):
 		cloud_review = platform.inspect_cloud(menu_slot)
 		cloud_sync_ready = str(cloud_review.get("state","")) in ["same","missing"]
 		if str(cloud_review.get("state","")) in ["conflict","remote_only"]:
 			button(menu,"REVIEW CLOUD SAVE",Rect2(78,680,375,36),_show_cloud_review)
-	var menu_roots: Array = ["fire","corruption","plasma"] if OS.has_feature("demo") else ["fire","plasma","void","corruption"]
+	var menu_roots: Array = ["lightning","fire"] if OS.has_feature("demo") else ["fire","plasma","void","corruption"]
 	for i: int in range(menu_roots.size()):
 		var root: String = str(menu_roots[i])
 		var preview := ShipPreview.new()
 		menu.add_child(preview)
 		preview.position = Vector2(695 + (i % 2)*248,135+(i/2)*290)
-		preview.initialize(ShipCatalog.make_ship(root,3 if OS.has_feature("demo") else 5,i==0),Vector2(220,240),1.8)
+		preview.initialize(ShipCatalog.make_ship(root,GameTuning.MAX_TIER if OS.has_feature("demo") else 5,i==0),Vector2(220,240),1.8)
 		label(menu,root.to_upper(),preview.position+Vector2(20,222),Vector2(180,25),12,ShipCatalog.get_color(root)).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	primary.grab_focus()
 
@@ -510,8 +539,7 @@ func _new_game_as(mode_id: String) -> void:
 	pending_offers.clear()
 	previous_offers.clear()
 	offer_serial = 0
-	seen_lines = {}
-	line_queue.clear()
+	dialogue_director.reset()
 	_start_game_view()
 	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
 	combat.max_player_tier = mode_config.max_tier()
@@ -543,8 +571,7 @@ func _continue_game(save_slot: String) -> void:
 	pending_offers.assign(run.get("pending_offers",[]))
 	previous_offers.assign(run.get("previous_offers",[]))
 	offer_serial = int(run.get("offer_serial",0))
-	seen_lines = run.get("seen_lines",{}).duplicate(true)
-	line_queue.assign(run.get("line_queue",[]))
+	dialogue_director.restore(run.get("seen_lines",{}),run.get("line_queue",[]))
 	_start_game_view()
 	combat.max_player_tier = mode_config.max_tier()
 	if run.get("combat",{}).is_empty():
@@ -613,7 +640,9 @@ func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> 
 	dialogue.visible = false
 	dialogue_remaining = 0.0
 	if show_intro and str(sector.get("kind","")) == "boss" and not bool(sector.get("boss_down",false)):
-		_queue_line(str(sector.element),"A rival signal",_entry_line(str(sector.element)),"boss_intro_"+str(sector.element))
+		# Immediate lane (spec §25 "a line ... on encounter"): this must be able
+		# to show on entry, not only once the boss it announces is already dead.
+		_queue_line(str(sector.element),"A rival signal",DialogueDirector.entry_line(str(sector.element)),"boss_intro_"+str(sector.element),true)
 	if coord != Vector2i.ZERO:
 		_queue_line("companion","Direction and distance","Direction decides the light you find. Distance decides the danger. Every opening stays open; you can always retreat.","map_tutorial_v2")
 	for actor: Dictionary in combat.enemies:
@@ -648,8 +677,11 @@ func _process(delta: float) -> void:
 			if combat.player_hp < last_hp:
 				sound.play("hurt")
 			last_hp = combat.player_hp
-			if combat.remaining_enemies() == 0:
-				_update_dialogue(delta)
+			# spec §25 "speaks only between fights", except the one immediate-lane
+			# case (a boss's own encounter line). DialogueDirector.can_show_next
+			# arbitrates that, not this call site, so `_update_dialogue` now runs
+			# every play tick and only ever shows a line the director allows.
+			_update_dialogue(delta)
 	if benchmark_mode and is_instance_valid(combat) and not get_tree().paused:
 		var now_usec: int = Time.get_ticks_usec()
 		if benchmark_started_usec == 0:
@@ -765,7 +797,9 @@ func _on_warp_committed(direction: Vector2i) -> void:
 	dialogue.visible = false
 	dialogue_remaining = 0.0
 	if str(sector.get("kind","")) == "boss" and not bool(sector.get("boss_down",false)):
-		_queue_line(str(sector.element),"A rival signal",_entry_line(str(sector.element)),"boss_intro_"+str(sector.element))
+		# Immediate lane (spec §25 "a line ... on encounter"): this must be able
+		# to show on entry, not only once the boss it announces is already dead.
+		_queue_line(str(sector.element),"A rival signal",DialogueDirector.entry_line(str(sector.element)),"boss_intro_"+str(sector.element),true)
 	if destination != Vector2i.ZERO:
 		_queue_line("companion","Direction and distance","Direction decides the light you find. Distance decides the danger. Every opening stays open; you can always retreat.","map_tutorial_v2")
 	for actor: Dictionary in combat.enemies:
@@ -870,12 +904,16 @@ func _on_boss_defeated(element: String) -> void:
 	# "call it every time a boss dies; it only fires level_completed... the
 	# first time"), so this handler needs no separate guard of its own.
 	var result: Dictionary = campaign.complete_level()
-	_queue_line(element,"A rival yields",_defeat_line(element),"defeat_v2_"+element)
+	_queue_line(element,"A rival yields",DialogueDirector.defeat_line(element),"defeat_v2_"+element)
 	_achieve("FIRST_RIVAL")
 	if bool(result.get("level_completed",false)):
 		if campaign.campaign_complete():
 			_achieve("CAMPAIGN_COMPLETE")
-			_show_ending(false)
+			# CampaignState.campaign_complete() is now mode-aware (ModeConfig.level_cap):
+			# for the demo this is true the instant level 2's boss dies, so this is
+			# exactly the demo ending trigger spec §4/preamble asks for -- "on beating
+			# the level-2 boss", not the old wedge-world "Fire core".
+			_show_ending(mode_config.id == "demo")
 		else:
 			_show_level_complete(result)
 	_save_game()
@@ -1057,7 +1095,7 @@ func _draw_minimap() -> void:
 
 func _show_rival_intro(sector: Dictionary) -> void:
 	var element: String = str(sector.get("element","fire"))
-	_queue_line(element,"Rival signal",_entry_line(element),"intro_v2_"+element)
+	_queue_line(element,"Rival signal",DialogueDirector.entry_line(element),"intro_v2_"+element)
 
 func _reward_for(root: String, tier: int) -> String:
 	return {"fire":"cinder_pod" if tier>=4 else "ember_gun","lightning":"capacitor","void":"satellite","corruption":"spore_bud"}.get(root,"laser_prong")
@@ -1190,7 +1228,7 @@ func _dismiss_death_card() -> void: _reboot()
 func _show_ending(is_demo: bool) -> void:
 	_open_overlay("ending")
 	label(overlay,"A SMALL LIGHT, AN OPEN WORLD" if is_demo else "YOU ARE MORE THAN YOUR ORIGIN",Vector2(100,220),Vector2(1080,70),35,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var text: String = "You reached the first rival core and survived.\nThe demo ends here. Keep exploring, try another form,\nor carry this progress into the full campaign." if is_demo else "Five rival cores have yielded. Their signals are yours.\nYou did not become a single perfect machine.\nYou became the sum of what you chose to absorb."
+	var text: String = "Lightning and Fire have both yielded.\nThe demo ends here. Keep exploring, try another form,\nor carry this progress into the full campaign." if is_demo else "Five level bosses have yielded. Their signals are yours.\nYou did not become a single perfect machine.\nYou became the sum of what you chose to absorb."
 	label(overlay,text,Vector2(150,340),Vector2(980,125),22,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button(overlay,"KEEP EXPLORING",Rect2(440,545,400,55),_close_overlay).grab_focus()
 	button(overlay,"SAVE & MAIN MENU",Rect2(440,619,400,48),func() -> void: _save_game(); _show_menu())
@@ -1292,10 +1330,13 @@ func _confirm_new(is_demo: bool = false) -> void:
 	button(overlay,"NEW DEMO" if is_demo else "NEW CAMPAIGN",Rect2(340,470,280,52),func() -> void: _replace_game(is_demo))
 	button(overlay,"CANCEL",Rect2(660,470,280,52),_close_overlay).grab_focus()
 
-func _queue_line(element: String, title: String, text: String, id: String) -> void:
-	if seen_lines.has(id): return
-	seen_lines[id] = true
-	line_queue.append({"element":element,"title":title,"text":text})
+## `immediate` is spec §25's one named exception (a level boss's own
+## ENCOUNTER line): it goes to the front of DialogueDirector's queue and is
+## allowed to leave it even while the node still has live enemies. Every
+## other call site leaves it false and stays behind the between-fights gate.
+func _queue_line(element: String, title: String, text: String, id: String, immediate: bool = false) -> void:
+	if immediate: dialogue_director.queue_immediate(element,title,text,id)
+	else: dialogue_director.queue(element,title,text,id)
 
 func _update_dialogue(delta: float) -> void:
 	if not overlay_kind.is_empty(): return
@@ -1303,8 +1344,9 @@ func _update_dialogue(delta: float) -> void:
 		dialogue_remaining -= delta
 		if dialogue_remaining <= 0.0: dialogue.visible = false
 		return
-	if line_queue.is_empty(): return
-	var line: Dictionary = line_queue.pop_front()
+	var combat_clear: bool = is_instance_valid(combat) and combat.remaining_enemies() == 0
+	if not dialogue_director.can_show_next(combat_clear): return
+	var line: Dictionary = dialogue_director.pop_next(combat_clear)
 	clear(dialogue)
 	dialogue.visible = true
 	panel(dialogue,Rect2(105,549,1070,154),Color("0c0f16"),Color("394453"))
@@ -1313,7 +1355,7 @@ func _update_dialogue(delta: float) -> void:
 	portrait.position = Vector2(125,568)
 	portrait.size = Vector2(98,112)
 	dialogue.add_child(portrait)
-	label(dialogue,str(RIVAL_NAMES.get(line.element,"ECHO"))+"  /  "+str(line.title),Vector2(244,568),Vector2(840,25),13,GOLD)
+	label(dialogue,str(DialogueDirector.RIVAL_NAMES.get(line.element,"ECHO"))+"  /  "+str(line.title),Vector2(244,568),Vector2(840,25),13,GOLD)
 	label(dialogue,str(line.text),Vector2(244,609),Vector2(840,70),17,WHITE).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	button(dialogue,"×",Rect2(1118,561,40,30),func() -> void: dialogue_remaining=0; dialogue.visible=false)
 	dialogue_remaining = 11.0
@@ -1411,9 +1453,6 @@ func _finish_benchmark() -> void:
 	await _stop_audio()
 	get_tree().quit(1 if benchmark_asserting and gate_failures > 0 else 0)
 
-static func _entry_line(root: String) -> String:
-	return {"fire":"I am the heat that makes dead code move.\nShow me what survives the flame.","lightning":"You call that movement?\nI have already seen where you will be.","void":"All your bright futures end somewhere.\nCome closer. I will show you where.","corruption":"There is no such thing as a solitary mind.\nOnly a network that has not found you yet.","plasma":"Every orbit returns to its beginning.\nShow me how you escape yours."}.get(root,"Your signal ends here.")
-
 func _component_controls() -> String:
 	var ship: ShipDefinition = combat.player.get("definition")
 	if ship == null: return ""
@@ -1424,9 +1463,6 @@ func _component_controls() -> String:
 		var cooldown: float = float(cooldowns.get("secondary_%d" % index,0.0))
 		labels.append("%s: %s%s" % [["Space/LB","Shift/RB","Q/X"][index],_ability_name(id)," %.1fs" % cooldown if cooldown>0 else ""])
 	return " | ".join(labels) if not labels.is_empty() else "Secondary: None"
-
-static func _defeat_line(root: String) -> String:
-	return {"fire":"So. You can carry the fire without becoming ash.","lightning":"An error in my prediction. An interesting one.","void":"Even emptiness leaves something behind.","corruption":"A piece of me goes with you. We will meet again.","plasma":"Our orbits crossed. Yours continues."}.get(root,"Keep the code. Remember the cost.")
 
 ## The following are thin forwarders to UiKit; kept so the many existing
 ## call sites in this file (and any external caller) keep working unchanged.

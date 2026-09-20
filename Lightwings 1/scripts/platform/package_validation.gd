@@ -44,6 +44,17 @@ func run(app: Node) -> void:
 	check(app.mode=="menu", "Packaged main menu launches")
 	app._new_game(false)
 	check(app.campaign.demo == expected_demo, "Demo boundary is enforced by package")
+	if expected_demo:
+		# Approved preamble: the demo is campaign levels 1-2 (Lightning/Fire),
+		# no tier cap, and demo progress imports into the full campaign. Runs
+		# INSIDE the exported build (tools\verify_exports.ps1), so this is the
+		# check that catches a demo package that could actually reach level 3.
+		check(ModeConfig.from_id("demo").level_cap() == 2, "Demo package level cap is 2")
+		check(ModeConfig.from_id("demo").max_tier() == GameTuning.MAX_TIER, "Demo package has no tier cap")
+		check(ModeConfig.from_id("demo").enemy_elements() == ["lightning", "fire"], "Demo package rolls only Lightning/Fire enemies")
+		app.campaign.travel_to_level(3)
+		check(app.campaign.level == 2, "Demo package cannot travel past level 2 (CampaignState.level_cap clamps travel_to_level)")
+		check(not app.campaign.campaign_complete(), "Demo campaign is not reported complete before its level-2 boss dies")
 	for tick: int in range(8): await tree.physics_frame
 	check(app.combat.elapsed > 0.0, "Packaged combat simulation advances")
 	app.combat.light_total = 100.0

@@ -13,7 +13,7 @@ The document below is the supplied v0.2 product specification. It is reference m
 - **Legacy compatibility:** preserve original save bytes; retain compatible unlocks, deaths and whitelisted narrative history; start a fresh light-bar/seed-hull run. Old gates, stolen components and old victories do not grant the new core objectives.
 - **Open-feature defaults:** bounded duration/cooldown Shield; reshape does not convert nearby bullets to light; no voluntary regression or mirror encounters in the current implementation. The regular rival pilots remain separate from optional exact-build mirrors. Only the five defined elements are included.
 
-GameTuning is the numeric implementation source of truth. The milestone acceptance tests below remain acceptance criteria, not a declaration that all M1–M6 work or human playtesting is complete. Current verification and remaining limitations are recorded in VALIDATION.md and RELEASE_CHECKLIST.md.
+GameTuning is the numeric implementation source of truth. The milestone acceptance tests below remain acceptance criteria, not a declaration that all M1–M6 work or human playtesting is complete. Verification and remaining limitations AS OF THIS (archived, v0.2) SPEC are recorded in [VALIDATION_V02.md](VALIDATION_V02.md), not `VALIDATION.md` (which now describes v0.3, per the archived banner at the top of this file).
 
 ---
 

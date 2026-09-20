@@ -369,13 +369,23 @@ func complete_level() -> Dictionary:
 func is_level_complete(target_level: int = -1) -> bool:
 	return (level if target_level < 0 else target_level) in levels_completed
 
+## Highest level number THIS mode ever reveals (`ModeConfig`, spec §4/preamble:
+## demo is "campaign levels 1-2"). Campaign/dev both cap at the full 5, so this
+## only changes behaviour for demo -- a demo save can no longer be walked to
+## level 3 by any path (level select is already filtered by
+## `ModeConfig.selectable_levels`; this is the second, structural guard so a
+## stale "CONTINUE TO LEVEL 3" button binding or a future call site cannot
+## reopen the hole `travel_to_level` used to leave, per tasks/todo.md P9).
+func level_cap() -> int:
+	return mini(Tuning.LEVEL_RADIUS.size(), ModeConfig.from_id(mode).level_cap())
+
 func campaign_complete() -> bool:
-	return levels_completed.size() >= Tuning.LEVEL_RADIUS.size()
+	return levels_completed.size() >= level_cap()
 
 ## Travelling to a different level is an epoch change (spec: "a fresh seed
 ## every life" applies on level travel too, per the P5a brief).
 func travel_to_level(new_level: int) -> void:
-	level = clampi(new_level, 1, Tuning.LEVEL_RADIUS.size())
+	level = clampi(new_level, 1, level_cap())
 	epoch += 1
 	_reset_life()
 

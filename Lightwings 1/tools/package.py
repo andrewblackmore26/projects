@@ -8,7 +8,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 DEST = ROOT / "builds" / "distributions"
 DEST.mkdir(parents=True, exist_ok=True)
-manifest = {"game": "Lightship", "version": "0.2.0", "godot": "4.7.2", "godotsteam": "4.22.1", "packages": []}
+manifest = {"game": "Lightship", "version": "0.3.0", "godot": "4.7.2", "godotsteam": "4.22.1", "packages": []}
 
 for flavor in ("campaign", "demo"):
     for platform in ("windows", "linux"):
@@ -23,10 +23,10 @@ for flavor in ("campaign", "demo"):
             + "Offline play needs no Steam account.\n\n"
             + "WASD / left stick: move\nMouse / right stick: aim\nLeft mouse / right trigger: fire\n"
             + "Space / left bumper: secondary 1\nShift / right bumper: secondary 2\nQ / X: secondary 3\n"
-            + "E / A: evolve\nTab / Back: map\nEscape / Start: pause\n\n"
-            + "Use Options to rebind controls and set audio, auto fire, glow and element labels.\n"
+            + "Right mouse / left trigger: dash\nE / A: evolve\nTab / Back: map\nEscape / Start: pause\n\n"
+            + "Use Options to rebind controls and set audio, auto fire, glow, reduced warp and element labels.\n"
             + "Evolution and map pause combat. Save and Quit preserves the current run.\n\n"
-            + ("Demo: Fire, Corruption and Plasma, progression through T3, Fire core at distance eight.\n" if flavor == "demo" else "Campaign: five elements, 81 preset player hulls, infinite node map and five rival cores.\n")
+            + ("Demo: campaign levels 1-2 (Lightning and Fire), no tier cap. Ends on the level-2 boss; import your demo save into the full campaign from the main menu.\n" if flavor == "demo" else "Campaign: five elements, 101 preset player hulls across six tiers, five bounded levels on a Chebyshev lattice, one boss per level.\n")
             + "Working art and balance are prepared for review. Steam Deck and partner-account qualification remain pending.\n",
             encoding="utf-8",
         )
