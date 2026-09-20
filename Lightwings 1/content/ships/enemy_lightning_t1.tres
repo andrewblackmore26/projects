@@ -5,8 +5,8 @@
 
 [sub_resource type="Resource" id="Resource_ttyj4"]
 script = ExtResource("1_m0wd5")
-id = "body"
-size = Vector2(22, 22)
+id = "core"
+radius = 11.0
 stat_id = "speed"
 stat_value = 40.0
 
@@ -14,7 +14,8 @@ stat_value = 40.0
 script = ExtResource("1_m0wd5")
 id = "primary"
 position = Vector2(0, -7.7)
-size = Vector2(7, 7)
+radius = 3.5
+parent_id = "core"
 color_role = "violet"
 layer = 4
 light_phase = -0.7
@@ -25,11 +26,11 @@ tp_cost = 0.0
 [sub_resource type="Resource" id="Resource_q06mr"]
 script = ExtResource("1_m0wd5")
 id = "primary_link"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
 light_phase = -1.3
-from_id = "body"
+from_id = "core"
 to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25

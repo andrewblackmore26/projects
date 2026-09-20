@@ -18,7 +18,7 @@ func _run() -> void:
 	var part: PartDefinition = PartDefinition.new()
 	part.id = "test_body"
 	part.shape = "circle"
-	part.size = Vector2(80, 80)
+	part.radius = 40
 	definition.parts.append(part)
 	var normal: ShipRenderer = _ship(definition, Vector2(120, 120), 1.0)
 	var minimum: ShipRenderer = _ship(definition, Vector2(340, 120), 0.65)

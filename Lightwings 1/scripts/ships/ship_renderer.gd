@@ -162,23 +162,21 @@ func _find(ship: ShipDefinition, id: String) -> PartDefinition:
 func _morph(part: PartDefinition) -> Dictionary:
 	var pos: Vector2 = part.position
 	if part_position_overrides.has(part.id): pos = part_position_overrides[part.id]
-	var size: Vector2 = part.size
-	var angle: float = part.rotation
+	var radius: float = part.radius
 	if reshape_remaining > 0:
 		var amount: float = smoothstep(0.0, 1.0, 1.0 - reshape_remaining / 0.8)
 		var before: PartDefinition = _find(_source, part.id)
 		var after: PartDefinition = _find(definition, part.id)
 		if before != null and after != null:
 			pos = before.position.lerp(after.position, amount)
-			size = before.size.lerp(after.size, amount)
-			angle = lerp_angle(before.rotation, after.rotation, amount)
+			radius = lerpf(before.radius, after.radius, amount)
 		elif after != null:
 			pos *= amount
-			size *= maxf(0.001, amount)
+			radius *= maxf(0.001, amount)
 		else:
 			pos *= 1.0 - amount
-			size *= maxf(0.001, 1.0 - amount)
-	return {"position": pos, "size": size, "rotation": angle}
+			radius *= maxf(0.001, 1.0 - amount)
+	return {"position": pos, "radius": radius}
 
 func _draw() -> void:
 	var started: int = Time.get_ticks_usec()
@@ -220,12 +218,12 @@ func _record_draw(started: int) -> void:
 func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> void:
 	var points: PackedVector2Array
 	var distances: PackedFloat32Array
-	var stable: bool = reshape_remaining <= 0 and part.shape != "tether" and not part_position_overrides.has(part.id)
+	var stable: bool = reshape_remaining <= 0 and part.shape != "line" and not part_position_overrides.has(part.id)
 	var cached: Dictionary = _draw_cache.get(part.id, {}) if stable else {}
 	if not cached.is_empty() and is_equal_approx(float(cached.factor), factor):
 		points = cached.points
 		distances = cached.distances
-	elif part.shape == "tether":
+	elif part.shape == "line":
 		var from: PartDefinition = _find(definition, part.from_id)
 		var to: PartDefinition = _find(definition, part.to_id)
 		if from == null: from = _find(_source, part.from_id)
@@ -236,27 +234,25 @@ func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> voi
 		if definition.motion_signature == "inward":
 			from_data.position *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
 			to_data.position *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
-		points = ShipGeometry.clipped_tether(from_data, to_data)
+		points = ShipGeometry.clipped_line(from_data, to_data)
 		for index: int in range(points.size()): points[index] *= factor
 	else:
-		var size: Vector2 = part.size
+		var radius: float = part.radius
 		var pos: Vector2 = part_position_overrides.get(part.id, part.position)
-		var angle: float = part.rotation
 		if reshape_remaining > 0:
 			var data: Dictionary = _morph(part)
-			size = data["size"]
+			radius = data["radius"]
 			pos = data["position"]
-			angle = data["rotation"]
 		var key: String = part.id
 		if reshape_remaining <= 0 and _contours.has(key):
 			points = _contours[key]
 		else:
-			points = ShipGeometry.outline(part.shape, size)
+			points = ShipGeometry.outline(part.shape, radius)
 			if reshape_remaining <= 0: _contours[key] = points
 		if definition.motion_signature == "inward": pos *= 1.0 - 0.06 * fposmod(animation_time / 2.0, 1.0)
 		var transformed: PackedVector2Array = []
 		for point: Vector2 in points:
-			transformed.append((point.rotated(angle) + pos) * factor)
+			transformed.append((point + pos) * factor)
 		points = transformed
 	if points.size() < 2:
 		return
@@ -268,12 +264,12 @@ func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> voi
 	var stroke: Color = ShipCatalog.get_color(role)
 	var fill: Color = ShipCatalog.FILLS.get(role, Color("062a12"))
 	if definition.element == "void": fill = Color.BLACK
-	if part.layer != 0 and part.shape not in ["tether", "ring", "arc"]:
+	if part.layer != 0 and part.shape == "circle" and part.filled:
 		var polygon: PackedVector2Array = points.duplicate()
 		if polygon.size() > 2 and polygon[0].is_equal_approx(polygon[-1]): polygon.remove_at(polygon.size() - 1)
 		if polygon.size() >= 3:
 			draw_colored_polygon(polygon, fill)
-	var width: float = (2.0 if part.shape == "tether" else 1.5) / canvas_scale
+	var width: float = (2.0 if part.shape == "line" else 1.5) / canvas_scale
 	if part.dashed or part.layer == 0:
 		var total: float = distances[-1]
 		var cursor: float = 0.0
@@ -314,6 +310,6 @@ func running_phase(part: PartDefinition) -> float:
 		"flicker": cycles += 0.025 * sin(cycles * TAU * 5.0)
 		"snap": cycles = floorf(cycles * 12.0) / 12.0
 		"counter_rotate":
-			if part.shape in ["ring", "arc"] and int(part.light_phase * 10) % 2 != 0: cycles *= -1
+			if not part.filled and int(part.light_phase * 10) % 2 != 0: cycles *= -1
 	return fposmod(cycles, 1.0)
 

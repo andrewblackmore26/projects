@@ -5,8 +5,8 @@
 
 [sub_resource type="Resource" id="Resource_lid2f"]
 script = ExtResource("1_3b2jd")
-id = "body"
-size = Vector2(56, 56)
+id = "core"
+radius = 28.0
 stat_id = "speed"
 tp_cost = 1.5
 stat_value = 40.0
@@ -14,8 +14,9 @@ stat_value = 40.0
 [sub_resource type="Resource" id="Resource_nv5wm"]
 script = ExtResource("1_3b2jd")
 id = "reach"
-shape = "ring"
-size = Vector2(74, 74)
+radius = 37.0
+filled = false
+parent_id = "core"
 layer = 0
 light_phase = -0.7
 stat_id = "magnet_radius"
@@ -26,9 +27,9 @@ stat_value = 4.0
 [sub_resource type="Resource" id="Resource_jbgeq"]
 script = ExtResource("1_3b2jd")
 id = "maw"
-shape = "crescent"
 position = Vector2(0, -5.4)
-size = Vector2(25.199999, 25.199999)
+radius = 12.6
+parent_id = "core"
 light_phase = -1.3
 stat_id = "turn_rate"
 tp_cost = 0.5
@@ -36,119 +37,136 @@ stat_value = 0.25
 
 [sub_resource type="Resource" id="Resource_7mwph"]
 script = ExtResource("1_3b2jd")
-id = "lobe_0_l"
-position = Vector2(-9.9, 0)
-layer = 2
+id = "maw_cover"
+position = Vector2(0, -10.691999)
+radius = 10.584
+parent_id = "maw"
+color_role = "black"
+layer = 4
 light_period = 1.6
-mirror_id = "lobe_0_r"
-stat_id = "speed"
-tp_cost = 0.25
-stat_value = 4.0
+stat_id = "structure"
+tp_cost = 0.0
 
 [sub_resource type="Resource" id="Resource_gbu5g"]
 script = ExtResource("1_3b2jd")
-id = "lobe_0_r"
-position = Vector2(9.9, 0)
+id = "lobe_0_l"
+position = Vector2(-9.9, 0)
+parent_id = "core"
 layer = 2
 light_phase = -0.7
-mirror_id = "lobe_0_l"
+mirror_id = "lobe_0_r"
 stat_id = "speed"
 tp_cost = 0.25
 stat_value = 4.0
 
 [sub_resource type="Resource" id="Resource_h3iu8"]
 script = ExtResource("1_3b2jd")
-id = "link_0_l"
-shape = "tether"
-size = Vector2(1, 1)
-layer = 1
+id = "lobe_0_r"
+position = Vector2(9.9, 0)
+parent_id = "core"
+layer = 2
 light_phase = -1.3
-from_id = "body"
+mirror_id = "lobe_0_l"
+stat_id = "speed"
+tp_cost = 0.25
+stat_value = 4.0
+
+[sub_resource type="Resource" id="Resource_ajoi4"]
+script = ExtResource("1_3b2jd")
+id = "link_0_l"
+shape = "line"
+radius = 1.0
+layer = 1
+from_id = "core"
 to_id = "lobe_0_l"
 mirror_id = "link_0_r"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_ajoi4"]
+[sub_resource type="Resource" id="Resource_evgag"]
 script = ExtResource("1_3b2jd")
 id = "link_0_r"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
-from_id = "body"
+light_period = 1.6
+light_phase = -0.7
+from_id = "core"
 to_id = "lobe_0_r"
 mirror_id = "link_0_l"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_evgag"]
+[sub_resource type="Resource" id="Resource_1naos"]
 script = ExtResource("1_3b2jd")
 id = "primary"
 position = Vector2(0, -12.6)
-size = Vector2(7, 7)
+radius = 3.5
+parent_id = "core"
 color_role = "violet"
 layer = 4
-light_period = 1.6
-light_phase = -0.7
+light_phase = -1.3
 ability_id = "homing_beam"
 mount_id = "primary"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_1naos"]
+[sub_resource type="Resource" id="Resource_gpb6r"]
 script = ExtResource("1_3b2jd")
 id = "primary_link"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
-light_phase = -1.3
-from_id = "body"
+from_id = "core"
 to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_gpb6r"]
+[sub_resource type="Resource" id="Resource_67el7"]
 script = ExtResource("1_3b2jd")
 id = "secondary_0"
 position = Vector2(0, 25)
-size = Vector2(7, 7)
+radius = 3.5
+parent_id = "core"
 color_role = "yellow"
 layer = 4
+light_phase = -0.7
 ability_id = "orbital_blockers"
 mount_id = "secondary_0"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_67el7"]
+[sub_resource type="Resource" id="Resource_y7hxb"]
 script = ExtResource("1_3b2jd")
 id = "secondary_0_link"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
-light_phase = -0.7
-from_id = "body"
+light_period = 1.6
+light_phase = -1.3
+from_id = "core"
 to_id = "secondary_0"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_y7hxb"]
+[sub_resource type="Resource" id="Resource_6bu1u"]
 script = ExtResource("1_3b2jd")
 id = "secondary_1"
 position = Vector2(0, 34)
-size = Vector2(7, 7)
+radius = 3.5
+parent_id = "core"
 color_role = "yellow"
 layer = 4
-light_period = 1.6
-light_phase = -1.3
 ability_id = "shield"
 mount_id = "secondary_1"
 tp_cost = 0.0
 
-[sub_resource type="Resource" id="Resource_6bu1u"]
+[sub_resource type="Resource" id="Resource_ucui8"]
 script = ExtResource("1_3b2jd")
 id = "secondary_1_link"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
-from_id = "body"
+light_phase = -0.7
+from_id = "core"
 to_id = "secondary_1"
 stat_id = "structure"
 tp_cost = 0.25
@@ -161,7 +179,7 @@ element = "void"
 tier = 2
 is_player = true
 hull_radius = 28.0
-parts = Array[ExtResource("1_3b2jd")]([SubResource("Resource_lid2f"), SubResource("Resource_nv5wm"), SubResource("Resource_jbgeq"), SubResource("Resource_7mwph"), SubResource("Resource_gbu5g"), SubResource("Resource_h3iu8"), SubResource("Resource_ajoi4"), SubResource("Resource_evgag"), SubResource("Resource_1naos"), SubResource("Resource_gpb6r"), SubResource("Resource_67el7"), SubResource("Resource_y7hxb"), SubResource("Resource_6bu1u")])
+parts = Array[ExtResource("1_3b2jd")]([SubResource("Resource_lid2f"), SubResource("Resource_nv5wm"), SubResource("Resource_jbgeq"), SubResource("Resource_7mwph"), SubResource("Resource_gbu5g"), SubResource("Resource_h3iu8"), SubResource("Resource_ajoi4"), SubResource("Resource_evgag"), SubResource("Resource_1naos"), SubResource("Resource_gpb6r"), SubResource("Resource_67el7"), SubResource("Resource_y7hxb"), SubResource("Resource_6bu1u"), SubResource("Resource_ucui8")])
 abilities = Array[String](["homing_beam", "orbital_blockers", "shield"])
 role = "heavy"
 family = "heavy"

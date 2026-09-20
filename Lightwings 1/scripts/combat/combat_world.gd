@@ -228,10 +228,10 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
   old[str(gun.id)]=gun
  var guns: Array=[]
  for part: PartDefinition in definition.parts:
-  if part.weapon_hp<=0.0: continue
-  var gun: Dictionary=old.get(part.id,{"id":part.id,"mount":part.mount_id,"ability":part.ability_id,"hp":part.weapon_hp,"max_hp":part.weapon_hp,"cd":_rng.randf_range(0.2,1.2),"aim":Vector2.DOWN,"egg_cd":0.0})
+  if part.hp<=0.0: continue
+  var gun: Dictionary=old.get(part.id,{"id":part.id,"mount":part.mount_id,"ability":part.ability_id,"hp":part.hp,"max_hp":part.hp,"cd":_rng.randf_range(0.2,1.2),"aim":Vector2.DOWN,"egg_cd":0.0})
   gun.offset=part.position
-  gun.radius=maxf(part.size.x,part.size.y)*0.5
+  gun.radius=part.radius
   guns.append(gun)
  actor.guns=guns
 func _update_visual(actor: Dictionary, animate: bool = false) -> void:

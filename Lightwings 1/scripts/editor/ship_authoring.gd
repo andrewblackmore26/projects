@@ -83,7 +83,7 @@ static func to_json(ship: ShipDefinition) -> String:
 
 static func from_json(text: String) -> Dictionary:
 	var data: Variant = JSON.parse_string(text)
-	if not data is Dictionary or data.get("schema_version", 0) != 2 or not data.get("parts") is Array: return {"errors": PackedStringArray(["Expected a version 2 ship JSON object."])}
+	if not data is Dictionary or data.get("schema_version", 0) != 3 or not data.get("parts") is Array: return {"errors": PackedStringArray(["Expected a version 3 ship JSON object."])}
 	var ship: ShipDefinition = ShipDefinition.new()
 	for property: Dictionary in ship.get_property_list():
 		if not int(property.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE: continue
@@ -120,10 +120,11 @@ static func thumbnail(ship: ShipDefinition) -> Texture2D:
 	var scale: float = 48.0 / maxf(48.0, ship.footprint)
 	var svg: String = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#050507"/>'
 	for part: PartDefinition in ship.parts:
-		if part.shape == "tether": continue
+		if part.shape == "line": continue
 		var color: Color = ShipCatalog.get_color(("player" if ship.is_player else ship.element) if part.color_role == "chassis" else part.color_role)
 		var point: Vector2 = Vector2(32, 32) + part.position * scale
-		svg += '<ellipse cx="%f" cy="%f" rx="%f" ry="%f" fill="%s" stroke="#%s" stroke-width="1"/>' % [point.x, point.y, part.size.x * scale * 0.5, part.size.y * scale * 0.5, "none" if part.shape in ["ring", "arc"] else "#07111a", color.to_html(false)]
+		svg += '<circle cx="%f" cy="%f" r="%f" fill="%s" stroke="#%s" stroke-width="1"/>' % [point.x, point.y, part.radius * scale, "none" if not part.filled else "#07111a", color.to_html(false)]
+		# Fill omitted for unfilled (ring) circles; stroke is always the rim color.
 	svg += '</svg>'
 	var image: Image = Image.new()
 	image.load_svg_from_string(svg)

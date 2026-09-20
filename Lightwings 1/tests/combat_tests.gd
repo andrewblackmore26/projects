@@ -348,7 +348,7 @@ func test_authored_runtime_contract() -> void:
    for part: PartDefinition in elite.definition.parts:
     if not part.ability_id.is_empty() and AbilityCatalog.get_definition(part.ability_id).slot_kind!="passive":
      weapons+=1
-     valid=valid and part.weapon_hp>0.0
+     valid=valid and part.hp>0.0
    check(valid and weapons==elite.guns.size() and weapons>=3 and weapons<=8,"Every visible elite weapon is active/destructible: "+element+str(tier))
  w._clear_encounter()
  actor=w._spawn_enemy("plasma",3,Vector2(1000,500),false)

@@ -18,10 +18,10 @@ func _run() -> void:
 	for other: PartDefinition in editor.working.parts:
 		if other.id == part.mirror_id: mirror = other
 	_check(mirror != null and mirror.position.x == -27 and mirror.mirror_id == "test_added", "Rename and transform preserve linked symmetry")
-	editor._add_tether()
-	_check(editor.working.parts.size() == initial + 4, "Mirrored tethers added")
+	editor._add_line()
+	_check(editor.working.parts.size() == initial + 4, "Mirrored lines added")
 	editor._delete_part()
-	_check(editor.working.parts.size() == initial, "Deleting pair removes its tethers")
+	_check(editor.working.parts.size() == initial, "Deleting pair removes its lines")
 	editor.undo.undo()
 	_check(editor.working.parts.size() == initial + 4, "Undo restores complete mirrored operation")
 	editor.undo.redo()

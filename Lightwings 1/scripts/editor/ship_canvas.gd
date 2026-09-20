@@ -62,9 +62,10 @@ func _draw_handles(overlay: Control) -> void:
 	if definition == null or selected < 0 or selected >= definition.parts.size():
 		return
 	var part: PartDefinition = definition.parts[selected]
-	if part.shape == "tether": return
+	if part.shape == "line": return
 	var p: Vector2 = center + part.position.rotated(PI * 0.5) * zoom
-	var bounds: Rect2 = Rect2(p - part.size * zoom * 0.5 - Vector2(5, 5), part.size * zoom + Vector2(10, 10))
+	var extent: Vector2 = Vector2.ONE * part.radius * 2.0
+	var bounds: Rect2 = Rect2(p - extent * zoom * 0.5 - Vector2(5, 5), extent * zoom + Vector2(10, 10))
 	overlay.draw_rect(bounds, Color(0.5, 0.83, 1, 0.45), false, 1)
 	for point: Vector2 in [bounds.position, Vector2(bounds.end.x, bounds.position.y), bounds.end, Vector2(bounds.position.x, bounds.end.y)]:
 		overlay.draw_rect(Rect2(point - Vector2(2, 2), Vector2(4, 4)), Color("dcf5ff"))
@@ -87,7 +88,7 @@ func _gui_input(event: InputEvent) -> void:
 				part_selected.emit(index)
 				if index >= 0:
 					_offset = definition.parts[index].position - local
-					_dragging = definition.parts[index].shape != "tether"
+					_dragging = definition.parts[index].shape != "line"
 					if _dragging: drag_started.emit()
 				_redraw_handles()
 			elif _dragging:
@@ -107,13 +108,13 @@ func _pick(point: Vector2) -> int:
 	var best_layer: int = -999
 	for index: int in range(definition.parts.size()):
 		var part: PartDefinition = definition.parts[index]
-		if part.shape == "tether": continue
-		var local: Vector2 = (point - part.position).rotated(-part.rotation)
+		if part.shape == "line": continue
+		var local: Vector2 = point - part.position
 		var hit: bool = false
-		if part.shape in ["ring", "arc"]:
-			hit = absf(local.length() - part.size.x * 0.5) < 3.0
+		if not part.filled:
+			hit = absf(local.length() - part.radius) < 3.0
 		else:
-			var polygon: PackedVector2Array = ShipGeometry.outline(part.shape, part.size)
+			var polygon: PackedVector2Array = ShipGeometry.outline(part.shape, part.radius)
 			hit = Geometry2D.is_point_in_polygon(local, polygon) if polygon.size() >= 3 else false
 		if hit and part.layer >= best_layer:
 			best = index

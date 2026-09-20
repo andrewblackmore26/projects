@@ -28,19 +28,19 @@ func _run() -> void:
 					var before: PartDefinition = renderer._find(source, part.id)
 					var after: PartDefinition = renderer._find(target, part.id)
 					var expected_position: Vector2
-					var expected_size: Vector2
+					var expected_radius: float
 					if before != null and after != null:
 						expected_position = before.position.lerp(after.position, 0.5)
-						expected_size = before.size.lerp(after.size, 0.5)
+						expected_radius = lerpf(before.radius, after.radius, 0.5)
 					elif after != null:
 						expected_position = after.position * 0.5
-						expected_size = after.size * 0.5
+						expected_radius = after.radius * 0.5
 					else:
 						expected_position = before.position * 0.5
-						expected_size = before.size * 0.5
+						expected_radius = before.radius * 0.5
 					var data: Dictionary = renderer._morph(part)
 					_check(Vector2(data.position).is_equal_approx(expected_position), route + " midpoint position " + part.id)
-					_check(Vector2(data.size).is_equal_approx(expected_size), route + " midpoint size " + part.id)
+					_check(is_equal_approx(float(data.radius), expected_radius), route + " midpoint radius " + part.id)
 				renderer._process(0.4)
 				_check(renderer.reshape_remaining == 0 and renderer._mesh_instance.visible, route + " returns to the cached surface")
 				_check(renderer._display_parts.size() == target.parts.size(), route + " removes outgoing parts")

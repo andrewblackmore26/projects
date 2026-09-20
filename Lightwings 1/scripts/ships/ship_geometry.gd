@@ -1,38 +1,16 @@
 class_name ShipGeometry
 extends RefCounted
 ## Curves are sampled once, not once per frame. No raster art or fabricated glow.
+## Exactly two primitives: a circle (filled disc or unfilled ring, bright rim,
+## dark fill) and a line (straight, each end clipped at a circle's rim).
 
-static func outline(shape: String, size: Vector2) -> PackedVector2Array:
+static func outline(shape: String, radius: float) -> PackedVector2Array:
 	var p: PackedVector2Array = []
-	var half: Vector2 = size * 0.5
-	match shape:
-		"circle", "ellipse", "ring", "arc":
-			var count: int = 48
-			var start: float = -PI * 0.5
-			var sweep: float = TAU
-			if shape == "arc":
-				count = 14
-				sweep = PI * 0.36
-				start = -PI * 0.68
-			for i: int in range(count + 1):
-				p.append(Vector2.from_angle(start + sweep * float(i) / float(count)) * half)
-		"crescent":
-			# A circle minus a smaller offset circle, open toward the nose.
-			var radius: float = 1.0
-			var inner: float = 0.84
-			var offset: float = 0.42
-			var y: float = (inner * inner - radius * radius - offset * offset) / (2.0 * offset)
-			var x: float = sqrt(maxf(0, 1.0 - y * y))
-			var a: float = atan2(y, x)
-			for i: int in range(37):
-				p.append(Vector2.from_angle(lerpf(a, PI - a, float(i) / 36.0)) * half)
-			var inner_start: float = atan2(y + offset, -x)
-			if inner_start < 0:
-				inner_start += TAU
-			var inner_end: float = atan2(y + offset, x)
-			for i: int in range(1, 37):
-				p.append((Vector2.from_angle(lerpf(inner_start, inner_end, float(i) / 36.0)) * inner + Vector2(0, -offset)) * half)
-			p.append(p[0])
+	if shape != "circle": return p
+	var count: int = 48
+	var start: float = -PI * 0.5
+	for i: int in range(count + 1):
+		p.append(Vector2.from_angle(start + TAU * float(i) / float(count)) * radius)
 	return p
 
 static func lengths(points: PackedVector2Array) -> PackedFloat32Array:
@@ -59,16 +37,11 @@ static func section(points: PackedVector2Array, distances: PackedFloat32Array, f
 		result.append(last)
 	return result
 
-static func rim_distance(size: Vector2, rotation: float, direction: Vector2) -> float:
-	var local: Vector2 = direction.rotated(-rotation)
-	var half: Vector2 = size * 0.5
-	return 1.0 / maxf(0.001, sqrt(pow(local.x / maxf(half.x, 0.001), 2) + pow(local.y / maxf(half.y, 0.001), 2)))
-
-static func clipped_tether(from: Dictionary, to: Dictionary) -> PackedVector2Array:
+static func clipped_line(from: Dictionary, to: Dictionary) -> PackedVector2Array:
 	var start: Vector2 = from.position
 	var finish: Vector2 = to.position
 	var direction: Vector2 = (finish - start).normalized()
-	var left: float = rim_distance(from.size, float(from.rotation), direction)
-	var right: float = rim_distance(to.size, float(to.rotation), -direction)
+	var left: float = float(from.radius)
+	var right: float = float(to.radius)
 	if start.distance_to(finish) <= left + right: return PackedVector2Array()
 	return PackedVector2Array([start + direction * left, finish - direction * right])

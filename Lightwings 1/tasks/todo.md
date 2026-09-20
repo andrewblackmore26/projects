@@ -40,6 +40,13 @@ Mandatory stop for hands-on review: **after P7**. Non-blocking checkpoint: roste
 - [x] Proof: counts identical to P0, no diff under `tests/` or in `package_validation.gd`, golden trace identical, exports verified; commit
 
 ## P2 — Ship model: two primitives, graph, groups, six tiers, 101 hulls
+
+Done as four sequential steps, each ending green with its own commit (the files interlock too tightly for one step to be provable):
+- **P2a-1 Primitives + parent graph.** `PartDefinition`: `shape` circle|line, `radius`, `filled`, `parent_id`, `hp`; `size`/`rotation`/`weapon_hp` and the ellipse/crescent/arc/ring/tether shapes removed; body part renamed `core`; `black` palette role. The OLD generator is adapted mechanically (ellipse → circle, crescent → rimmed + black circle, ring → unfilled circle, tether → line, parents assigned) and all 136 hulls regenerated. Still 5 tiers, same stats and mounts, so the sim should not move: **the golden trace is expected to stay identical.**
+- **P2a-2 Motion evaluator + shader slots.** `ship_motion.gd` (ShipRig / ShipPose / step), `group_definition.gd`, lines out of the 128 uniform slots, `.z` radius scale, `.w` flare, `inward()` and whole-ship `breathes` deleted, reshape through the evaluator.
+- **P2b-1 Six tiers + new generator + roster 141 + validate().**
+- **P2b-2 Editor (Motion tab, inspector, JSON §22, v2 import) + evolution fill rule.**
+
 - [ ] Schema v3 on `PartDefinition` / `ShipDefinition`; `group_definition.gd`
 - [ ] `scripts/ships/ship_motion.gd` (ShipRig / ShipPose / step); delete shader `inward()` and whole-ship `breathes`
 - [ ] Shader: lines out of the 128 uniform slots; `.z` radius scale, `.w` rim flare
@@ -154,6 +161,21 @@ No game code changed in P0. Everything below was measured on the untouched v0.2 
 Left alone on purpose (not ModeConfig questions): menu-time `OS.has_feature("demo")` button and preview gating, the "DEMO"/"CAMPAIGN" sector label, the demo ending branch, the demo minimap filter. They are rewritten in P5.
 
 Noted, not fixed: `SCREEN_POLICY["intro"]` and `_show_rival_intro` are dead code in main.gd (no caller). `_gun_position` is called across files from the broadphase; it goes away with integer handles in P4.
+
+## Review — P2a-1 (primitives + parent graph)
+
+| What | Measured |
+|---|---|
+| Schema | `PartDefinition`: `shape` (circle\|line), `radius: float`, `filled: bool`, `parent_id: String`, `hp: float` replace `size`, `rotation`, `weapon_hp`; `"tether"`→`"line"`, `"ring"`→circle+`filled=false`, `"ellipse"`/`"crescent"`/`"arc"` removed. `ShipDefinition.schema_version` 2→3. Body part id `"body"`→`"core"` everywhere. New palette role `"black"` (rim/fill/light all black), used for the void crescent's covering disc. |
+| Regenerated roster | 136/136 hulls rebuilt via `export_catalog.gd --rebuild`, 0 failures; `ships_validation` census: 81 player / 25 enemy / 25 elite / 5 rival unchanged |
+| Shape census | Only `circle` and `line` appear across all 136 hulls (asserted in `ships_validation.gd`); no ellipse/ring/arc/crescent/tether survives |
+| `footprint` / `tp_used` movement | `tp_used`: 0 delta on every corruption and void hull (the black crescent-cover circle is TP-free, like the geometry it replaces). `footprint`: void 0 delta on all 27 hulls; corruption -2.25 px to 0 px (elites and T1 unaffected; T2–T5 lobes shrink slightly because a circle keeps the *mean* of the old ellipse's two half-axes instead of the larger one) |
+| Golden trace | Identical at all steps, not re-recorded (mounts, stats and every id but `body`→`core` were kept byte-identical) |
+| `test.ps1 -GPU` | 17/17 pass. Per-ship-test check counts, old → new: `ships_mesh_test` 5362→5416, `ships_reshape_test` 5874→5958 (100 routes), `ships_validation` 5324→6779 (new parent-graph and shape negative controls) |
+| `gates.ps1 -GPU -Exports` | 8/8 ok in 57.7 s |
+| Screenshots | Player gallery: corruption hulls render as round blobs (lobes are circles, not ellipses). Direct `ShipRenderer` captures of `enemy_void_t3`: the "maw" shows as a rimmed circle with a visible gap in its rim where the black cover circle sits — reads as a crescent; plasma orbit rings render unfilled. Nothing rendered black-on-black by accident (checked at 8x zoom) |
+
+Retired/rewritten assertions: `tests/ships_validation.gd:51-52` ("Ellipse restricted to corruption") replaced with "Ellipse is never legal" plus new negative controls for `ring`/`tether`/`crescent`/`arc`, a parent cycle, a parent chain that never reaches the core, and a line ending on a line. `ship_catalog.gd`'s "circular geometry must have equal dimensions" rule was removed (no longer representable: a circle only ever has one radius).
 
 ## Retired assertions
 

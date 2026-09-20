@@ -240,7 +240,7 @@ func _refresh() -> void:
 func _refresh_objects() -> void:
 	object_list.clear()
 	var objects: Array[String] = []
-	if object_tab == "Body": objects.assign(ShipCatalog.SHAPES); objects.append("concentric_rings")
+	if object_tab == "Body": objects.assign(ShipCatalog.SHAPES); objects.append("concentric_rings"); objects.append("crescent")
 	else:
 		for id: String in AbilityCatalog.DEFINITIONS:
 			if AbilityCatalog.get_definition(id).slot_kind == object_tab.to_lower() or (object_tab == "Secondary" and not working.is_player and AbilityCatalog.get_definition(id).slot_kind == "enemy"): objects.append(id)
@@ -248,7 +248,7 @@ func _refresh_objects() -> void:
 		var cost: float = 0.25 if object_tab == "Body" else AbilityCatalog.get_definition(id).tp_cost
 		var index: int = object_list.add_item("[%.2f TP] %s" % [cost, id.replace("_", " ").capitalize()])
 		object_list.set_item_metadata(index, id)
-		var locked: bool = working.tp_used + cost > working.tp_max or (id == "ellipse" and working.element != "corruption")
+		var locked: bool = working.tp_used + cost > working.tp_max
 		if object_tab != "Body":
 			var definition: AbilityDefinition = AbilityCatalog.get_definition(id)
 			locked = locked or (working.is_player and definition.minimum_tier > working.tier) or not working.faction in definition.allowed_factions
@@ -278,15 +278,34 @@ func _refresh_inspector() -> void:
 	if part.mount_id.is_empty(): _option_field("Body stat", ["turn_rate", "speed", "magnet_radius", "structure"] + ([] if working.is_player else ["bullet_eater", "void_pull", "projectile_orbit"]), part.stat_id, func(value: String) -> void: _part_property("stat_id", value))
 	else: _label(inspector, "Component: " + part.ability_id)
 	if part.mount_id.is_empty(): _number_field("Stat contribution", part.stat_value, 0, 500, 0.25, func(value: float) -> void: _part_property("stat_value", value))
-	if part.shape != "tether":
+	if part.shape != "line":
 		_number_field("Position X", part.position.x, -400, 400, 0.5, func(value: float) -> void: _part_vector("position", 0, value))
 		_number_field("Position Y", part.position.y, -400, 400, 0.5, func(value: float) -> void: _part_vector("position", 1, value))
-		_number_field("Width", part.size.x, 1, 400, 0.5, func(value: float) -> void: _part_vector("size", 0, value))
-		if part.shape == "ellipse": _number_field("Height", part.size.y, 1, 400, 0.5, func(value: float) -> void: _part_vector("size", 1, value))
-		_number_field("Angle °", rad_to_deg(part.rotation), -180, 180, 1, func(value: float) -> void: _part_property("rotation", deg_to_rad(value)))
+		_number_field("Radius", part.radius, 1, 400, 0.5, func(value: float) -> void: _part_property("radius", value))
+		var filled_box: CheckButton = CheckButton.new()
+		filled_box.text = "Filled"
+		filled_box.button_pressed = part.filled
+		inspector.add_child(filled_box)
+		filled_box.toggled.connect(func(value: bool) -> void: _part_property("filled", value))
+		var parent_options: Array[String] = []
+		for candidate: PartDefinition in working.parts:
+			if candidate.shape == "circle" and candidate.id != part.id and not _is_descendant(candidate.id, part.id): parent_options.append(candidate.id)
+		if part.id != "core": _option_field("Parent", parent_options, part.parent_id, func(value: String) -> void: _part_property("parent_id", value))
 	_number_field("Light period", part.light_period, 0.1, 10, 0.1, func(value: float) -> void: _part_property("light_period", value))
 	_number_field("Light phase", part.light_phase, -10, 10, 0.1, func(value: float) -> void: _part_property("light_phase", value))
-	if working.faction == "elite": _number_field("Weapon HP", part.weapon_hp, 0, 10000, 1, func(value: float) -> void: _part_property("weapon_hp", value))
+	if working.faction == "elite": _number_field("Weapon HP", part.hp, 0, 10000, 1, func(value: float) -> void: _part_property("hp", value))
+
+func _is_descendant(candidate_id: String, ancestor_id: String) -> bool:
+	var cursor: String = candidate_id
+	var seen: Dictionary = {}
+	while not cursor.is_empty() and not seen.has(cursor):
+		if cursor == ancestor_id: return true
+		seen[cursor] = true
+		var found: bool = false
+		for part: PartDefinition in working.parts:
+			if part.id == cursor: cursor = part.parent_id; found = true; break
+		if not found: break
+	return false
 
 func _text_field(caption: String, value: String, changed: Callable) -> void:
 	_label(inspector, caption, 12)
@@ -337,14 +356,13 @@ func _part_property(property: String, value: Variant) -> void:
 	var after: ShipDefinition = working.duplicate(true)
 	var part: PartDefinition = after.parts[selected]
 	part.set(property, value)
-	if property == "size" and part.shape != "ellipse": part.size = Vector2.ONE * part.size.x
 	if symmetry.button_pressed:
 		for other: PartDefinition in after.parts:
 			if other.id == part.mirror_id:
 				other.set(property, value)
 				other.position = Vector2(-part.position.x, part.position.y)
-				other.rotation = -part.rotation
-				other.size = part.size
+				other.radius = part.radius
+				other.filled = part.filled
 	_commit(working, after, "Edit part " + property)
 
 func _part_vector(property: String, axis: int, value: float) -> void:
@@ -374,11 +392,14 @@ func _place_object(id: String, kind: String, point: Vector2) -> void:
 	var after: ShipDefinition = working.duplicate(true)
 	var stem: String = _unique_id(id)
 	if kind == "Body":
-		if id == "tether": _add_tether(); return
+		if id == "line": _add_line(); return
 		if id == "concentric_rings":
-			for ring_index: int in range(3): ShipCatalog.add_part(after, stem + "_" + str(ring_index), "ring", Vector2.ZERO, Vector2.ONE * (20 + ring_index * 10), "chassis", "magnet_radius", 2)
-		elif symmetry.button_pressed and absf(point.x) > 0.01: ShipCatalog.add_pair(after, stem, id, point, Vector2.ONE * 10, "chassis", "hp_buffer", 2)
-		else: ShipCatalog.add_part(after, stem, id, point, Vector2.ONE * 10)
+			for ring_index: int in range(3): ShipCatalog.add_part(after, stem + "_" + str(ring_index), "circle", Vector2.ZERO, 20 + ring_index * 10, "chassis", "magnet_radius", 2, false, "core")
+		elif id == "crescent":
+			var outer: PartDefinition = ShipCatalog.add_part(after, stem, "circle", point, 10, "chassis", "hp_buffer", 3, true, "core")
+			ShipCatalog.add_part(after, stem + "_cover", "circle", point + Vector2(0, -3), 8, "black", "structure", 4, true, outer.id)
+		elif symmetry.button_pressed and absf(point.x) > 0.01: ShipCatalog.add_pair(after, stem, id, point, 10, "chassis", "hp_buffer", 2)
+		else: ShipCatalog.add_part(after, stem, id, point, 10, "chassis", "hp_buffer", 3, true, "core")
 	else:
 		var definition: AbilityDefinition = AbilityCatalog.get_definition(id)
 		if definition.slot_kind == "primary":
@@ -388,7 +409,7 @@ func _place_object(id: String, kind: String, point: Vector2) -> void:
 		elif definition.slot_kind == "passive": after.passives.append(id); ShipCatalog.mount_component(after, id, stem, point)
 		else:
 			ShipCatalog.mount_component(after, id, stem, point, 11)
-			after.parts[-2].weapon_hp = 30 + working.tier * 15
+			after.parts[-2].hp = 30 + working.tier * 15
 		var placed: PartDefinition
 		if definition.slot_kind == "primary":
 			for part: PartDefinition in after.parts:
@@ -398,11 +419,10 @@ func _place_object(id: String, kind: String, point: Vector2) -> void:
 			var mirror: PartDefinition = placed.duplicate(true)
 			mirror.id = placed.id + "_mirror"
 			mirror.position.x *= -1
-			mirror.rotation *= -1
 			mirror.mirror_id = placed.id
 			placed.mirror_id = mirror.id
 			after.parts.append(mirror)
-			ShipCatalog.add_tether(after, mirror.id + "_link", "body", mirror.id)
+			ShipCatalog.add_line(after, mirror.id + "_link", "core", mirror.id)
 	ShipCatalog.recalculate(after)
 	var errors: PackedStringArray = ShipCatalog.validate(after)
 	if not errors.is_empty(): status.text = "Placement blocked: " + " | ".join(errors); return
@@ -418,26 +438,25 @@ func _mirror_part() -> void:
 	var other: PartDefinition = part.duplicate(true)
 	other.id = _unique_id(part.id + "_mirror")
 	other.position.x *= -1
-	other.rotation *= -1
 	other.mirror_id = part.id
 	part.mirror_id = other.id
 	after.parts.append(other)
 	_commit(working, after, "Mirror part")
 
-func _add_tether() -> void:
-	if selected < 0 or working.parts[selected].shape == "tether" or working.parts[selected].id == "body": return
+func _add_line() -> void:
+	if selected < 0 or working.parts[selected].shape == "line" or working.parts[selected].id == "core": return
 	var after: ShipDefinition = working.duplicate(true)
 	var target: PartDefinition = after.parts[selected]
-	var stem: String = _unique_id("tether")
-	ShipCatalog.add_tether(after, stem, "body", target.id)
+	var stem: String = _unique_id("line")
+	ShipCatalog.add_line(after, stem, "core", target.id)
 	if symmetry.button_pressed and not target.mirror_id.is_empty():
-		ShipCatalog.add_tether(after, stem + "_mirror", "body", target.mirror_id)
+		ShipCatalog.add_line(after, stem + "_mirror", "core", target.mirror_id)
 		after.parts[-2].mirror_id = after.parts[-1].id
 		after.parts[-1].mirror_id = after.parts[-2].id
-	_commit(working, after, "Add tether")
+	_commit(working, after, "Add line")
 
 func _delete_part() -> void:
-	if selected < 0 or working.parts[selected].id == "body": return
+	if selected < 0 or working.parts[selected].id == "core": return
 	var after: ShipDefinition = working.duplicate(true)
 	var target: PartDefinition = after.parts[selected]
 	var ids: Array[String] = [target.id]
@@ -457,7 +476,7 @@ func _delete_part() -> void:
 
 func _drag_part(index: int, point: Vector2) -> void:
 	var part: PartDefinition = working.parts[index]
-	if part.id == "body": return
+	if part.id == "core": return
 	part.position = point
 	if symmetry.button_pressed:
 		if part.mirror_id.is_empty(): part.position.x = 0

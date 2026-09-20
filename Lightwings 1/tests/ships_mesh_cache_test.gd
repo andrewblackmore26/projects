@@ -16,7 +16,7 @@ func _initialize() -> void:
 	third.build(ship)
 	_check(third.centers[0] == saved_center and not third.part_indices.is_empty(), "Mutable builder metadata cannot corrupt cached metadata")
 	var draft: ShipDefinition = ship.duplicate(true)
-	draft.parts[0].size.x += 1
+	draft.parts[0].radius += 1
 	_check(ShipMesh.new().build(draft) != first_mesh, "Editing geometry with same hull ID gets a new mesh")
 	draft = ship.duplicate(true)
 	draft.parts[0].light_phase += 0.1
@@ -30,6 +30,9 @@ func _initialize() -> void:
 	draft = ship.duplicate(true)
 	draft.parts[0].stat_value += 1
 	_check(ShipMesh.new().build(draft) == first_mesh, "Unbaked gameplay stats do not rebuild geometry")
+	draft = ship.duplicate(true)
+	draft.parts[1].parent_id = "not_a_real_circle"
+	_check(ShipMesh.new().build(draft) == first_mesh, "The authoring parent graph does not affect geometry identity")
 	var actor_a: ShipRenderer = ShipRenderer.new()
 	var actor_b: ShipRenderer = ShipRenderer.new()
 	root.add_child(actor_a)
@@ -47,7 +50,7 @@ func _initialize() -> void:
 	# A small synthetic hull tests bounded eviction without expensive scene work.
 	var simple: ShipDefinition = ShipCatalog.get_ship("player_seed")
 	for index: int in range(ShipMesh.MAX_CACHE_ENTRIES + 8):
-		simple.parts[0].size = Vector2.ONE * (10 + index * 0.1)
+		simple.parts[0].radius = 10 + index * 0.1
 		ShipMesh.new().build(simple)
 	var statistics: Dictionary = ShipMesh.cache_stats()
 	_check(statistics.entries <= ShipMesh.MAX_CACHE_ENTRIES and statistics.estimated_bytes <= ShipMesh.MAX_CACHE_BYTES, "Cache stays bounded across edited drafts")

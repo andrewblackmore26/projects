@@ -40,7 +40,8 @@ static func geometry_key(ship: ShipDefinition) -> PackedByteArray:
 	# Gameplay-only stats and hull occlusion radius are not baked into this mesh.
 	var signature: Array = [ship.is_player, ship.element, ship.core_radius]
 	for part: PartDefinition in ship.parts:
-		signature.append([part.id, part.shape, part.position, part.size, part.rotation, part.color_role, part.layer, part.light_period, part.light_phase, part.from_id, part.to_id, part.dashed])
+		# parent_id affects only the authoring graph, never geometry; excluded deliberately.
+		signature.append([part.id, part.shape, part.position, part.radius, part.filled, part.color_role, part.layer, part.light_period, part.light_phase, part.from_id, part.to_id, part.dashed])
 	return var_to_bytes(signature)
 
 func build(ship: ShipDefinition) -> ArrayMesh:
@@ -93,20 +94,20 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 	for i: int in range(parts.size()):
 		part_indices[parts[i].id] = i
 		centers[i] = parts[i].position
-		geometries[i] = Vector4(parts[i].size.x * 0.5, parts[i].size.y * 0.5, parts[i].rotation, 0)
+		geometries[i] = Vector4(parts[i].radius, parts[i].radius, 0, 0)
 	for i: int in range(parts.size()):
 		var part: PartDefinition = parts[i]
 		var points: PackedVector2Array = []
 		var endpoints: float = -1.0
-		if part.shape == "tether":
+		if part.shape == "line":
 			if not part_indices.has(part.from_id) or not part_indices.has(part.to_id): continue
 			var from_index: int = part_indices[part.from_id]
 			var to_index: int = part_indices[part.to_id]
 			points = PackedVector2Array([centers[from_index], centers[to_index]])
 			endpoints = float(from_index + to_index * MAX_PARTS)
 		else:
-			for point: Vector2 in ShipGeometry.outline(part.shape, part.size):
-				points.append(point.rotated(part.rotation) + part.position)
+			for point: Vector2 in ShipGeometry.outline(part.shape, part.radius):
+				points.append(point + part.position)
 		if points.size() < 2: continue
 		var distances: PackedFloat32Array = ShipGeometry.lengths(points)
 		var role: String = part.color_role
@@ -117,9 +118,9 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 		var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
 		# Custom attributes do not receive Godot's automatic sRGB conversion.
 		light = light.srgb_to_linear() * 1.8
-		var style: float = 2.0 if part.shape == "tether" else (1.0 if part.dashed or part.layer == 0 else 3.0 if part.shape == "ring" else 0.0)
+		var style: float = 2.0 if part.shape == "line" else (1.0 if part.dashed or part.layer == 0 else 3.0 if not part.filled else 0.0)
 		parameters[i] = Vector4(maxf(0.05, part.light_period), part.light_phase, distances[-1], style)
-		if part.layer != 0 and part.shape not in ["tether", "ring", "arc"]:
+		if part.layer != 0 and part.shape == "circle" and part.filled:
 			_append_fill(points, fill, i)
 		_append_outline(points, distances, stroke, light, i, endpoints)
 	_append_core(ship.core_radius)

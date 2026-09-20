@@ -5,8 +5,8 @@
 
 [sub_resource type="Resource" id="Resource_a08bh"]
 script = ExtResource("1_d0wug")
-id = "body"
-size = Vector2(71.6, 71.6)
+id = "core"
+radius = 35.8
 stat_id = "speed"
 tp_cost = 2.0
 stat_value = 40.0
@@ -14,8 +14,9 @@ stat_value = 40.0
 [sub_resource type="Resource" id="Resource_v5h67"]
 script = ExtResource("1_d0wug")
 id = "reach"
-shape = "ring"
-size = Vector2(89.6, 89.6)
+radius = 44.8
+filled = false
+parent_id = "core"
 layer = 0
 light_phase = -0.7
 stat_id = "magnet_radius"
@@ -26,9 +27,9 @@ stat_value = 4.0
 [sub_resource type="Resource" id="Resource_i6wjp"]
 script = ExtResource("1_d0wug")
 id = "maw"
-shape = "crescent"
 position = Vector2(0, -9.24)
-size = Vector2(43.12, 43.12)
+radius = 21.559999999999995
+parent_id = "core"
 light_phase = -1.3
 stat_id = "turn_rate"
 tp_cost = 0.75
@@ -36,75 +37,89 @@ stat_value = 0.25
 
 [sub_resource type="Resource" id="Resource_1a61d"]
 script = ExtResource("1_d0wug")
-id = "primary"
-position = Vector2(0, -21.56)
-size = Vector2(22, 22)
-color_role = "violet"
+id = "maw_cover"
+position = Vector2(0, -18.2952)
+radius = 18.110399999999995
+parent_id = "maw"
+color_role = "black"
 layer = 4
 light_period = 1.6
-ability_id = "homing_beam"
-mount_id = "primary"
+stat_id = "structure"
 tp_cost = 0.0
-weapon_hp = 39.0
 
 [sub_resource type="Resource" id="Resource_rxssc"]
 script = ExtResource("1_d0wug")
-id = "primary_link"
-shape = "tether"
-size = Vector2(1, 1)
-layer = 1
+id = "primary"
+position = Vector2(0, -21.56)
+radius = 11.0
+parent_id = "core"
+color_role = "violet"
+layer = 4
 light_phase = -0.7
-from_id = "body"
+ability_id = "homing_beam"
+mount_id = "primary"
+tp_cost = 0.0
+hp = 39.0
+
+[sub_resource type="Resource" id="Resource_wg4ff"]
+script = ExtResource("1_d0wug")
+id = "primary_link"
+shape = "line"
+radius = 1.0
+layer = 1
+light_phase = -1.3
+from_id = "core"
 to_id = "primary"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_wg4ff"]
+[sub_resource type="Resource" id="Resource_r8ksm"]
 script = ExtResource("1_d0wug")
 id = "elite_weapon_0"
 position = Vector2(49.28, 0)
-size = Vector2(22, 22)
+radius = 11.0
+parent_id = "core"
 color_role = "red"
 layer = 4
-light_phase = -1.3
 ability_id = "laser_prong"
 mount_id = "elite_weapon_0"
 tp_cost = 0.0
-weapon_hp = 39.0
+hp = 39.0
 
-[sub_resource type="Resource" id="Resource_r8ksm"]
+[sub_resource type="Resource" id="Resource_uuvq1"]
 script = ExtResource("1_d0wug")
 id = "elite_weapon_0_link"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
-from_id = "body"
+light_period = 1.6
+light_phase = -0.7
+from_id = "core"
 to_id = "elite_weapon_0"
 stat_id = "structure"
 tp_cost = 0.25
 
-[sub_resource type="Resource" id="Resource_uuvq1"]
+[sub_resource type="Resource" id="Resource_yni8w"]
 script = ExtResource("1_d0wug")
 id = "elite_weapon_1"
 position = Vector2(-24.640003, 42.67773)
-size = Vector2(22, 22)
+radius = 11.0
+parent_id = "core"
 color_role = "red"
 layer = 4
-light_period = 1.6
-light_phase = -0.7
+light_phase = -1.3
 ability_id = "egg"
 mount_id = "elite_weapon_1"
 tp_cost = 0.0
-weapon_hp = 39.0
+hp = 39.0
 
-[sub_resource type="Resource" id="Resource_yni8w"]
+[sub_resource type="Resource" id="Resource_4rsm5"]
 script = ExtResource("1_d0wug")
 id = "elite_weapon_1_link"
-shape = "tether"
-size = Vector2(1, 1)
+shape = "line"
+radius = 1.0
 layer = 1
-light_phase = -1.3
-from_id = "body"
+from_id = "core"
 to_id = "elite_weapon_1"
 stat_id = "structure"
 tp_cost = 0.25
@@ -115,7 +130,7 @@ id = "elite_void_t1"
 display_name = "Null Heavy"
 element = "void"
 hull_radius = 35.8
-parts = Array[ExtResource("1_d0wug")]([SubResource("Resource_a08bh"), SubResource("Resource_v5h67"), SubResource("Resource_i6wjp"), SubResource("Resource_1a61d"), SubResource("Resource_rxssc"), SubResource("Resource_wg4ff"), SubResource("Resource_r8ksm"), SubResource("Resource_uuvq1"), SubResource("Resource_yni8w")])
+parts = Array[ExtResource("1_d0wug")]([SubResource("Resource_a08bh"), SubResource("Resource_v5h67"), SubResource("Resource_i6wjp"), SubResource("Resource_1a61d"), SubResource("Resource_rxssc"), SubResource("Resource_wg4ff"), SubResource("Resource_r8ksm"), SubResource("Resource_uuvq1"), SubResource("Resource_yni8w"), SubResource("Resource_4rsm5")])
 abilities = Array[String](["homing_beam"])
 faction = "elite"
 family = "heavy"
