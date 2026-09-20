@@ -28,6 +28,29 @@ static func offers(current: String, tier: int, absorbed: Dictionary, unlocked: A
 		for element: String in candidates.slice(0, 3):
 			var choices: Array[String] = _roster_ids(element, tier + 1)
 			if not choices.is_empty(): result.append(choices[rng.randi_range(0, choices.size() - 1)])
+		# Fill rule (spec §8): "With fewer than three unlocked, fill from the
+		# current element's roster." A roster carries 4 hulls per element per
+		# tier, so it can always supply the gap without repeating an id
+		# already offered. If the current element has no roster at this tier
+		# (the neutral T1 seed has none), fall back to the highest-ranked
+		# unlocked element, then cycle through the remaining ranks so three
+		# DISTINCT hulls are always produced whenever any roster can supply
+		# them - which, with a real element unlocked, is always.
+		if result.size() < 3:
+			var fill_order: Array[String] = []
+			if not _roster_ids(current, tier + 1).is_empty(): fill_order.append(current)
+			for element: String in candidates:
+				if element not in fill_order: fill_order.append(element)
+			var fill_cursor: int = 0
+			var guard: int = 0
+			while result.size() < 3 and not fill_order.is_empty() and guard < 64:
+				guard += 1
+				var element: String = fill_order[fill_cursor % fill_order.size()]
+				fill_cursor += 1
+				var unused: Array[String] = []
+				for id: String in _roster_ids(element, tier + 1):
+					if id not in result: unused.append(id)
+				if not unused.is_empty(): result.append(unused[rng.randi_range(0, unused.size() - 1)])
 	else:
 		var element: String = current if current in candidates else candidates[0]
 		var choices: Array[String] = _roster_ids(element, tier + 1)

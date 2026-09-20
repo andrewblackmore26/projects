@@ -111,6 +111,7 @@ script = ExtResource("3_ty1j5")
 id = "boss_corruption"
 display_name = "Corruption Boss"
 tier = 4
+symmetry = "radial"
 parts = Array[ExtResource("2_htqbk")]([SubResource("Resource_gejhw"), SubResource("Resource_r8a0r"), SubResource("Resource_rl3nh"), SubResource("Resource_8rbbq"), SubResource("Resource_ett6q"), SubResource("Resource_gcp70"), SubResource("Resource_qnt1y"), SubResource("Resource_pp8sd"), SubResource("Resource_w4db3")])
 abilities = Array[String](["pulse_cannon"])
 faction = "boss"

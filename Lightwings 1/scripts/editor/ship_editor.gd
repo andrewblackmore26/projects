@@ -38,6 +38,7 @@ var _exit_after_save: bool = false
 var _delete_confirmation: ConfirmationDialog
 var _delete_id: String = ""
 var _combat_window: Window
+var _line_from: String = ""
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -138,7 +139,7 @@ func _build_ui() -> void:
 	stats = _label(right, "", 14)
 	var tabs: HBoxContainer = HBoxContainer.new()
 	right.add_child(tabs)
-	for kind: String in ["Body", "Primary", "Secondary", "Passive"]:
+	for kind: String in ["Body", "Primary", "Secondary", "Passive", "Motion"]:
 		_button(tabs, kind, func() -> void: object_tab = kind; _refresh_objects())
 	object_card = ShipObjectCard.new()
 	object_card.text = "Click and drag object"
@@ -219,10 +220,10 @@ func _refresh() -> void:
 	base_preview.set_ship(working)
 	min_preview.set_ship(working)
 	var limits: Dictionary = GameTuning.slots(working.tier, working.role)
-	header.text = "Tier %d / Max Tier: %d     Complexity %d / 128     TP: %.2f / %.2f" % [working.tier, GameTuning.MAX_TIER, working.parts.size(), working.tp_used, working.tp_max]
+	header.text = "Tier %d / Max Tier: %d     Complexity %d / %d     TP: %.2f / %.2f" % [working.tier, GameTuning.MAX_TIER, working.parts.size(), ShipCatalog.MAX_PARTS, working.tp_used, working.tp_max]
 	budget_bars.tier.max_value = GameTuning.MAX_TIER
 	budget_bars.tier.value = working.tier
-	budget_bars.complexity.max_value = 128
+	budget_bars.complexity.max_value = ShipCatalog.MAX_PARTS
 	budget_bars.complexity.value = working.parts.size()
 	budget_bars.tp.max_value = working.tp_max
 	budget_bars.tp.value = working.tp_used
@@ -239,6 +240,13 @@ func _refresh() -> void:
 
 func _refresh_objects() -> void:
 	object_list.clear()
+	if object_tab == "Motion":
+		# The Motion tab edits §18 group properties on the selected subtree
+		# directly in the inspector; it has no placeable objects of its own.
+		object_card.object_id = ""
+		object_card.object_kind = "Motion"
+		object_card.text = "Select a circle below, then edit its motion group in the inspector."
+		return
 	var objects: Array[String] = []
 	if object_tab == "Body": objects.assign(ShipCatalog.SHAPES); objects.append("concentric_rings"); objects.append("crescent")
 	else:
@@ -260,8 +268,57 @@ func _refresh_objects() -> void:
 
 func _select_part(index: int) -> void:
 	selected = clampi(index, -1, working.parts.size() - 1)
+	# Body/line placement requires picking two existing circles (spec §21):
+	# the first click on a circle while "line" is the pending object arms the
+	# endpoint, the second click on a different circle completes it.
+	if object_tab == "Body" and object_card.object_kind == "Body" and object_card.object_id == "line" and selected >= 0 and working.parts[selected].shape == "circle":
+		var id: String = working.parts[selected].id
+		if _line_from.is_empty() or not _has_part(_line_from):
+			_line_from = id
+			status.text = "Line: picked " + id + " — click a second circle to connect it."
+		elif _line_from != id:
+			var from_id: String = _line_from
+			_line_from = ""
+			_add_line_between(from_id, id)
+		canvas.select(selected)
+		_refresh_inspector()
+		return
+	_line_from = ""
 	canvas.select(selected)
 	_refresh_inspector()
+
+func _has_part(id: String) -> bool:
+	for part: PartDefinition in working.parts:
+		if part.id == id: return true
+	return false
+
+## Explicit two-endpoint line placement (spec §21: "Placing a line requires
+## picking two existing circles"). `_add_line()` below remains as the
+## legacy core-to-selected shortcut some authoring tools and the v0.2
+## contract test still call directly.
+func _add_line_between(from_id: String, to_id: String) -> void:
+	if from_id == to_id or not _has_part(from_id) or not _has_part(to_id):
+		status.text = "Line placement blocked: a line requires two distinct, existing circles."
+		return
+	var after: ShipDefinition = working.duplicate(true)
+	var from_part: PartDefinition = null
+	var to_part: PartDefinition = null
+	for part: PartDefinition in after.parts:
+		if part.id == from_id: from_part = part
+		if part.id == to_id: to_part = part
+	if from_part == null or to_part == null or from_part.shape != "circle" or to_part.shape != "circle":
+		status.text = "Line placement blocked: a line must end on circles."
+		return
+	var stem: String = _unique_id("line")
+	ShipCatalog.add_line(after, stem, from_id, to_id)
+	if symmetry.button_pressed and not from_part.mirror_id.is_empty() and not to_part.mirror_id.is_empty() and from_part.mirror_id != to_id:
+		ShipCatalog.add_line(after, stem + "_mirror", from_part.mirror_id, to_part.mirror_id)
+		after.parts[-2].mirror_id = after.parts[-1].id
+		after.parts[-1].mirror_id = after.parts[-2].id
+	ShipCatalog.recalculate(after)
+	var errors: PackedStringArray = ShipCatalog.validate(after)
+	if not errors.is_empty(): status.text = "Line placement blocked: " + " | ".join(errors); return
+	_commit(working, after, "Add line " + from_id + "-" + to_id)
 
 func _refresh_inspector() -> void:
 	for child: Node in inspector.get_children(): inspector.remove_child(child); child.queue_free()
@@ -269,7 +326,7 @@ func _refresh_inspector() -> void:
 	_text_field("ID", working.id, func(value: String) -> void: _ship_property("id", value))
 	_option_field("Element", ["neutral"] + ShipCatalog.ELEMENTS, working.element, func(value: String) -> void: _ship_property("element", value))
 	_number_field("Tier", working.tier, 1, GameTuning.MAX_TIER, 1, func(value: float) -> void: _ship_property("tier", int(value)))
-	_option_field("Faction", ["player", "enemy", "elite", "rival"], working.faction, func(value: String) -> void: _ship_property("faction", value))
+	_option_field("Faction", ["player", "enemy", "elite", "boss"], working.faction, func(value: String) -> void: _ship_property("faction", value))
 	_option_field("Role", ["compact", "standard", "heavy"], working.role, func(value: String) -> void: _ship_property("role", value))
 	if selected < 0: return
 	var part: PartDefinition = working.parts[selected]
@@ -293,7 +350,68 @@ func _refresh_inspector() -> void:
 		if part.id != "core": _option_field("Parent", parent_options, part.parent_id, func(value: String) -> void: _part_property("parent_id", value))
 	_number_field("Light period", part.light_period, 0.1, 10, 0.1, func(value: float) -> void: _part_property("light_period", value))
 	_number_field("Light phase", part.light_phase, -10, 10, 0.1, func(value: float) -> void: _part_property("light_phase", value))
-	if working.faction == "elite": _number_field("Weapon HP", part.hp, 0, 10000, 1, func(value: float) -> void: _part_property("hp", value))
+	# Inspector (spec §21): HP is part of every circle's data (§22), not only
+	# an elite's; elites simply care about it most, since it drives what
+	# detaches when the circle dies.
+	if part.shape == "circle": _number_field("HP", part.hp, 0, 10000, 1, func(value: float) -> void: _part_property("hp", value))
+	if object_tab == "Motion" and part.shape == "circle": _refresh_motion_section(part)
+
+func _group_for(root_id: String) -> GroupDefinition:
+	for group: GroupDefinition in working.groups:
+		if group.root_id == root_id: return group
+	return null
+
+func _refresh_motion_section(part: PartDefinition) -> void:
+	_label(inspector, "— Motion group rooted at " + part.id + " (§18) —", 13)
+	var group: GroupDefinition = _group_for(part.id)
+	if group == null:
+		_button(inspector, "Add motion group to " + part.id, func() -> void: _add_group(part.id))
+		return
+	_number_field("Orbit radius", group.orbit_radius, 0, 400, 1, func(value: float) -> void: _group_property(part.id, "orbit_radius", value))
+	var speed_row: HBoxContainer = HBoxContainer.new()
+	inspector.add_child(speed_row)
+	_label(speed_row, "Orbit speed (signed)", 12).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var speed_spin: SpinBox = SpinBox.new()
+	speed_spin.min_value = -3
+	speed_spin.max_value = 3
+	speed_spin.step = 0.05
+	speed_spin.value = group.orbit_speed
+	speed_row.add_child(speed_spin)
+	speed_spin.value_changed.connect(func(number: float) -> void: if not _updating: _group_property(part.id, "orbit_speed", number))
+	# Sibling groups at different radii should differ in sign (§18) or the
+	# hull reads as one spinning wheel; a one-click flip is how a designer
+	# fixes that without retyping the number.
+	_button(speed_row, "Flip sign", func() -> void: _group_property(part.id, "orbit_speed", -group.orbit_speed))
+	_number_field("Drift amp", group.drift_amp, 0, 6, 0.05, func(value: float) -> void: _group_property(part.id, "drift_amp", value))
+	_number_field("Drift freq", group.drift_freq, 0, 10, 0.1, func(value: float) -> void: _group_property(part.id, "drift_freq", value))
+	_number_field("Breathe amp", group.breathe_amp, 0, 0.08, 0.005, func(value: float) -> void: _group_property(part.id, "breathe_amp", value))
+	_option_field("Chain mode", ["rigid", "sway", "whip"], group.chain_mode, func(value: String) -> void: _group_property(part.id, "chain_mode", value))
+	var reach_box: CheckButton = CheckButton.new()
+	reach_box.text = "Reach ring"
+	reach_box.button_pressed = group.reach_ring
+	inspector.add_child(reach_box)
+	reach_box.toggled.connect(func(value: bool) -> void: _group_property(part.id, "reach_ring", value))
+	_button(inspector, "Remove motion group", func() -> void: _remove_group(part.id))
+
+func _add_group(root_id: String) -> void:
+	var after: ShipDefinition = working.duplicate(true)
+	var group: GroupDefinition = GroupDefinition.new()
+	group.root_id = root_id
+	group.orbit_radius = 40.0
+	after.groups.append(group)
+	_commit(working, after, "Add motion group " + root_id)
+
+func _group_property(root_id: String, property: String, value: Variant) -> void:
+	var after: ShipDefinition = working.duplicate(true)
+	for group: GroupDefinition in after.groups:
+		if group.root_id == root_id: group.set(property, value)
+	_commit(working, after, "Edit motion " + property)
+
+func _remove_group(root_id: String) -> void:
+	var after: ShipDefinition = working.duplicate(true)
+	for index: int in range(after.groups.size() - 1, -1, -1):
+		if after.groups[index].root_id == root_id: after.groups.remove_at(index)
+	_commit(working, after, "Remove motion group " + root_id)
 
 func _is_descendant(candidate_id: String, ancestor_id: String) -> bool:
 	var cursor: String = candidate_id
@@ -394,7 +512,10 @@ func _place_object(id: String, kind: String, point: Vector2) -> void:
 	var after: ShipDefinition = working.duplicate(true)
 	var stem: String = _unique_id(id)
 	if kind == "Body":
-		if id == "line": _add_line(); return
+		if id == "line":
+			_line_from = ""
+			status.text = "Line: click two existing circles on the canvas to connect them."
+			return
 		if id == "concentric_rings":
 			for ring_index: int in range(3): ShipCatalog.add_part(after, stem + "_" + str(ring_index), "circle", Vector2.ZERO, 20 + ring_index * 10, "chassis", "magnet_radius", 2, false, "core")
 		elif id == "crescent":
@@ -647,12 +768,23 @@ func _refresh_library() -> void:
 		if not include: continue
 		library_items.add_item("%s · %s · T%d · %s · %s" % [ship.display_name, ship.element, ship.tier, ship.role, ship.faction], ShipAuthoring.thumbnail(ship))
 		_library_ids.append(ship.id)
+	# Derived from ShipGenerator.roster_manifest(), never a hard-coded count:
+	# the missing view drifted before ("All 81 player roster slots are
+	# filled" survived a roster growth to 101) exactly because the total and
+	# the per-slot count were typed in rather than read from the manifest.
+	var required: Dictionary = {}
+	for entry: Dictionary in ShipGenerator.roster_manifest():
+		if str(entry.get("faction", "")) != "player" or str(entry.get("element", "")) == "neutral": continue
+		var key: String = str(entry.element) + " T" + str(int(entry.tier))
+		required[key] = int(required.get(key, 0)) + 1
 	var missing: PackedStringArray = []
-	for element: String in ShipCatalog.ELEMENTS:
-		for tier: int in range(2, GameTuning.MAX_TIER + 1):
-			var key: String = element + " T" + str(tier)
-			if int(counts.get(key, 0)) < 4: missing.append(key + ": " + str(counts.get(key, 0)) + " / 4")
-	missing_label.text = "All 101 player roster slots are filled." if missing.is_empty() else "Missing: " + " · ".join(missing)
+	var keys: Array = required.keys()
+	keys.sort()
+	for key: String in keys:
+		var have: int = int(counts.get(key, 0))
+		var need: int = int(required[key])
+		if have < need: missing.append("%s: %d / %d" % [key, have, need])
+	missing_label.text = "All %d player roster slots are filled." % ShipGenerator.player_hull_count() if missing.is_empty() else "Missing: " + " · ".join(missing)
 	missing_label.visible = library_missing.button_pressed
 	library_items.visible = not library_missing.button_pressed
 

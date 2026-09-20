@@ -465,6 +465,7 @@ script = ExtResource("3_wf825")
 id = "elite_radial_corruption_t4"
 display_name = "Corruption Radial Elite T4"
 tier = 4
+symmetry = "radial"
 parts = Array[ExtResource("2_aygab")]([SubResource("Resource_py6pr"), SubResource("Resource_ii70y"), SubResource("Resource_ch7qj"), SubResource("Resource_0ip4t"), SubResource("Resource_cedfn"), SubResource("Resource_qd620"), SubResource("Resource_stprw"), SubResource("Resource_tle1e"), SubResource("Resource_ldcxm"), SubResource("Resource_2ri0b"), SubResource("Resource_6775g"), SubResource("Resource_j2q0r"), SubResource("Resource_eiyil"), SubResource("Resource_j6b3p"), SubResource("Resource_3eo8e"), SubResource("Resource_gid6a"), SubResource("Resource_gikcv"), SubResource("Resource_yblq0"), SubResource("Resource_c8ef5"), SubResource("Resource_kfym7"), SubResource("Resource_sgh2l"), SubResource("Resource_dw685"), SubResource("Resource_tq80j"), SubResource("Resource_rr4xw"), SubResource("Resource_rx4sk"), SubResource("Resource_4thob"), SubResource("Resource_jq6o1"), SubResource("Resource_hmy5s"), SubResource("Resource_x88nr"), SubResource("Resource_yw335"), SubResource("Resource_ehmli"), SubResource("Resource_dbh4t"), SubResource("Resource_6ic7x"), SubResource("Resource_v2qb1"), SubResource("Resource_osx3l")])
 groups = Array[ExtResource("1_ixym1")]([SubResource("Resource_4lpm4"), SubResource("Resource_fwxls"), SubResource("Resource_5ahib"), SubResource("Resource_umryn"), SubResource("Resource_x6rpt"), SubResource("Resource_upud1"), SubResource("Resource_2tbty")])
 abilities = Array[String](["pulse_cannon"])

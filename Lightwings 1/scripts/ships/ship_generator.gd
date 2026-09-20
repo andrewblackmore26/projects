@@ -407,6 +407,7 @@ static func _add_enemy_body_feature(ship: ShipDefinition, element: String, base_
 static func _enemy_base(ship: ShipDefinition, element: String, tier: int) -> void:
 	ship.is_player = false
 	ship.faction = "enemy"
+	ship.symmetry = "bilateral"
 	ship.tier = clampi(tier, 1, GameTuning.MAX_TIER)
 	ship.element = element
 	ship.family = "standard_a"
@@ -507,6 +508,7 @@ static func build_enemy(kind: String, element: String, tier: int) -> ShipDefinit
 static func _elite_base(ship: ShipDefinition, element: String, tier: int) -> void:
 	ship.is_player = false
 	ship.faction = "elite"
+	ship.symmetry = "radial"
 	ship.tier = clampi(tier, 1, GameTuning.MAX_TIER)
 	ship.element = element
 	ship.family = "heavy"
@@ -582,6 +584,8 @@ static func build_elite_radial(element: String, tier: int) -> ShipDefinition:
 static func build_elite_irregular(element: String, tier: int) -> ShipDefinition:
 	var ship: ShipDefinition = ShipDefinition.new()
 	_elite_base(ship, element, tier)
+	# Spec §14: the irregular elite is deliberately asymmetric, "no repeating pattern".
+	ship.symmetry = "none"
 	ship.id = "elite_irregular_%s_t%d" % [element, ship.tier]
 	ship.display_name = "%s Irregular Elite T%d" % [element.capitalize(), ship.tier]
 	# Farthest authored point is roughly base_r + 51 (cluster center spread
@@ -643,6 +647,7 @@ static func build_boss(element: String, tier: int) -> ShipDefinition:
 	var ship: ShipDefinition = ShipDefinition.new()
 	ship.is_player = false
 	ship.faction = "boss"
+	ship.symmetry = "radial"
 	ship.tier = clampi(tier, 1, GameTuning.MAX_TIER)
 	ship.element = element
 	ship.family = "heavy"

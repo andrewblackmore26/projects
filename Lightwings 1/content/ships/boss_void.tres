@@ -114,6 +114,7 @@ id = "boss_void"
 display_name = "Void Boss"
 element = "void"
 tier = 5
+symmetry = "radial"
 hull_radius = 83.0
 parts = Array[ExtResource("2_pbqur")]([SubResource("Resource_g6s0q"), SubResource("Resource_bfwhe"), SubResource("Resource_xegw6"), SubResource("Resource_76f0j"), SubResource("Resource_fjotr"), SubResource("Resource_2ubrs"), SubResource("Resource_gc8h3"), SubResource("Resource_opimo"), SubResource("Resource_wqktp")])
 abilities = Array[String](["homing_beam"])

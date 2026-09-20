@@ -389,6 +389,7 @@ id = "elite_radial_fire_t3"
 display_name = "Fire Radial Elite T3"
 element = "fire"
 tier = 3
+symmetry = "radial"
 parts = Array[ExtResource("2_gw6yq")]([SubResource("Resource_o61id"), SubResource("Resource_1an11"), SubResource("Resource_gpixo"), SubResource("Resource_8pqf3"), SubResource("Resource_b2sig"), SubResource("Resource_8em55"), SubResource("Resource_ehdyq"), SubResource("Resource_5w2tn"), SubResource("Resource_bdpn1"), SubResource("Resource_u3aim"), SubResource("Resource_w5axg"), SubResource("Resource_nb4df"), SubResource("Resource_3myhh"), SubResource("Resource_o28et"), SubResource("Resource_todrv"), SubResource("Resource_q1k1n"), SubResource("Resource_yxipl"), SubResource("Resource_m00ic"), SubResource("Resource_ua5nh"), SubResource("Resource_kr2xj"), SubResource("Resource_dq00m"), SubResource("Resource_h0fqf"), SubResource("Resource_uih32"), SubResource("Resource_ujxh8"), SubResource("Resource_kxygt"), SubResource("Resource_wb5ee"), SubResource("Resource_dyt0g"), SubResource("Resource_d5152"), SubResource("Resource_gldmo")])
 groups = Array[ExtResource("1_cb2v8")]([SubResource("Resource_rmelu"), SubResource("Resource_q1roa"), SubResource("Resource_2mp6f"), SubResource("Resource_wdcfq"), SubResource("Resource_3yuar"), SubResource("Resource_xarkh")])
 abilities = Array[String](["flame_cone"])

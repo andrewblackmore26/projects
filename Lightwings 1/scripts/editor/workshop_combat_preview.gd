@@ -8,6 +8,7 @@ var dummy: Dictionary
 var details: Label
 var _time: float = 0
 var pilot: bool = false
+var elite_mode: bool = false
 func _ready() -> void:
 	var container: SubViewportContainer = SubViewportContainer.new()
 	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -62,6 +63,11 @@ func _ready() -> void:
 	pilot_toggle.position = Vector2(300, 590)
 	pilot_toggle.toggled.connect(func(value: bool) -> void: pilot = value)
 	add_child(pilot_toggle)
+	var elite_toggle: CheckButton = CheckButton.new()
+	elite_toggle.text = "Elite mode: per-circle HP + detach preview"
+	elite_toggle.position = Vector2(580, 590)
+	elite_toggle.toggled.connect(func(value: bool) -> void: elite_mode = value)
+	add_child(elite_toggle)
 func _process(delta: float) -> void:
 	if world == null or actor.is_empty(): return
 	_time += delta
@@ -90,5 +96,19 @@ func _process(delta: float) -> void:
 	if not ship.is_player: actor.pos = Vector2(960, 560); actor.speed = 0
 	var lines: PackedStringArray = [ship.display_name + " · live production combat", "Dummy HP is replenished; close to return to editing."]
 	for gun: Dictionary in actor.get("guns", []): lines.append("%s  HP %.0f / %.0f  fire in %.2fs" % [gun.id, gun.hp, gun.max_hp, maxf(0, gun.cd)])
+	if elite_mode:
+		# Per-circle HP is authored data (§22); the detach set is a subtree
+		# walk over parent_id. ShipRig already stores circles in pre-order so
+		# a subtree is the contiguous range [i, i + subtree_size[i]) - reused
+		# here rather than a second walk. Live per-circle damage/respawn
+		# timers are P4 scope (per-circle HP arrays in the broadphase); this
+		# is a structural preview of the authored data, not a running sim.
+		var rig: ShipMotion.ShipRig = ShipMotion.get_rig(ship)
+		lines.append("— Elite mode: per-circle HP and detach set —")
+		for part: PartDefinition in ship.parts:
+			if part.shape != "circle": continue
+			var index: int = rig.index_of(part.id)
+			var detach: int = rig.subtree_size[index] - 1 if index >= 0 else 0
+			lines.append("%s  HP %.0f  detaches %d circle(s) if destroyed" % [part.id, part.hp, detach])
 	details.text = "\n".join(lines)
 

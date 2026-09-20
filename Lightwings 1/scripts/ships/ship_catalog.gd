@@ -8,6 +8,7 @@ const MAX_LINES: int = 512
 const ELEMENTS: Array[String] = ["fire", "lightning", "void", "corruption", "plasma"]
 const SHAPES: Array[String] = ["circle", "line"]
 const FAMILIES: Array[String] = ["compact", "standard_a", "standard_b", "heavy"]
+const SYMMETRIES: Array[String] = ["bilateral", "radial", "none"]
 const PALETTE: Dictionary = {"player": Color("6fd3ff"), "player_blue": Color("6fd3ff"), "fire": Color("ff5436"), "lightning": Color("ffd23f"), "corruption": Color("45e06a"), "plasma": Color("a97dff"), "violet": Color("a97dff"), "void": Color("9aa3b3"), "silver": Color("9aa3b3"), "gold": Color("ffd23f"), "yellow": Color("ffd23f"), "red": Color("ff5436"), "white": Color.WHITE, "neutral": Color("9aa3b3"), "green": Color("45e06a"), "black": Color.BLACK}
 const FILLS: Dictionary = {"player": Color("08233a"), "player_blue": Color("08233a"), "fire": Color("2a0b08"), "lightning": Color("2a2206"), "corruption": Color("062a12"), "plasma": Color("1d1233"), "violet": Color("1d1233"), "void": Color.BLACK, "silver": Color.BLACK, "gold": Color.BLACK, "yellow": Color("2a2206"), "red": Color("2a0b08"), "white": Color("191919"), "neutral": Color("101015"), "green": Color("062a12"), "black": Color.BLACK}
 const LIGHTS: Dictionary = {"player": Color("dcf5ff"), "player_blue": Color("dcf5ff"), "fire": Color("ffc6b5"), "lightning": Color("fff3bd"), "corruption": Color("caffd5"), "plasma": Color("e4d6ff"), "violet": Color("e4d6ff"), "void": Color.WHITE, "silver": Color.WHITE, "gold": Color("fff3bd"), "yellow": Color("fff3bd"), "red": Color("ffc6b5"), "white": Color.WHITE, "neutral": Color.WHITE, "green": Color("caffd5"), "black": Color.BLACK}
@@ -215,6 +216,9 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 	if ship.id.strip_edges().is_empty() or not ship.id.is_valid_filename() or ship.id.contains("."): errors.append("Ship needs a valid filename-safe ID without dots.")
 	if ship.schema_version != 3: errors.append("Unsupported ship schema version.")
 	if not ship.element in ELEMENTS and not (ship.tier == 1 and ship.element == "neutral" and ship.is_player): errors.append("Unknown element.")
+	# Spec §17.4: player hulls are ALWAYS bilaterally symmetric; enemies are unrestricted.
+	if not ship.symmetry in SYMMETRIES: errors.append("Unknown symmetry: " + ship.symmetry)
+	elif ship.is_player and ship.symmetry != "bilateral": errors.append("Player hulls must be bilaterally symmetric.")
 	if ship.tier < 1 or ship.tier > GameTuning.MAX_TIER: errors.append("Tier outside supported range."); return errors
 	if not ship.faction in ["player", "enemy", "elite", "boss"]: errors.append("Unknown faction.")
 	if ship.is_player != (ship.faction == "player"): errors.append("Faction and player flag disagree.")

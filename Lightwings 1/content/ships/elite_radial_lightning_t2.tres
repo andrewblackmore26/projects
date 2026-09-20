@@ -389,6 +389,7 @@ id = "elite_radial_lightning_t2"
 display_name = "Lightning Radial Elite T2"
 element = "lightning"
 tier = 2
+symmetry = "radial"
 parts = Array[ExtResource("2_j5r7j")]([SubResource("Resource_rjaik"), SubResource("Resource_v0yr3"), SubResource("Resource_xoj27"), SubResource("Resource_xe8o1"), SubResource("Resource_qia48"), SubResource("Resource_qpotj"), SubResource("Resource_3g5rm"), SubResource("Resource_42g87"), SubResource("Resource_p82e3"), SubResource("Resource_hf0mu"), SubResource("Resource_snnv5"), SubResource("Resource_yp5lj"), SubResource("Resource_wawvm"), SubResource("Resource_ppjpb"), SubResource("Resource_flrs2"), SubResource("Resource_3pjk6"), SubResource("Resource_6c41c"), SubResource("Resource_o45ha"), SubResource("Resource_6rgnn"), SubResource("Resource_8f420"), SubResource("Resource_ttpeh"), SubResource("Resource_yietk"), SubResource("Resource_jmeme"), SubResource("Resource_1phn5"), SubResource("Resource_dr7yx"), SubResource("Resource_350mc"), SubResource("Resource_k75xh"), SubResource("Resource_hrqyg"), SubResource("Resource_c727a")])
 groups = Array[ExtResource("1_ewmh3")]([SubResource("Resource_430np"), SubResource("Resource_4xu5v"), SubResource("Resource_8bnwu"), SubResource("Resource_i6gma"), SubResource("Resource_oaxwt"), SubResource("Resource_s83ac")])
 abilities = Array[String](["bolt"])

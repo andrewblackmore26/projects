@@ -466,6 +466,7 @@ id = "elite_radial_void_t5"
 display_name = "Void Radial Elite T5"
 element = "void"
 tier = 5
+symmetry = "radial"
 hull_radius = 75.0
 parts = Array[ExtResource("2_6612p")]([SubResource("Resource_a28bt"), SubResource("Resource_wnao0"), SubResource("Resource_sxwwl"), SubResource("Resource_2ohxe"), SubResource("Resource_bpcwv"), SubResource("Resource_6324c"), SubResource("Resource_08v2c"), SubResource("Resource_ve4q7"), SubResource("Resource_hi8ff"), SubResource("Resource_gymrm"), SubResource("Resource_0and4"), SubResource("Resource_o1i6e"), SubResource("Resource_6ah2o"), SubResource("Resource_4gyq1"), SubResource("Resource_cf26q"), SubResource("Resource_dx2ma"), SubResource("Resource_tkck3"), SubResource("Resource_aywfh"), SubResource("Resource_c5irq"), SubResource("Resource_esld4"), SubResource("Resource_wfa6u"), SubResource("Resource_5wkii"), SubResource("Resource_llbx4"), SubResource("Resource_j4yw6"), SubResource("Resource_402p8"), SubResource("Resource_rn2fc"), SubResource("Resource_0o4y1"), SubResource("Resource_vlqxb"), SubResource("Resource_bcpmp"), SubResource("Resource_1fift"), SubResource("Resource_6llbq"), SubResource("Resource_6xtw2"), SubResource("Resource_nsj4x"), SubResource("Resource_dnpvc"), SubResource("Resource_f8g21")])
 groups = Array[ExtResource("1_40sdr")]([SubResource("Resource_8720f"), SubResource("Resource_67v8g"), SubResource("Resource_aycko"), SubResource("Resource_eftsy"), SubResource("Resource_4ieh7"), SubResource("Resource_05dhv"), SubResource("Resource_ga1cj")])

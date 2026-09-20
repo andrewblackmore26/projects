@@ -175,6 +175,23 @@ func _initialize() -> void:
 	ShipCatalog.recalculate(starved)
 	h.control("a hull with every non-core body circle shrunk to near zero", starved.tp_used < starved.tp_max * 0.6)
 
+	# Spec §17.4 / §14: symmetry is authored, not inferred. Player hulls are always bilateral;
+	# a radial elite is built on N-fold rotation and an irregular elite is deliberately asymmetric.
+	var by_symmetry: Dictionary = {}
+	for entry: Dictionary in ShipGenerator.roster_manifest():
+		var ship: ShipDefinition = ShipCatalog.get_ship(ShipGenerator.build_from_entry(entry).id)
+		if ship == null: continue
+		by_symmetry[ship.symmetry] = int(by_symmetry.get(ship.symmetry, 0)) + 1
+		if ship.is_player: h.check(ship.symmetry == "bilateral", "%s is bilateral" % ship.id)
+		elif str(entry.get("kind", "")) == "irregular": h.check(ship.symmetry == "none", "%s is asymmetric" % ship.id)
+		elif str(entry.faction) in ["elite", "boss"]: h.check(ship.symmetry == "radial", "%s is radial" % ship.id)
+	h.check(by_symmetry.size() >= 3, "the roster uses every symmetry kind (%s)" % by_symmetry)
+	var crooked: ShipDefinition = ShipCatalog.get_ship("player_fire_t3_heavy")
+	crooked.symmetry = "radial"
+	h.control("a player hull marked radial", not ShipCatalog.validate(crooked).is_empty())
+	crooked.symmetry = "spiral"
+	h.control("a hull with an unknown symmetry", not ShipCatalog.validate(crooked).is_empty())
+
 	# V02-ADAPTER (remove with the shim in P5): an element is only authored across its campaign
 	# level's tier band, so a v0.2 wedge sector asking for a low tier of a late element is handed a
 	# much higher-tier hull. Slots are a hard cap, so the substitute must fight with the REQUESTED

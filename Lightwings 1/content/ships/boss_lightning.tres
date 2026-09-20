@@ -112,6 +112,7 @@ id = "boss_lightning"
 display_name = "Lightning Boss"
 element = "lightning"
 tier = 2
+symmetry = "radial"
 parts = Array[ExtResource("2_thnxl")]([SubResource("Resource_5e3d7"), SubResource("Resource_fgs5s"), SubResource("Resource_23rc8"), SubResource("Resource_mm0lu"), SubResource("Resource_yslbp"), SubResource("Resource_wnsba"), SubResource("Resource_v11ul"), SubResource("Resource_p5h1b"), SubResource("Resource_bqlli")])
 abilities = Array[String](["bolt"])
 faction = "boss"

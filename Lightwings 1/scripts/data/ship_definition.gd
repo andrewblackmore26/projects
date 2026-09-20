@@ -6,6 +6,11 @@ extends Resource
 @export var element: String = "corruption"
 @export var tier: int = 1
 @export var is_player: bool = false
+## Spec v0.3 §17.4 / §22: player hulls are always bilaterally symmetric about the forward axis;
+## enemies may be "radial", "bilateral" or "none". Stored rather than derived from `is_player`,
+## because an enemy's symmetry is an authoring decision the archetypes differ on: a radial elite is
+## built on N-fold rotation, an irregular elite is deliberately asymmetric.
+@export var symmetry: String = "bilateral"
 @export var breathes: bool = false
 @export var core_radius: float = 3.0
 @export var hull_radius: float = 0.0

@@ -114,6 +114,7 @@ id = "boss_plasma"
 display_name = "Plasma Boss"
 element = "plasma"
 tier = 6
+symmetry = "radial"
 parts = Array[ExtResource("2_4jb2k")]([SubResource("Resource_7pvjh"), SubResource("Resource_ca1v6"), SubResource("Resource_csg28"), SubResource("Resource_ywfcu"), SubResource("Resource_fdbqk"), SubResource("Resource_0rv8u"), SubResource("Resource_bb7r8"), SubResource("Resource_aqujk"), SubResource("Resource_1bdof")])
 abilities = Array[String](["beam"])
 faction = "boss"

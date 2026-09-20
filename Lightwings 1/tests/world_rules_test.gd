@@ -104,6 +104,23 @@ func _test_evolution() -> void:
 	expect(first == Rules.offers("neutral",1,{"void":50,"plasma":30,"fire":20},unlocked,[],42), "Offer seed is reproducible")
 	var zero: Array[String] = Rules.offers("neutral",1,{},Array(GameTuning.START_ELEMENTS))
 	expect(zero.size() == 3, "Zero-diet first evolution still has three distinct starting elements")
+	# Fill rule (spec §8): fewer than three unlocked elements still offers three DISTINCT hulls.
+	for unlocked_count: int in [1,2,3,5]:
+		var pool: Array[String] = Array(GameTuning.ELEMENTS).slice(0, unlocked_count)
+		var diet: Dictionary = {}
+		for index: int in range(pool.size()): diet[pool[index]] = 100 - index
+		var filled: Array[String] = Rules.offers("neutral",1,diet,pool,[],7)
+		var distinct: Dictionary = {}
+		for id: String in filled: distinct[id] = true
+		expect(filled.size() == 3 and distinct.size() == 3, "First evolution with %d unlocked element(s) fills to three distinct hulls" % unlocked_count)
+	# The neutral T1 seed as "current" has no roster; fill must fall back to
+	# the highest-ranked unlocked element rather than staying short.
+	var neutral_current: Array[String] = Rules.offers("neutral",1,{"fire":10},["fire"],[],3)
+	expect(neutral_current.size() == 3, "Neutral-seed current element falls back to the ranked unlocked element for fill")
+	for id: String in neutral_current: expect(ShipCatalog.get_ship(id).element == "fire", "Fill with a single unlocked element only draws from that element's roster")
+	# Negative control: a roster lookup for a nonexistent element must return
+	# no candidates, proving the fill loop can actually come up short.
+	expect(Rules._roster_ids("nonexistent_element", 2).is_empty(), "CONTROL: an unknown element has no roster to fill from")
 	var old: Array[String] = []
 	for iteration: int in range(12):
 		var options: Array[String] = Rules.offers("fire",2,{"fire":60,"void":40},unlocked,old,iteration)

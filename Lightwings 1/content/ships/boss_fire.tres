@@ -112,6 +112,7 @@ id = "boss_fire"
 display_name = "Fire Boss"
 element = "fire"
 tier = 3
+symmetry = "radial"
 parts = Array[ExtResource("2_g3hud")]([SubResource("Resource_va7v6"), SubResource("Resource_gck4h"), SubResource("Resource_1x7e4"), SubResource("Resource_fnj0v"), SubResource("Resource_yx3ro"), SubResource("Resource_yc5do"), SubResource("Resource_puqa7"), SubResource("Resource_kdovl"), SubResource("Resource_2mdsb")])
 abilities = Array[String](["flame_cone"])
 faction = "boss"
