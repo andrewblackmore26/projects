@@ -56,6 +56,16 @@ $bench = Invoke-Godot '--headless --script "res://tests/combat_benchmark.gd" -- 
 $lines = Measure-Lines $bench.Out '.'
 Add-Gate 'benchmark budgets' ($bench.ExitCode -eq 0 -and $lines.Total -gt 0 -and $lines.Failed -eq 0) $bench.Seconds (Get-LastLine $bench.Out '^COMBAT BENCHMARK GATE')
 
+# P7 acceptance bots (spec §27 M1/M5): the spec's own acceptance language as
+# measured numbers, >=20 seeds each, written to artifacts/acceptance_v03.json.
+$acceptance = Invoke-Godot '--headless --script "res://tests/acceptance_bot.gd"' $logDir 'acceptance' 900
+$accPos = Measure-Lines $acceptance.Out 'acceptance_(?!negative)'
+Add-Gate 'acceptance bots' ($acceptance.ExitCode -eq 0 -and $accPos.Total -gt 0 -and $accPos.Failed -eq 0) $acceptance.Seconds (Get-LastLine $acceptance.Out '^ACCEPTANCE V0\.3:')
+if (-not $Quick) {
+    $accNeg = Measure-Lines $acceptance.Out 'acceptance_negative_'
+    Add-Gate 'NEGATIVE acceptance bot controls' ($accNeg.Total -gt 0 -and $accNeg.Failed -eq 0) $acceptance.Seconds ("controls caught {0}/{1}" -f ($accNeg.Total-$accNeg.Failed), $accNeg.Total)
+}
+
 if (-not $Quick) {
     # Each instrument line gets its own sabotage: budgets at 1 % must fail the timing lines,
     # a doubled fill requirement must fail the pool-fill lines.

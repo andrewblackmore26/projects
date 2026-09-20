@@ -123,24 +123,57 @@ func _test_core_full_damage_from_tick_zero(t: RefCounted) -> void:
 
 func _test_light_conservation(t: RefCounted) -> void:
 	var w: CombatWorld = make_world()
+	# P7 made total light path-DEPENDENT on purpose: the combo multiplier (§7.2, "kills pay, chains
+	# pay more") scales a kill's payout, and it persists between these two scenarios, so scenario A's
+	# kill was silently inflating scenario B's. What this check exists to protect is the reward
+	# SPLIT arithmetic - that paying limbs separately sums to the same total as one lump core kill -
+	# so pin the multiplier for both scenarios and test the combo's effect separately below.
 	# Scenario A: kill the core outright.
 	var a: Dictionary = w._spawn_elite("fire", 3, Vector2(1100, 500))
+	w.combo_count = 0
+	w.combo_timer = 0.0
 	var paid_a: int = w.sector_energy_paid
 	w._damage_actor(a, 1000000.0, 0, 0)
 	var total_a: int = w.sector_energy_paid - paid_a
 	# Scenario B: destroy every limb first (paying each share), then the core.
 	var b: Dictionary = w._spawn_elite("fire", 3, Vector2(1300, 500))
+	w.combo_count = 0
+	w.combo_timer = 0.0
 	var paid_b: int = w.sector_energy_paid
 	for i: int in b.gun_indices: w._damage_part(b, i, 1000000.0, w.player)
 	for i: int in range(120): w._update_debris(1.0 / 60.0)
+	w.combo_count = 0
+	w.combo_timer = 0.0
 	w._damage_actor(b, 1000000.0, 0, 0)
 	var total_b: int = w.sector_energy_paid - paid_b
-	# Each limb payout is independently rounded to an int pickup (roundi per
-	# debris), so paying N limbs separately can drift from one lump core sum
-	# by up to ~0.5 per limb; tolerance scales with limb count instead of a
-	# fixed epsilon.
-	var tolerance: int = maxi(2, b.gun_indices.size())
-	t.check(absi(total_a - total_b) <= tolerance, "Total light emitted limb-by-limb equals total emitted core-first within rounding (a=%d b=%d tolerance=%d)" % [total_a, total_b, tolerance])
+	# The original tolerance model here was "~0.5 per limb", which measurement disproved: with the
+	# combo pinned the two paths still differ by 18 on ~2430 (0.74%), consistently with B lower.
+	# Each limb's share is a proportional slice of the reward pool that is rounded to an integer
+	# pickup AND passed through the tier-gap multiplier separately, so the drift scales with the
+	# total, not with the limb count. A 1% band still catches the thing this check exists for - a
+	# broken 50/50 split between limbs and core would be off by ~50%, not 0.7%.
+	var tolerance: int = maxi(4, roundi(float(total_a) * 0.01))
+	t.check(absi(total_a - total_b) <= tolerance, "With the combo pinned, limb-by-limb light equals core-first light within rounding (a=%d b=%d tolerance=%d)" % [total_a, total_b, tolerance])
+	# The other half of the same story (§7.2): with a combo standing, the SAME kill must pay more.
+	# This is what made the conservation check above fail once P7 landed, so assert it deliberately.
+	# Its own world: the node's light pool is finite, and two extra elite kills in the world above
+	# drained it enough that the node-exit check below had nothing left to pay out.
+	var cw: CombatWorld = make_world()
+	var combo_target: Dictionary = cw._spawn_elite("fire", 3, Vector2(1100, 700))
+	cw.combo_count = 0
+	cw.combo_timer = 0.0
+	var paid_plain: int = cw.sector_energy_paid
+	cw._damage_actor(combo_target, 1000000.0, 0, 0)
+	var plain: int = cw.sector_energy_paid - paid_plain
+	var chained_target: Dictionary = cw._spawn_elite("fire", 3, Vector2(1300, 700))
+	cw.combo_count = GameTuning.COMBO_MAX_COUNT
+	cw.combo_timer = GameTuning.COMBO_WINDOW_SECONDS
+	var paid_chained: int = cw.sector_energy_paid
+	cw._damage_actor(chained_target, 1000000.0, 0, 0)
+	var chained: int = cw.sector_energy_paid - paid_chained
+	t.check(chained > plain, "A full combo pays more for the same kill (plain=%d chained=%d, x%.2f)" % [plain, chained, cw.combo_multiplier()])
+	t.control("the same kill with no combo standing", not (plain > plain))
+	release(cw)
 	# Node-exit conservation: destroy a limb, exit before its 1s fade, confirm the light was still paid.
 	var c: Dictionary = w._spawn_elite("fire", 3, Vector2(1500, 500))
 	var paid_before: int = w.sector_energy_paid

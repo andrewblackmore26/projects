@@ -64,6 +64,32 @@ const ARENA_MARGIN: float = 80.0 # Dead space beyond the rim; nothing playable e
 const SHIELD_DURATION: float = 2.0
 const SHIELD_COOLDOWN: float = 8.0
 
+## --- Pace (spec §7, approved preamble) -----------------------------------
+## Light decay: 0.4% of the CURRENT TIER'S MAXIMUM per second, suppressed for
+## 3 s after any kill or absorb. Floors at DECAY_FLOOR (approved preamble:
+## "can never kill" -- the floor sits well above the tier-1 death threshold
+## of 0) and CAN regress a tier, which is the cost of camping.
+const DECAY_RATE_PER_SECOND: float = 0.004
+const DECAY_SUPPRESSION_SECONDS: float = 3.0
+const DECAY_FLOOR: float = 10.0
+## Kill combo: x1.0 -> x2.5 at 10 consecutive kills. The 2.5s window resets
+## on every kill; once it expires the count drains 1 per 0.25s rather than
+## resetting hard (approved preamble).
+const COMBO_WINDOW_SECONDS: float = 2.5
+const COMBO_MAX_COUNT: int = 10
+const COMBO_MULTIPLIER_MAX: float = 2.5
+const COMBO_DRAIN_INTERVAL_SECONDS: float = 0.25
+## Pickup sizes (spec §10): three sizes worth 1/5/20. Enemy-dropped light is
+## worth 3x a floating pickup of the same SIZE (draw radius must come from
+## size, not value, or a 3x drop looks like a bigger pickup than it is).
+const PICKUP_SIZES: Array[int] = [1, 5, 20]
+const ENEMY_DROP_MULTIPLIER: float = 3.0
+## Frictionless death (spec §7.4/§24): 1.2s non-pausing card, dismissed on a
+## FRESH press only, after a short guard so a held button cannot skip a card
+## the player never saw (M1 acceptance: "death-to-flying-again under 2s").
+const DEATH_CARD_SECONDS: float = 1.2
+const DEATH_INPUT_GUARD_SECONDS: float = 0.35
+
 static func capacity(tier: int, _max_tier: int = MAX_TIER) -> float:
 	# A demo cap prevents further evolution; it does not grant terminal survivability.
 	return TERMINAL_CAPACITY if tier >= MAX_TIER else THRESHOLDS[clampi(tier - 1, 0, THRESHOLDS.size() - 1)]

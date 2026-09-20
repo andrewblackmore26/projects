@@ -9,18 +9,25 @@ const RIVAL_NAMES: Dictionary = {"fire":"PYRE", "lightning":"KERA", "void":"NOX"
 ## Escape/ui_cancel is allowed to close it while it is open. "intro" is kept
 ## for parity with the pre-refactor code even though no call site opens it
 ## today. Default (kind not listed) matches today's blanket behaviour.
+## P7 additions (spec §7.4/§24, frictionless death):
+## - `freezes_sim`: the sim is stopped WITHOUT pausing the tree, so a timer
+##   and fresh-press detection can still run while it is up.
+## - `any_input_dismiss`: a fresh press (not a hold, not motion) dismisses it.
+## - `auto_close`: seconds after which it dismisses itself even with no input.
+## - `input_guard`: seconds during which even a fresh press is ignored, so the
+##   press that caused death cannot also dismiss the card the player never saw.
 const SCREEN_POLICY: Dictionary = {
 	"evolution": {"pauses": true, "escape_closes": true},
 	"map": {"pauses": true, "escape_closes": true},
 	"pause": {"pauses": true, "escape_closes": true},
 	"options": {"pauses": true, "escape_closes": true},
-	"death": {"pauses": true, "escape_closes": false},
+	"death": {"pauses": false, "escape_closes": false, "freezes_sim": true, "any_input_dismiss": true, "auto_close": GameTuning.DEATH_CARD_SECONDS, "input_guard": GameTuning.DEATH_INPUT_GUARD_SECONDS},
 	"ending": {"pauses": true, "escape_closes": false},
 	"cloud": {"pauses": true, "escape_closes": true},
 	"confirm": {"pauses": true, "escape_closes": true},
 	"intro": {"pauses": true, "escape_closes": false},
 }
-const DEFAULT_SCREEN_POLICY: Dictionary = {"pauses": true, "escape_closes": true}
+const DEFAULT_SCREEN_POLICY: Dictionary = {"pauses": true, "escape_closes": true, "freezes_sim": false, "any_input_dismiss": false, "auto_close": 0.0, "input_guard": 0.0}
 
 var combat: CombatWorld
 var campaign: CampaignState
@@ -84,6 +91,19 @@ var compositor: CombatCompositor
 var mode_config: ModeConfig = ModeConfig.from_demo(false)
 var dev_console: DevConsole
 var _debug_show_warp: bool = false # --show-warp capture aid only, see _process
+var _capture_at_tick: int = 90 # --show-death needs a much shorter delay: the death card is only up for 1.2s
+## --- Frictionless death (spec §7.4/§24, plan P7) -------------------------
+## The next life is built the INSTANT the player dies (fresh hull, fresh
+## sector descriptor, fresh seed already rolled by campaign.on_death()), so
+## dismissing the card is just applying data already sitting here - no work
+## happens on the dismiss path itself, which is what keeps it fast.
+var _death_elapsed: float = 0.0
+var _death_stats: Dictionary = {}
+var _death_next_sector: Dictionary = {}
+## Swallows N upcoming _physics_process command frames after a dismiss, so
+## the very press that dismissed the card (e.g. held right-click) cannot
+## also fire a dash the instant control returns.
+var _input_swallow_frames: int = 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -153,6 +173,35 @@ func _ready() -> void:
 			combat.start_sector({"id":"p4b_boss","kind":"boss","element":"fire","tier":1,"resource_budget":200,"enemy_hulls":[],"boss_hull":"boss_fire"})
 			settings.auto_fire = true
 			line_queue.clear()
+		elif arg == "--show-combo" and OS.has_feature("editor"):
+			# Debug-only capture aid: forces a few kills so the combo readout
+			# (spec §7.2/§24) has something to show at capture time, rather
+			# than hoping auto-fire's default aim happens to land real hits.
+			_new_game(false)
+			combat.setup_player("plasma",4,750,[],Vector2(896,560))
+			campaign.current_sector = Vector2i(-3,2)
+			var combo_showcase: Dictionary = campaign.sector_at(campaign.current_sector)
+			combo_showcase.kind = "regular"
+			combat.start_sector(combo_showcase)
+			for i: int in range(4):
+				for actor: Dictionary in combat.enemies:
+					if not bool(actor.dead):
+						combat._damage_actor(actor,100000.0,0,0)
+						break
+			settings.auto_fire = true
+			line_queue.clear()
+		elif arg == "--show-death" and OS.has_feature("editor"):
+			# Debug-only capture aid (plan P7 "LOOK at it"): the death card
+			# (spec §7.4/§24) is only up for GameTuning.DEATH_CARD_SECONDS, so
+			# the capture must fire soon after death, not at the default
+			# 90-tick delay other --show-* captures use.
+			_new_game(false)
+			combat.setup_player("fire",3,400,[],GameTuning.ARENA_CENTER)
+			combat.player_invulnerable = 0.0
+			combat.player.invulnerable = 0.0
+			combat._damage_actor(combat.player,1000000.0,1,1)
+			line_queue.clear()
+			_capture_at_tick = 20
 		elif arg == "--show-warp" and OS.has_feature("editor"):
 			# Debug-only capture aid (plan P6 "LOOK at it"): pins the sim in
 			# WARP_TRAVEL every frame (see `_process`'s `_debug_show_warp`
@@ -313,6 +362,14 @@ func _draw_tier_ticks() -> void:
 		ink.a = 0.55+0.45*sin(elapsed_ui*7.0) if combat.light_total < floor_value*1.12 else 0.65
 		var x: float = floor_value/capacity*590.0
 		tier_ticks.draw_line(Vector2(x,-4),Vector2(x,14),ink,2.0)
+	# Spec §24/§7.2: combo multiplier near the bar, decaying visibly - once
+	# the 2.5s kill window lapses and the count is draining, the readout
+	# pulses instead of holding solid.
+	if combat.combo_count > 0:
+		var draining: bool = combat.combo_timer <= 0.0
+		var combo_alpha: float = (0.5+0.5*sin(elapsed_ui*9.0)) if draining else 1.0
+		var combo_text: String = "COMBO x%.1f (%d)" % [combat.combo_multiplier(),combat.combo_count]
+		tier_ticks.draw_string(ThemeDB.fallback_font,Vector2(590-160,-16),combo_text,HORIZONTAL_ALIGNMENT_RIGHT,160,13,Color(GOLD,combo_alpha))
 
 func _show_menu() -> void:
 	mode = "menu"
@@ -528,6 +585,10 @@ func _process(delta: float) -> void:
 		combat.warp_commit_speed = 260.0
 		combat.player.vel = Vector2.RIGHT*260.0
 	elapsed_ui += delta
+	if overlay_kind == "death":
+		_death_elapsed += delta
+		var policy: Dictionary = SCREEN_POLICY.get("death",DEFAULT_SCREEN_POLICY)
+		if _death_elapsed >= float(policy.auto_close): _dismiss_death_card()
 	if platform != null:
 		platform.set_input_context(mode != "play" or get_tree().paused)
 	toast_remaining = maxf(0.0,toast_remaining-delta)
@@ -556,11 +617,15 @@ func _process(delta: float) -> void:
 			_finish_benchmark()
 	if not visual_capture.is_empty():
 		capture_ticks += 1
-		if capture_ticks == 90:
+		if capture_ticks == _capture_at_tick:
 			_capture.call_deferred()
 
 func _physics_process(_delta: float) -> void:
 	if mode != "play" or not is_instance_valid(combat) or get_tree().paused or benchmark_mode:
+		return
+	if _input_swallow_frames > 0:
+		_input_swallow_frames -= 1
+		combat.set_command(ShipCommand.new())
 		return
 	var command := ShipCommand.new()
 	var steam_command: ShipCommand = platform.get_command(last_aim)
@@ -588,6 +653,17 @@ func _physics_process(_delta: float) -> void:
 	combat.set_command(command)
 
 func _input(event: InputEvent) -> void:
+	if overlay_kind == "death":
+		var policy: Dictionary = SCREEN_POLICY.get("death",DEFAULT_SCREEN_POLICY)
+		if bool(policy.any_input_dismiss) and _death_elapsed >= float(policy.input_guard):
+			# Fresh press only (a key/mouse/pad button transitioning to pressed,
+			# or an axis rising past a threshold) - never a hold, never motion,
+			# so a held fire button cannot skip a card the player never saw.
+			var fresh: bool = (event is InputEventKey and event.pressed and not event.echo) or (event is InputEventMouseButton and event.pressed) or (event is InputEventJoypadButton and event.pressed) or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.5)
+			if fresh:
+				_dismiss_death_card()
+				get_viewport().set_input_as_handled()
+		return
 	if not rebind_action.is_empty():
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 			rebind_action = ""
@@ -952,11 +1028,11 @@ func _show_options() -> void:
 	label(overlay,"OPTIONS & CONTROLS",Vector2(80,55),Vector2(1100,52),34,WHITE)
 	label(overlay,"Set a binding with a key, mouse button, or controller input. Escape cancels capture.",Vector2(82,112),Vector2(1100,28),14,MUTED)
 	var y: float = 170
-	for property: String in ["auto_fire","music","glow","show_elements","fullscreen","reduced_warp"]:
+	for property: String in ["auto_fire","music","glow","show_elements","fullscreen","reduced_warp","damage_numbers"]:
 		var check := CheckButton.new()
 		check.position = Vector2(85,y)
 		check.size = Vector2(365,40)
-		check.text = {"auto_fire":"Auto-fire","music":"Ambient music","glow":"HDR glow","show_elements":"Element names & pattern labels","fullscreen":"Fullscreen","reduced_warp":"Reduced warp effect (accessibility)"}[property]
+		check.text = {"auto_fire":"Auto-fire","music":"Ambient music","glow":"HDR glow","show_elements":"Element names & pattern labels","fullscreen":"Fullscreen","reduced_warp":"Reduced warp effect (accessibility)","damage_numbers":"Damage numbers"}[property]
 		check.button_pressed = bool(settings[property])
 		overlay.add_child(check)
 		check.toggled.connect(func(value: bool) -> void: settings[property]=value; apply_settings(); save_settings())
@@ -1006,6 +1082,7 @@ func apply_settings() -> void:
 	if is_instance_valid(combat):
 		combat.show_element_labels = bool(settings.show_elements)
 		combat.warp_reduced = bool(settings.get("reduced_warp",false))
+		combat.show_damage_numbers = bool(settings.get("damage_numbers",false)) # spec §24: off by default
 	if sound != null:
 		sound.volume = float(settings.volume)
 		sound.music_enabled = bool(settings.music)
@@ -1023,25 +1100,44 @@ func load_settings() -> void:
 	if config.load("user://device.cfg") == OK:
 		for key: String in settings: settings[key] = config.get_value("device",key,settings[key])
 
+## Frictionless death (spec §7.4/§24). No confirmation, no menu, no loading
+## screen: the next life is built HERE, immediately, so `_reboot` (fired by
+## the timer, a fresh press, or a test/fixture calling it directly) does no
+## work of its own beyond swapping to data that already exists.
 func _on_death() -> void:
 	sound.play("death")
+	var kills: int = combat.run_kills if is_instance_valid(combat) else 0
+	var life_elapsed: float = combat.elapsed if is_instance_valid(combat) else 0.0
+	var life_ring: int = campaign.ring_reached
+	campaign.on_death() # spec §7.5: fresh seed the instant the player dies
+	_death_stats = {"ring_reached":life_ring,"best_ring":int(campaign.best_ring.get(campaign.level,0)),"kills":kills,"time":life_elapsed}
+	_death_next_sector = campaign.sector_at(Vector2i.ZERO,0.0)
+	pending_offers.clear()
+	_death_elapsed = 0.0
 	_open_overlay("death")
-	campaign.on_death()
 	label(overlay,"SIGNAL LOST",Vector2(250,193),Vector2(780,78),56,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label(overlay,"REBOOT %02d" % campaign.deaths,Vector2(450,286),Vector2(380,35),16,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var lines: Array[String] = ["The shape is gone. You are not.\nI kept the routes you opened.","Another ending. Another beginning.\nThis time, you know what waits beyond the origin.","They count your reboots as failures.\nI count the places that still remember your name."]
-	label(overlay,lines[mini(campaign.deaths-1,2)],Vector2(250,370),Vector2(780,95),23,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label(overlay,"KEPT · Waypoints / cores / discoveries / story / unlocks",Vector2(210,507),Vector2(860,34),16,BLUE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	button(overlay,"REBOOT AT THE ORIGIN",Rect2(440,601,400,58),_reboot).grab_focus()
+	label(overlay,"RING REACHED %d · BEST %d" % [int(_death_stats.ring_reached),int(_death_stats.best_ring)],Vector2(250,290),Vector2(780,42),28,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label(overlay,"KILLS %d · TIME %s" % [int(_death_stats.kills),_format_run_time(float(_death_stats.time))],Vector2(250,340),Vector2(780,32),18,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if not testing:
 		SaveService.save_snapshot(campaign.to_dict(),{"seen_lines":seen_lines,"previous_offers":previous_offers,"offer_serial":offer_serial},slot)
 
+func _format_run_time(seconds: float) -> String:
+	var total: int = maxi(0,roundi(seconds))
+	return "%d:%02d" % [total/60,total%60]
+
 func _reboot() -> void:
-	pending_offers.clear()
 	_close_overlay()
 	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
-	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
-	_queue_line("companion","You persisted","Your waypoints, discoveries, and defeated cores remain. Rebuild your lightship, then jump from the origin to a waypoint your tier can handle.","reboot_v2_"+str(campaign.deaths))
+	campaign.on_enter(Vector2i.ZERO)
+	combat.player_position = GameTuning.ARENA_CENTER
+	combat.start_sector(_death_next_sector if not _death_next_sector.is_empty() else campaign.sector_at(Vector2i.ZERO,0.0))
+	dialogue.visible = false
+	dialogue_remaining = 0.0
+	_input_swallow_frames = 1 # spec §7.4: swallow the dismissing press for one tick
+	_queue_line("companion","You persisted","Your discoveries, defeated cores and unlocks remain. Rebuild your lightship, then push outward again.","reboot_v2_"+str(campaign.deaths))
+	_refresh_hud()
+	_save_game()
+func _dismiss_death_card() -> void: _reboot()
 
 func _show_ending(is_demo: bool) -> void:
 	_open_overlay("ending")

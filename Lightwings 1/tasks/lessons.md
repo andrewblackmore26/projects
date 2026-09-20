@@ -45,6 +45,25 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
 - **A budget nobody measured is an assertion.** The plan set "sim mean ≤ 4.5 ms at 2000 bullets" from a design agent's estimate; the first measurement of the untouched v0.2 build was 6.0–6.9 ms. Measure the baseline before writing any threshold, and derive the threshold from the measurement with stated headroom. Numbers that arrive from a planning agent are hypotheses until a run confirms them.
 - JSON reads integers back as floats (`0` → `0.0`). Comparing a live value with a value loaded from a JSON fixture reports a difference that is not there. Send the live side through the same `JSON.stringify` → `parse_string` round trip and compare like with like. (The golden trace "failed" on its first cross-process run for exactly this reason.)
 - A fixture is only as representative as the state it was captured in. The first save fixture showed the seed hull because 90 frames of combat had already regressed the freshly evolved ship below its 85 % floor. Print what a fixture contains (hull, tier, light, flags) and read it before committing it.
+- **A median computed over runs that include failures hides the failures.** The first-evolution
+  acceptance bot appended every run's elapsed time, including runs where the novice DIED, and gated
+  on the median. So 5 of 20 seeds never evolved at all, their short pre-death times pulled the
+  median DOWN, and the gate read green. Two rules fall out: a failed run must be counted as a
+  failure, never folded into a central statistic; and gate the worst case as well as the middle,
+  because "median ≤ X" is satisfied by half the runs being arbitrarily bad. The fix also made the
+  measurement truer to the game — a new player who dies reboots in ~0.6 s and keeps playing, so the
+  claim is about a session, not one fragile life.
+- **An instrument that guards on a precondition reports "absent" when the precondition fails.** The
+  play census checked the boss turret ring with `if hp > 0`, and after 60 s of brawling that circle
+  was sometimes dead, so the census reported "the turret ring never fired" about a component that
+  worked perfectly. Exercise a mechanism on a fresh subject, or report the precondition separately.
+- **A tolerance is a measurement, not a guess.** The light-conservation check justified its
+  tolerance as "~0.5 per limb"; the real drift was 18 on 2430. State the measured value and the
+  reason, and pick a band that still catches the failure the check exists for.
+- **Shared mutable state makes two scenarios in one test dependent.** P7's combo multiplier
+  persisted between the two halves of the light-conservation check, so the first scenario's kill
+  inflated the second's payout by 11%. Reset the state, or give each scenario its own world - and
+  remember the node's light pool is finite, so extra kills in a fixture can starve a later check.
 - **Profile before optimising, then keep the losing attempts in the comment.** P4a's per-circle
   hitboxes pushed the bullet phase over budget. The obvious fix — one bound collider per enemy plus a
   narrow phase — measured WORSE (2000-bullet mean 8.64 → 9.29) because a hull's bound is ~180 px, so

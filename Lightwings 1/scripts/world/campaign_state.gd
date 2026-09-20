@@ -382,6 +382,10 @@ func travel_to_level(new_level: int) -> void:
 func on_death() -> void:
 	deaths += 1
 	epoch += 1
+	# Spec §7.6: "Ring reached: 14 - best 19" is a per-life speed goal, so
+	# best_ring must track the best a life ever reached even when the run
+	# ends in death, not only on complete_level()'s "beat the boss" event.
+	best_ring[level] = maxi(int(best_ring.get(level, 0)), ring_reached)
 	story_flags["reboot_%d" % deaths] = true
 	_reset_life()
 

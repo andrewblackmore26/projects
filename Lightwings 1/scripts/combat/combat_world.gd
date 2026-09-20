@@ -89,6 +89,8 @@ var profile_sections: bool = false
 var section_ms: Dictionary = {}
 var visuals_enabled: bool = true
 var show_element_labels: bool = false
+## Spec §24: "Damage numbers off by default." Set from main.gd's settings.
+var show_damage_numbers: bool = false
 var sector_energy_remaining: int = 10000
 var sector_energy_paid: int = 0
 var sector_cache: Dictionary = {}
@@ -145,6 +147,24 @@ var _warp_push_depth: float = 0.0
 var _warp_timer: float = 0.0
 var _warp_locked_accum: float = 0.0
 var _warp_swap_done: bool = false
+## --- Pace (spec §7, plan P7) -------------------------------------------
+## Decay suppression counts down from GameTuning.DECAY_SUPPRESSION_SECONDS on
+## every kill or absorb; light only bleeds while this is at 0.
+var decay_suppress_timer: float = 0.0
+## Consecutive-kill combo (spec §7.2). combo_count in [0, COMBO_MAX_COUNT];
+## combo_timer resets to COMBO_WINDOW_SECONDS on each kill, then counts down;
+## once it hits 0 the count drains via _combo_drain_accum instead of resetting.
+var combo_count: int = 0
+var combo_timer: float = 0.0
+var _combo_drain_accum: float = 0.0
+## Run stats for the death card (spec §7.6/§24): kills this life, elapsed
+## time this life. Reset in setup_player (a fresh life, not a fresh sector).
+var run_kills: int = 0
+## Enemies that died this sector, waiting on ENEMY_RESPAWN_COOLDOWN to
+## reappear (spec §7.3: "enemies respawn on a cooldown; the pool does not
+## follow"). Cleared whenever a fresh sector starts (start_sector).
+var _dead_enemy_records: Array = []
+var _respawn_timer: float = 0.0
 
 func _ready() -> void:
  _rng.seed=734927
@@ -176,6 +196,12 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  absorption={}
  player_invulnerable=0.0
  active=true
+ elapsed=0.0
+ run_kills=0
+ decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS
+ combo_count=0
+ combo_timer=0.0
+ _combo_drain_accum=0.0
 func set_player_hull(id: String, animate: bool = false) -> bool:
  var definition: ShipDefinition=ShipCatalog.get_ship(id)
  if definition==null or not definition.is_player: return false
@@ -223,11 +249,18 @@ func collect_light(raw_amount: float, element: String) -> float:
  if consumed<=0.0: return 0.0
  light_total+=consumed*multiplier
  player.hp=light_total
+ decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS # spec §7.1: any absorb suppresses decay
  absorption[element]=float(absorption.get(element,0.0))+consumed
  light_collected.emit(element,consumed)
  energy_collected.emit(element,int(consumed))
  return consumed
 func collect_energy(amount: float, element: String) -> void: collect_light(amount,element)
+## Combo multiplier (spec §7.2): x1.0 at 0 kills -> x2.5 at COMBO_MAX_COUNT.
+func combo_multiplier() -> float:
+ return lerpf(1.0,GameTuning.COMBO_MULTIPLIER_MAX,float(combo_count)/float(GameTuning.COMBO_MAX_COUNT))
+## Run stats for the death card (spec §7.6/§24).
+func run_stats() -> Dictionary:
+ return {"kills":run_kills,"elapsed":elapsed}
 
 func _make_actor(id: int, element: String, tier: int, position: Vector2, faction: int, rival: bool) -> Dictionary:
  var hp: float=(140.0+80.0*tier) if rival else (24.0+14.0*tier)
@@ -473,6 +506,8 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
  cleared_emitted=false
  sector_energy_remaining=int(sector.get("resource_budget",200))
  sector_energy_paid=0
+ _dead_enemy_records.clear()
+ _respawn_timer=GameTuning.ENEMY_RESPAWN_COOLDOWN
  if not fresh: return
  var key: String=_sector_key(sector)
  if encounter_records.has(key) or sector_cache.has(key):
@@ -538,6 +573,7 @@ func _physics_process(delta: float) -> void:
   section_start=Time.get_ticks_usec()
  _update_actor_status(player,dt)
  for actor: Dictionary in enemies: _update_actor_status(actor,dt)
+ _update_pace(dt)
  _rebuild_actor_grid()
  _update_telegraphs(dt)
  if profile_sections:
@@ -1143,7 +1179,7 @@ func _update_debris(dt: float) -> void:
   d.position=Vector2(d.position)+Vector2(d.velocity)*dt
   d.angle=float(d.angle)+float(d.spin)*dt
   if float(d.age)>=float(d.life):
-   _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))))
+   _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))),true)
    debris.remove_at(i)
 ## Debris must not silently lose light on a node exit mid-fade: whatever has
 ## not finished its 1s fade yet pays out immediately as a pickup. Called
@@ -1151,7 +1187,7 @@ func _update_debris(dt: float) -> void:
 ## conserved whether the fight continues, is saved, or the node is left.
 func _flush_debris() -> void:
  for d: Dictionary in debris:
-  _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))))
+  _drop_pickup(d.position,str(d.element),maxi(0,roundi(float(d.light))),true)
  debris.clear()
 func _passives(actor: Dictionary, dt: float) -> void:
  if _has_ability(actor,"orbital_seekers"):
@@ -1176,6 +1212,48 @@ func _update_actor_status(actor: Dictionary, dt: float) -> void:
   actor.infected=maxf(0.0,float(actor.infected)-dt)
   _damage_actor(actor,float(actor.get("infection_damage",3.0))*dt,int(actor.get("infection_owner",-1)),int(actor.get("infection_faction",-1)))
  # Absorption is the only healing path. No delayed or passive regeneration.
+## Spec §7, one system: decay, combo drain and enemy respawn all live here,
+## called once per tick from _physics_process right after actor status.
+func _update_pace(dt: float) -> void:
+ if not active or player.is_empty(): return
+ # Combo (spec §7.2): the 2.5s window resets on every kill (_kill_reward);
+ # once it expires the count drains 1 per 0.25s instead of resetting hard.
+ if combo_timer>0.0:
+  combo_timer=maxf(0.0,combo_timer-dt)
+ elif combo_count>0:
+  _combo_drain_accum+=dt
+  while _combo_drain_accum>=GameTuning.COMBO_DRAIN_INTERVAL_SECONDS and combo_count>0:
+   combo_count-=1
+   _combo_drain_accum-=GameTuning.COMBO_DRAIN_INTERVAL_SECONDS
+ else:
+  _combo_drain_accum=0.0
+ # Decay (spec §7.1): 0.4%/s of the CURRENT TIER'S MAXIMUM, suppressed for
+ # 3s after any kill or absorb, inactive during the reshape and the warp
+ # lock (both invulnerable set-pieces, not "idling"). Floors at DECAY_FLOOR
+ # and can regress a tier, but per the approved preamble can never kill.
+ decay_suppress_timer=maxf(0.0,decay_suppress_timer-dt)
+ if decay_suppress_timer<=0.0 and reshape_remaining<=0.0 and not warp_locked():
+  var rate: float=GameTuning.DECAY_RATE_PER_SECOND*GameTuning.capacity(player_tier,max_player_tier)
+  if light_total>GameTuning.DECAY_FLOOR:
+   light_total=maxf(GameTuning.DECAY_FLOOR,light_total-rate*dt)
+   player.hp=light_total
+   _check_regression()
+ _update_respawns(dt)
+## Spec §7.3: "enemies respawn on a cooldown; the pool does not follow" - a
+## defeated enemy comes back on ENEMY_RESPAWN_COOLDOWN regardless of how
+## depleted the node's light pool is; what depletes is the LOOT (routed
+## through _spend_energy/_drop_pickup), not the enemy count. Bosses never
+## respawn (spec §14 "no respawn"); their kind never appends to the list.
+func _update_respawns(dt: float) -> void:
+ if _dead_enemy_records.is_empty(): return
+ _respawn_timer-=dt
+ if _respawn_timer>0.0: return
+ _respawn_timer=GameTuning.ENEMY_RESPAWN_COOLDOWN
+ var record: Dictionary=_dead_enemy_records.pop_front()
+ var point: Vector2=arena.center+Vector2.from_angle(_rng.randf()*TAU)*arena.radius*0.85
+ if point.distance_to(player.pos)<400.0: point=arena.center*2.0-point
+ var spawned: Dictionary=_spawn_named_enemy(str(record.hull_id),str(record.element),int(record.tier),point,false,bool(record.elite))
+ if not spawned.is_empty(): _add_effect("spawn",point,_actor_color(spawned),0.5,40.0)
 func _attach_virus(source: Dictionary, target_id: int, damage: float, generation: int) -> void:
  if viruses.size()<128: viruses.append({"target":target_id,"damage":damage,"generation":generation,"owner":int(source.id),"faction":int(source.faction),"element":str(source.element),"pos":actors_by_id[target_id].pos})
 func _update_viruses(dt: float) -> void:
@@ -1365,14 +1443,7 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
    active=false
    player_died.emit()
    return
-  var previous: int=player_tier
-  var surviving: int=previous
-  while surviving>1 and light_total<GameTuning.regression_floor(surviving): surviving-=1
-  if surviving<previous:
-   var id: String=hull_history[surviving-1] if hull_history.size()>=surviving else "player_seed"
-   set_player_hull(id,true)
-   player_invulnerable=GameTuning.RESHAPE_SECONDS+GameTuning.REGRESSION_GRACE
-   player_regressed.emit(previous,surviving)
+  _check_regression()
   _add_effect("hit",actor.pos,Color.WHITE,0.15,8.0)
   return
  # P4a: the armoured-core rule ("reduced damage until half the guns are
@@ -1384,13 +1455,14 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
  if _boss_shield_active(actor): return
  var damage: float=amount/maxf(0.1,float(actor.hp_buffer))
  var actual: float=minf(float(actor.hp),damage)
+ if show_damage_numbers and actual>0.0 and effects.size()<250: effects.append({"kind":"number","pos":actor.pos+Vector2(_rng.randf_range(-6,6),-10),"color":Color.WHITE,"time":0.6,"duration":0.6,"radius":0.0,"text":str(roundi(actual))})
  actor.hp=maxf(0.0,float(actor.hp)-damage)
  if actor.has("part_hp") and actor.part_hp.size()>0: actor.part_hp[0]=actor.hp
  actor.reward_damage=float(actor.reward_damage)+actual
  while float(actor.reward_damage)>=18.0 and int(actor.reward_remaining)>0:
   actor.reward_damage=float(actor.reward_damage)-18.0
   actor.reward_remaining=int(actor.reward_remaining)-1
-  _drop_pickup(actor.pos,str(actor.element),1)
+  _drop_pickup(actor.pos,str(actor.element),1,true)
  # A boss's core reaching 0 hp is not enough on its own (spec §14: "multiple
  # cores"): every sub_core circle must ALSO be dead. The core can sit at 0 hp
  # indefinitely (further damage is a no-op, `actual` above is already 0) -
@@ -1401,6 +1473,19 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
 ## Single choke point (spec §14 "shielded core"): true while any
 ## `shield_generator` circle of `actor` is attached and alive. Non-bosses
 ## have no `shield_generator_indices` at all, so this is always false for them.
+## Single choke point (spec §6/§7.1): a tier drop, whether caused by damage
+## or by decay ("decay ... can regress a tier, that is the cost of
+## camping" - approved preamble). Both `_damage_actor` and `_update_pace`
+## call this instead of duplicating the threshold walk.
+func _check_regression() -> void:
+ var previous: int=player_tier
+ var surviving: int=previous
+ while surviving>1 and light_total<GameTuning.regression_floor(surviving): surviving-=1
+ if surviving<previous:
+  var id: String=hull_history[surviving-1] if hull_history.size()>=surviving else "player_seed"
+  set_player_hull(id,true)
+  player_invulnerable=GameTuning.RESHAPE_SECONDS+GameTuning.REGRESSION_GRACE
+  player_regressed.emit(previous,surviving)
 func _boss_shield_active(actor: Dictionary) -> bool:
  var indices: PackedInt32Array=actor.get("shield_generator_indices",PackedInt32Array())
  if indices.is_empty(): return false
@@ -1425,27 +1510,43 @@ func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -99
  # §14/§28); any limb reward share never paid because its circle was still
  # attached when the core died is folded in here so total light emitted is
  # the same whether the enemy is killed limb-by-limb or core-first.
+ # Spec §7.2: chains pay more - the combo multiplier applies to the light
+ # paid out at kill time, so the node's finite pool still bounds it (the
+ # multiplied pool is spent through _spend_energy same as any other drop).
+ if int(actor.id)!=0:
+  decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS
+  combo_count=mini(GameTuning.COMBO_MAX_COUNT,combo_count+1)
+  combo_timer=GameTuning.COMBO_WINDOW_SECONDS
+  run_kills+=1
+  if not bool(actor.rival): _dead_enemy_records.append({"hull_id":str(actor.get("hull_id","")),"element":str(actor.element),"tier":int(actor.tier),"elite":bool(actor.elite)})
  var pool: float=float(actor.reward_remaining)+float(actor.get("reward_unpaid_limb",0.0))
- var reward: int=roundi(pool*_reward_multiplier(actor))
+ var reward: int=roundi(pool*_reward_multiplier(actor)*combo_multiplier())
  actor.reward_remaining=0
  actor.reward_unpaid_limb=0.0
  while reward>0:
   var size: int=20 if reward>=20 else (5 if reward>=5 else 1)
-  _drop_pickup(Vector2(actor.pos)+Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(3,30),str(actor.element),size)
+  _drop_pickup(Vector2(actor.pos)+Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(3,30),str(actor.element),size,true)
   reward-=size
  _add_effect("death",actor.pos,_actor_color(actor),0.4,35.0)
  if bool(actor.rival):
   boss_defeated.emit(str(actor.element))
-func _drop_pickup(point: Vector2, element: String, value: int) -> void:
- var amount: int=_spend_energy(value)
+## `size` is one of GameTuning.PICKUP_SIZES (1/5/20). `enemy_source` marks
+## light shed by an enemy (on hit or on death), which is worth
+## GameTuning.ENEMY_DROP_MULTIPLIER x a floating pickup of the same size
+## (spec §7.2/§10). The draw radius reads `size`, never the multiplied
+## `value`, so a 3x enemy drop never looks like a bigger pickup than its size.
+func _drop_pickup(point: Vector2, element: String, size: int, enemy_source: bool = false) -> void:
+ var requested: int=roundi(float(size)*(GameTuning.ENEMY_DROP_MULTIPLIER if enemy_source else 1.0))
+ var amount: int=_spend_energy(requested)
  if amount<=0: return
  if pickups.size()>=MAX_PICKUPS:
   for pickup: Dictionary in pickups:
    if pickup.element==element:
     pickup.value=float(pickup.value)+amount
+    pickup.size=maxi(int(pickup.get("size",size)),size)
     return
   return
- pickups.append({"pos":arena.clamp_point(point,6.0),"vel":Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(2,8),"element":element,"value":float(amount),"phase":_rng.randf()*TAU})
+ pickups.append({"pos":arena.clamp_point(point,6.0),"vel":Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(2,8),"element":element,"value":float(amount),"size":size,"phase":_rng.randf()*TAU})
 func _spend_energy(requested: int) -> int:
  var amount: int=mini(maxi(0,requested),sector_energy_remaining)
  sector_energy_remaining-=amount
@@ -1661,7 +1762,9 @@ func _draw_debris(d: Dictionary) -> void:
   draw_circle(p,maxf(1.0,float(radii[j])*maxf(0.15,alpha)),color)
 func _draw_pickup(pickup: Dictionary) -> void:
  var color: Color=COLORS[maxi(0,ELEMENTS.find(str(pickup.element)))]
- var radius: float=3.0+(1.5 if float(pickup.value)>=5.0 else 0.0)+(1.5 if float(pickup.value)>=20.0 else 0.0)
+ # Radius reads SIZE, not the (possibly 3x-multiplied) value (spec §10).
+ var size: int=int(pickup.get("size",pickup.value))
+ var radius: float=3.0+(1.5 if size>=5 else 0.0)+(1.5 if size>=20 else 0.0)
  if pickup.element=="void": draw_circle(pickup.pos,radius,Color.BLACK)
  draw_arc(pickup.pos,radius,0,TAU,24,color,1.5,true)
  var angle: float=elapsed*PI+float(pickup.phase)
@@ -1702,8 +1805,14 @@ func draw_projectiles(canvas: Node2D) -> void:
   var color: Color=effect.color
   color.a=clampf(float(effect.time)/float(effect.duration),0,1)
   if effect.kind=="line": canvas.draw_line(effect.pos,effect.to,color*1.8,2.6,true)
+  elif effect.kind=="number":
+   var rise: Vector2=Vector2(0,-16.0*(1.0-color.a))
+   canvas.draw_string(ThemeDB.fallback_font,Vector2(effect.pos)+rise,str(effect.text),HORIZONTAL_ALIGNMENT_CENTER,-1,13,color)
   else: canvas.draw_arc(effect.pos,maxf(2.0,float(effect.radius)*(1.0-color.a*0.4)),0,TAU,24,color*1.6,1.5,true)
  if player_invulnerable>0.0: canvas.draw_arc(player.pos,12.0,elapsed*4,elapsed*4+PI*1.6,24,Color(PLAYER_COLOR,0.8),1.5,true)
+ # Spec §24: "Poison/slow state clearly marked on the player" - a corruption-
+ # green pulsing ring, distinct from the white invulnerability flicker above.
+ if not player.is_empty() and float(player.get("slow",0.0))>0.0: canvas.draw_arc(player.pos,17.0,0,TAU,20,Color("45e06a",0.55+0.35*sin(elapsed*10.0)),2.2,true)
 
 
 

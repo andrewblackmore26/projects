@@ -34,8 +34,23 @@ func run() -> void:
 func test_progression() -> void:
  var w: CombatWorld=make_world()
  check(w.light_total==40 and w.hull_id=="player_seed","Seed starts with one 40-point bar")
- w._update_actor_status(w.player,30.0)
- check(w.light_total==40,"Waiting does not heal")
+ # Retired (P7): "Waiting does not heal" drove _update_actor_status directly,
+ # a function decay does not live in (see tasks/lessons.md "measure, don't
+ # assert") - it could never see the mechanic it claimed to test and passed
+ # vacuously both before and after decay existed. Decay (spec §7.1) lives in
+ # _update_pace, stepped here across its 3s post-spawn suppression window
+ # (setup_player seeds decay_suppress_timer) plus 27s draining at 0.4%/s of
+ # the tier-1 capacity (100): waiting now COSTS light instead of healing it,
+ # and it floors at GameTuning.DECAY_FLOOR rather than reaching zero.
+ for i: int in range(300): w._update_pace(0.1)
+ var expected_after_decay: float=40.0-27.0*0.004*100.0 # 3s suppressed + 27s at 0.4%/s of tier-1's 100
+ check(w.light_total<40.0 and absf(w.light_total-expected_after_decay)<0.5,"Waiting drains light via decay, suppressed for the first 3s")
+ w.light_total=GameTuning.DECAY_FLOOR+0.05
+ w.player.hp=w.light_total
+ w.decay_suppress_timer=0.0
+ for i: int in range(50): w._update_pace(0.1)
+ check(is_equal_approx(w.light_total,GameTuning.DECAY_FLOOR) and w.active,"Decay floors at DECAY_FLOOR and can never kill")
+ w.setup_player("neutral",1,40,[],Vector2(500,500))
  var consumed: float=w.collect_light(80.0,"fire")
  check(consumed==60 and w.light_total==100,"Collection caps at next threshold and returns raw amount consumed")
  check(w.absorption.fire==60,"Only consumed light enters diet")

@@ -163,6 +163,10 @@ func _measure_strafe_hit_rate(reaction_disabled: bool, error_disabled: bool) -> 
 	var dt: float = 1.0 / 60.0
 	var prev_light: float = w.light_total
 	for tick: int in range(2400): # 40 simulated seconds
+		# P7 decay (spec §7.1) drains light every tick this loop is not firing
+		# back, which is not what this measures (enemy aim, not pace) - pin the
+		# suppression window open so "hits" stays a pure hit-detector.
+		w.decay_suppress_timer = GameTuning.DECAY_SUPPRESSION_SECONDS
 		w.command.movement = Vector2(0, sin(float(tick) * 0.05)) * 0.15
 		w.command.fire = false
 		w._physics_process(dt)
@@ -344,6 +348,14 @@ func _run_census(firing_disabled: bool) -> Dictionary:
 	# anchored to the real code path rather than hoping bot RNG stumbles into
 	# them within 60 s. Still gated by `ai_firing_disabled` (egg via
 	# `_damage_part`'s egg branch, ramp/ring via `_update_guns`).
+	# On a FRESH boss, not the one that has just been in a 60 s brawl: its component circles take
+	# real damage in there (measured: the turret ring fell from 60 to 14.9 hp, and a slightly
+	# different run kills it), after which the `hp > 0` guards below silently report 0 and the
+	# instrument blames the component instead of the fight. The claim is "this component fires when
+	# its cooldown elapses", so exercise it on an undamaged hull.
+	for stale: Dictionary in w.enemies: stale.dead = true
+	w._cleanup_dead()
+	boss = w._spawn_enemy("fire", 3, w.arena.center + Vector2(0, 240), true)
 	var egg_index: int = boss.rig.index_of("egg")
 	if egg_index >= 0 and float(boss.part_hp[egg_index]) > 0.0:
 		var before: int = w.bullets.count()
@@ -357,8 +369,12 @@ func _run_census(firing_disabled: bool) -> Dictionary:
 		counts.deployment_ramp_spawn = 1 if w.enemies.size() > enemies_before else 0
 	var ring_index: int = boss.rig.index_of("turret_ring_0")
 	if ring_index >= 0 and float(boss.part_hp[ring_index]) > 0.0:
-		# The ring's weapon may resolve as an immediate bullet or a queued
-		# telegraph (`mine_layer` etc.), so this checks either effect landed.
+		# The ring's weapon may resolve as an immediate bullet or a queued telegraph (`mine_layer`),
+		# so this checks either effect landed. `telegraphs` is capped at 160 (combat_world.gd) and a
+		# 60 s census with respawning enemies saturates it, which silently swallowed this event and
+		# made the instrument report 0 for a ring that was firing perfectly well. Clear the queue
+		# first so the check measures THIS circle rather than the global list's headroom.
+		w.telegraphs.clear()
 		var bullets_before: int = w.bullets.count()
 		var telegraphs_before: int = w.telegraphs.size()
 		boss.part_cd[ring_index] = 0.0
