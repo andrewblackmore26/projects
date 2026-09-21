@@ -45,4 +45,25 @@ func _run() -> void:
 	h.control("level 5 (the legal boundary) refused", DevConsole.parse("level 5").ok)
 	h.control("light 0 (the legal boundary) refused", DevConsole.parse("light 0").ok)
 
+	# --- tune (camera and movement spec, P11a) -------------------------------
+	var tune_set: Dictionary = DevConsole.parse("tune player_top_speed 500")
+	h.check(tune_set.ok and tune_set.command == "tune" and tune_set.args.action == "set" and tune_set.args.key == "player_top_speed" and is_equal_approx(float(tune_set.args.value), 500.0), "tune <key> <value> parses")
+	var tune_get: Dictionary = DevConsole.parse("tune cam.lag_tau")
+	h.check(tune_get.ok and tune_get.args.action == "get" and tune_get.args.key == "cam.lag_tau", "tune <key> reads a value")
+	h.check(DevConsole.parse("tune reset").ok and DevConsole.parse("tune reset").args.action == "reset", "tune reset parses")
+	h.check(DevConsole.parse("tune dump").ok and DevConsole.parse("tune dump").args.action == "dump", "tune dump parses")
+	h.check(DevConsole.parse("tune enemy_ratio.drone -0.1").ok, "a negative value is a number: the parser passes it (range is the sim's business)")
+	h.check(not DevConsole.parse("tune").ok, "tune with no argument is rejected")
+	h.check(not DevConsole.parse("tune player_top_sped 500").ok, "A misspelt key is rejected when setting")
+	h.check(not DevConsole.parse("tune player_top_sped").ok, "A misspelt key is rejected when reading")
+	h.check(not DevConsole.parse("tune player_top_speed fast").ok, "A non-numeric value is rejected")
+	h.check(not DevConsole.parse("tune player_top_speed 500 now").ok, "tune rejects a fourth word")
+	# The parser cannot know every key by luck: EVERY key in the table must parse, so a key added
+	# to GameTuning is reachable from the console without touching the parser.
+	var unreachable: Array[String] = []
+	for key: String in GameTuning.FEEL_DEFAULTS:
+		if not DevConsole.parse("tune %s 1" % key).ok: unreachable.append(key)
+	h.check(unreachable.is_empty(), "Every FEEL_DEFAULTS key is settable from the console (unreachable: %s)" % str(unreachable))
+	h.control("a real key with a real number refused", DevConsole.parse("tune dash.cooldown_s 1.1").ok)
+
 	h.finish(self)
