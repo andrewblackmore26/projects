@@ -33,11 +33,29 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
-	var seed_errors: PackedStringArray = PackedStringArray()
-	working = ShipGrammar.load_json("res://tests/fixtures/ships_v4/player_t3.json", seed_errors)
-	if working == null or not seed_errors.is_empty(): working = _blank_ship()
+	working = _seeded_ship()
+	if working == null:
+		var seed_errors: PackedStringArray = PackedStringArray()
+		working = ShipGrammar.load_json("res://tests/fixtures/ships_v4/player_t3.json", seed_errors)
+		if working == null or not seed_errors.is_empty(): working = _blank_ship()
 	_refresh()
 	dirty = false
+
+## S6: the gallery hands off either a file path ("open in editor") or a coverage cell's suggested
+## element/tier/family ("open the editor here"). Neither overrides the ordinary fixture default.
+func _seeded_ship() -> ShipDefinition:
+	var path: String = GalleryEditorSeed.take_path()
+	if path != "":
+		var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+		if resource is ShipDefinition and resource.is_rail_hull(): return resource.duplicate(true)
+	var seed: Dictionary = GalleryEditorSeed.take_seed()
+	if seed.is_empty(): return null
+	var ship: ShipDefinition = _blank_ship()
+	if seed.has("tier"): ship.tier = int(seed.tier)
+	if str(seed.get("faction", "")) != "player":
+		ship.faction = str(seed.get("faction", "enemy"))
+		ship.archetype = str(seed.get("kind", ship.archetype))
+	return ship
 
 func _blank_ship() -> ShipDefinition:
 	var ship: ShipDefinition = ShipDefinition.new()
@@ -97,6 +115,7 @@ func _build_ui() -> void:
 	_button(toolbar, "Save", _save)
 	_button(toolbar, "Save and Exit", func() -> void: _exit_after_save = true; _save())
 	_button(toolbar, "Exit", _request_exit)
+	_button(toolbar, "Gallery", func() -> void: get_tree().change_scene_to_file("res://scenes/gallery.tscn"))
 	stats_toggle = CheckButton.new()
 	stats_toggle.text = "Stats"
 	stats_toggle.button_pressed = true

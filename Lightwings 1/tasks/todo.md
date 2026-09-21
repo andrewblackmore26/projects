@@ -501,16 +501,28 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       requires, leaving its 141-hull schema-3 roster checks untouched (11003 checks, 0 failures).
 
 ## S6 — Gallery (§12; trace identical)
-- [ ] Pure `GalleryModel`: scans a catalog root INCLUDING invalid files; metadata (counts, footprint,
+- [x] Pure `GalleryModel`: scans a catalog root INCLUDING invalid files; metadata (counts, footprint,
       set pieces, errors, mtime); §12.3 filters, sorts and search; roster coverage grid; the "≤ 24
       animating, nearest-to-centre, off-screen frozen" scheduler as a pure function
-- [ ] Views in flat editor-only files: contact sheet with live tiles and true-scale toggle; detail
+- [x] Views in flat editor-only files: contact sheet with live tiles and true-scale toggle; detail
       (part tree with HP, detach preview from the rig's `subtree_size`, weapon legality, motion panel
       with a tick scrub bar, silhouette); compare 2–4; coverage → editor pre-seed; PNG export (sheet,
       single ship, rails on/off); mtime-poll live reload. Replaces the editor's library window
-- [ ] `gallery_model_test.gd` (a control per filter, sort, coverage, invalid-still-listed and scheduler
+- [x] `gallery_model_test.gd` (a control per filter, sort, coverage, invalid-still-listed and scheduler
       line); `gallery_render_test.gd` (a visible tile changes between ticks, a frozen one does not;
       detach highlight sits on the hub's subtree only — acceptance 7); commit
+      — measured: `gallery_model_test` 54 checks / 0 failures / 17 controls caught (headless).
+      `gallery_render_test` (GPU) 0 failures / 3 controls caught: moving-tile diff 0.19 vs frozen-tile
+      diff 0.00003 over 90 real frames; `fixture_radial_elite` hub `r2s0` redness +0.053 vs `r2s1`
+      +0.00 after `GalleryDetachOverlay.highlight`; every staged ship's tile reads 0.06-0.30 against
+      an empty-tile baseline vs 0.006 for the same ship with its renderer forced invisible.
+      `tools/test.ps1 -GPU` whole suite: 50/50 passed, `golden_trace_test` unchanged (4 checks, 1
+      control). The subagent's export saved only the current 1280x800 viewport (8 tiles of 141);
+      the review fixed it to page through the scroll and stitch (see Review — S6). NOT done, stated
+      plainly: `tests/ships_render_smoke.gd` (an ad hoc, ungated capture
+      script predating S6) still expects the old `_player`/`_populate` API and was not updated, since
+      it is outside `tools/test.ps1`'s gated suite. See `docs/SHIP_WORKSHOP_V2.md`'s "Gallery"
+      section for the full file list and verification detail.
 
 ## S7 — Weapons I: cheap and shared machinery (additive; trace identical)
 - [ ] Batch 0: `drone_hatch`, `slow_field`, `void_orb` lite
@@ -925,6 +937,17 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | What my review changed | The palette check proved every legal, implemented piece was OFFERED but not that nothing else was — it would have passed a palette offering all 33. Added the converse; it passes |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 866.6 s; suite 48/48; golden trace not re-recorded; both Windows exports build and verify 2/2 with the six new `tab_*.gd` files present, so the `scripts/editor/*` exclusion covers them |
 | Not completed / stated plainly | The test does not use the shared harness, so it prints no check or control count, and its "controls" are contrast checks inside one scenario rather than counted negative controls. No Motion scrub bar (that is the gallery's detail view, S6). No mirror-twin helper: a player's off-axis weapon must be placed symmetrically by hand. `from_description` is a stub until the generator (S9). The editor's library window is gone and Load Ship… is a plain file dialog until the gallery (S6). Nobody has LOOKED at the editor running: there is no capture of it yet |
+
+## Review — S6 (gallery)
+| What | Measured |
+|---|---|
+| How it was built | By a subagent from a written brief (this time requiring the shared harness and counted controls), then reviewed by me: I looked at its capture, fixed what the capture showed, and ran the suite and gates myself. Its measured notes are inline in the S6 checklist |
+| The gallery | Pure `GalleryModel` (scan INCLUDING invalid files, metadata, §12.3 filters / sorts / search, roster coverage, the "≤ 24 animating, nearest-to-centre" scheduler as a pure function, a name+mtime signature polled each second for live reload) and flat views: contact sheet, tile, detail (part tree, detach preview from the rig's `subtree_size`, weapon legality, motion panel with a tick scrub bar, silhouette), compare, coverage → editor pre-seed. It lists schema-3 and rail hulls alike and works on any catalog root |
+| Tests (the subagent's numbers, from its printed output) | `gallery_model_test`: 54 checks, 17 controls. `gallery_render_test` (GPU): 3 controls — an animating tile's pixels differ 0.19 between ticks against 0.00003 for a frozen one; the detach highlight reddens hub `r2s0`'s cluster by +0.053 and leaves `r2s1` at 0.00 (acceptance 7); every tile reads 0.06–0.30 against 0.006 with its renderer hidden |
+| What my review changed | Looking at `gallery_roster.png` showed two faults the tests did not: a FOUR-column grid overflowed the 1280 px window and clipped the last column, and the export saved one screen — 8 tiles of 141 — which is useless as the review mechanism this gallery exists to be. Now three columns, and the export pages through the scroll and stitches: the shipped roster is one 1280 × 14848 PNG from 23 pages. A middle slice was looked at: clean seams, every tile drawn with its metadata |
+| Review capture | `artifacts/acceptance/gallery_roster.png` (today's 141 schema-3 hulls). The staging roster's sheets come in S10 |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 857.8 s; suite 50/50 (+ `gallery_model_test`, `gallery_render_test`); golden trace not re-recorded; exports verify 2/2 |
+| Not completed / stated plainly | **Acceptance 6's human half** ("a designer can find a specific model in under ten seconds") is not measured; search and nine filters exist and are tested, which is the proxy. The gallery's frame cost with many live tiles was NOT measured. The paged export has no automated test (it is a capture path; it was verified by looking). `tests/ships_render_smoke.gd`, an older ungated capture script, still calls the previous gallery's API and is now broken; it is superseded by `--gallery-export` and should be deleted in S12. Nobody has clicked through the detail view, compare mode or coverage grid by hand: they are covered by the model and pixel tests only |
 
 ## Retired assertions
 

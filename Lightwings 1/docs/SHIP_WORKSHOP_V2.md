@@ -118,3 +118,67 @@ the Slots palette's legal-and-implemented intersection; save refusing an invalid
 `parts` for a valid one; the byte-identical JSON round trip for all five §10 fixtures; polar picking
 on a known click and its off-rail control; and a schema-3 `.tres` being refused. `tools/test.ps1
 -GPU` runs the whole suite, including `golden_trace_test`, unchanged by this phase.
+
+## Gallery (ship design spec §12, S6)
+
+Open **Gallery** from the ship workshop's top bar (a "Gallery" button next to Save/Exit) or from the
+main menu's SHIP ATLAS entry (`scenes/gallery.tscn`). It replaces the editor's old library window
+and browses **every ship file in `ShipCatalog.catalog_root`**, schema-3 and rail hulls alike — the
+rail-grammar roster does not exist yet, so today's gallery mostly shows the 141 shipped schema-3
+hulls, each rendered live and animated through the same `ShipRenderer` the game uses.
+
+**Model.** `scripts/editor/gallery_model.gd` (`class_name GalleryModel`) is pure and headless: no
+nodes, no rendering. `scan(root)` loads every `.tres` directly with
+`ResourceLoader.load(path, "", CACHE_MODE_IGNORE)` — never through `ShipCatalog._template`, which
+silently drops an invalid hull — so a broken hull or a non-ship file is listed too, flagged
+`"invalid"` with its first failing rule's code. `filter()` and `sort()` implement §12.3's table
+(faction, chassis, accent — including "none" — exact colour pair, tier, archetype, rail count,
+set piece, status, free-text search; sort by tier, footprint, circles, name or last modified).
+`coverage()` builds the element x tier grid from `ShipGenerator.roster_manifest()`, each empty cell
+carrying the manifest's own suggested slot. `animating()` is the "≤ 24 animating, nearest-to-centre,
+off-screen frozen" tile scheduler as a pure function of a visible rect and the tiles' own rects.
+`signature()` hashes file names and mtimes for the 1-second live-reload poll (Godot has no native
+directory watcher).
+
+**Views**, all flat in `scripts/editor/` per `export_presets.cfg`'s existing exclusion of that
+folder: `gallery.gd` (the contact sheet: filter bar, sort/search, true-scale toggle, pin-to-compare,
+a roster-coverage window, PNG export, and the Timer that polls `GalleryModel.signature()`),
+`gallery_tile.gd` (one tile: a live `ShipRenderer` plus name/id, faction badge, two colour swatches,
+tier/archetype, circle/rail/footprint counts, mounted set-piece names and a validation mark;
+`set_animating(false)` calls the renderer's own `set_process(false)`, so a frozen tile is exactly a
+paused renderer, not a hidden one), `gallery_detail.gd` (a large animated render, a part tree with
+per-circle HP from the rig, a weapon list flagging anything `ShipGrammar.illegal_mounts` would
+reject, a motion panel with a scrub bar that pins `set_motion_tick`, and a 0.6561-zoom silhouette),
+`gallery_compare.gd` (2-4 pinned ships at one matched scale driven by the same tick),
+`gallery_detach_overlay.gd` (the detach preview: a `z_index`-forced-on-top `Node2D` that reads
+`ShipMotion.get_rig(ship).subtree_size` — the SAME data the sim's own detachment uses — and draws a
+translucent red circle over every circle in the selected hub's subtree at its LIVE pose; no shader
+change), and `gallery_editor_seed.gd` (a static hand-off: "open in editor" for a specific file, or a
+coverage cell's suggested element/tier/family, read once by `ship_editor.gd::_seeded_ship()`).
+
+**Export (§12.7).** `gallery.gd` accepts `--gallery-export=<path>` (optional `--catalog-root=<res
+path>`, `--true-scale`) for unattended contact-sheet captures, and `gallery_detail.gd` has a
+single-ship export button with a "hide rails" toggle (`hidden_part_ids` set to every style-5 part).
+Both convert the viewport's linear HDR image to sRGB **per pixel** via `Color.linear_to_srgb()`,
+never `Image.linear_to_srgb()` (which only accepts 8-bit data, by which point the darks are already
+crushed).
+
+The contact sheet covers the WHOLE filtered set: the scroll area is captured page by page and the
+pages are stitched into one tall PNG (the shipped roster is 23 pages). Run it unattended with
+`tools\godot.ps1 -Arguments '"res://scenes/gallery.tscn" -- --gallery-export=<absolute png path>'`.
+
+**Not done, stated plainly.** The Slots-tab "mirror twin sharing one mount" gap noted in S5 is
+unrelated and still open. `tests/ships_render_smoke.gd` (an ad hoc, ungated capture script predating
+S6) still expects the old `_player`/`_populate` members the previous single-toggle gallery had; it
+was not updated, since it is not part of `tools/test.ps1`'s gated suite.
+
+## Verification (S6)
+
+`tools/test.ps1 -Only gallery_model_test`: 54 checks, 0 failures, 17 negative controls, covering
+every filter/sort/coverage/scheduler line with its own control, plus "scanning through `ShipCatalog`
+instead would drop the invalid ones." `tools/test.ps1 -Only gallery_render_test -GPU`: 0 failures, 3
+controls caught — an animating tile's pixels differ across ticks while a frozen one's do not; the
+`fixture_radial_elite` hub `r2s0`'s detach highlight reddens its own hub and leaves `r2s1` alone
+(acceptance 7); every staged ship's tile reads differently from an empty tile, while one with its
+renderer forced invisible reads the same as empty. `tools/test.ps1 -GPU` (whole suite): 50/50 passed,
+`golden_trace_test` unchanged.
