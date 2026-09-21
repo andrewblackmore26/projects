@@ -525,16 +525,18 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       section for the full file list and verification detail.
 
 ## S7 — Weapons I: cheap and shared machinery (additive; trace identical)
-- [ ] Batch 0: `drone_hatch`, `slow_field`, `void_orb` lite
-- [ ] Batch A: `spiral_shot`, `pulse_ring`, `chain_infection`, `overcharge`, `drone_swarm`, `phase_shot`
-- [ ] Batch B (tethers on the virus list; fixes the never-expiring virus on the player): `arc_tether`,
+- [x] Batch 0: `drone_hatch`, `slow_field`, `void_orb` lite
+- [x] Batch A: `spiral_shot`, `pulse_ring`, `chain_infection`, `overcharge`, `drone_swarm`, `phase_shot`
+- [x] Batch B (tethers on the virus list; fixes the never-expiring virus on the player): `arc_tether`,
       `siphon_tether`, `siphon_leech`, `ignition_lance`
-- [ ] `weapon_behaviour_test.gd`: fresh world per id, swapped-ability control, enemy damage ≥ 0.5 s after activation; commit
+- [x] `weapon_behaviour_test.gd`: fresh world per id, swapped-ability control, enemy damage ≥ 0.5 s after activation; commit
 
-## S8 — Weapons II: telegraphs and the hot loop
-- [ ] Batch C: `discharge`, `collapse_charge`, `nova_pulse`, `refract_beam`, `blink_mine`
-- [ ] Batch D: `void_orb` full, `black_hole_shot`, `incendiary_spores`
-- [ ] Both benchmarks ×3; budgets restated only from measurement with stated headroom; commit
+## S8 — Weapons II: telegraphs and the hot loop (built and committed WITH S7: see Review — S7 + S8)
+- [x] Batch C: `discharge`, `collapse_charge`, `nova_pulse`, `refract_beam`, `blink_mine`
+- [x] Batch D: `black_hole_shot`, `incendiary_spores`
+- [ ] **Open:** `void_orb` FULL (a piercing orb that damages per tick of overlap); it ships as a slow heavy shot
+- [x] Headless benchmark ×3 with and ×3 without the weapons, same session; budgets unchanged. The
+      rendered-frame benchmark was taken once, by the gate, not ×3
 
 ## S9 — Generator (§13; trace identical)
 - [ ] `scripts/ships/ship_recipe.gd`: `generate(params)` (the 12 steps, own seeded RNG) and
@@ -949,6 +951,20 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 857.8 s; suite 50/50 (+ `gallery_model_test`, `gallery_render_test`); golden trace not re-recorded; exports verify 2/2 |
 | Not completed / stated plainly | **Acceptance 6's human half** ("a designer can find a specific model in under ten seconds") is not measured; search and nine filters exist and are tested, which is the proxy. The gallery's frame cost with many live tiles was NOT measured. The paged export has no automated test (it is a capture path; it was verified by looking). `tests/ships_render_smoke.gd`, an older ungated capture script, still calls the previous gallery's API and is now broken; it is superseded by `--gallery-export` and should be deleted in S12. Nobody has clicked through the detail view, compare mode or coverage grid by hand: they are covered by the model and pixel tests only |
 
+## Review — S7 + S8 (the twenty new weapons, in one phase)
+| What | Measured |
+|---|---|
+| Why one phase | The plan split them into "cheap" and "telegraphs and the hot loop". Built from existing machinery, only ONE of the twenty touches the per-bullet loop (one flag test for `phase_shot`), and the black-hole pull runs in its own pass that costs nothing while no black hole exists. So there was no second risk tier to stage |
+| The weapons | 20 rows in `AbilityCatalog.DEFINITIONS` (26 → 46) and 20 cases in `_activate_component`, all from `_shoot`, the telegraph queue, clouds, drones and the virus list. New telegraph kinds `nova` and `spore`; tethers are virus entries with `kind`, a lifetime, a break range and a draw-in warning; bullet flag `PHASE`; `AbilityCatalog.is_continuous`. Additive: no shipped hull mounts one, and the golden trace passes WITHOUT re-recording |
+| `weapon_behaviour_test` | 65 checks, 7 controls, a fresh world per weapon. Each of the 20 produces ITS effect and is counted once in the play census; the same cast with `radar` produces nothing. Specifics: overcharge's FOURTH shot, and only it, is triple and chains; 520 phase shots fanned across an elite cost its limbs nothing while the same fan as `pulse_cannon` does; an arc tether hurts while it holds, snaps out of reach, lets go after 3 s, and does not attach at 900 px; `siphon_tether` returns light; a black hole drags a hostile in reach and its counter recounts to 0; a nova releases 24 shots only after its warning; spores bloom into three clouds |
+| v0.3 §16 (warn ≥ 0.5 s) | An ENEMY's `discharge`, `collapse_charge`, `nova_pulse`, `refract_beam`, `arc_tether` and `siphon_leech` never cost the player light before 0.5 s. Control: a tether with its draw-in zeroed hurts at once |
+| A v0.3 bug fixed on the way | A plain virus latched onto the PLAYER never expired ("until it dies" — and the player does not). It lets go after 4 s now; on enemies it is unchanged. The trace did not move |
+| Test mistakes of mine, both caught by running it | The siphon check started the player ABOVE the tier-1 bar's capacity, so no light could be returned (400 → 400); then it tethered to an enemy four seconds of arc tether had already killed (30 → 30). It now starts from a low bar with a fresh target |
+| `set_piece_test` | All 33 pieces now report implemented. `ship_grammar_test`'s SETPIECE-IMPL control therefore has NO live subject any more (the ability table is a const and cannot be sabotaged from a test); the rule is exercised only by its own code path having run in S2–S6 |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 856.7 s; suite 51/51 (+ `weapon_behaviour_test`); golden trace not re-recorded |
+| Benchmark: slower than S0, and NOT because of this phase | The gate read 2000-bullet mean 8.84 / p95 13.65 ms against S0's 7.45–7.81 / 10.46–11.14, with `bullets` 4.69 against 4.00–4.20. Every section had risen by the same ~12 %, INCLUDING `ai` and `grid`, which this phase does not touch. So I measured instead of theorising: three standalone runs WITH the weapons, mean 8.33 / 9.05 / 8.54; then the previous commit's code, shelved in and measured minutes later on the same machine, mean 9.50 / 8.97 / 9.02. The old code is no faster today. The machine is slower than it was at S0 (a second Claude session is building P11 in a worktree and may be running Godot); the `phase_shot` flag test and the black-hole pass cost nothing measurable. Budgets NOT changed. **S0's baselines are no longer comparable with today's machine: S10 must take a same-session before/after, as this row did** |
+| Not completed / stated plainly | These are FIRST-DRAFT weapons, numbers untuned (S14). Simplified against the design notes: `void_orb` is a slow heavy shot, not a piercing damage-over-time orb; `pulse_ring` fires outward at once rather than orbiting first; `collapse_charge` does not pull during its warning; `ignition_lance` is a short beam with no burn; `blink_mine` does not relocate; `refract_beam` bends once toward the nearest hostile; enemy bullets do not yet take their firing piece's colour. None of the twenty has its own FX template or sound. No weapon has been SEEN in play: the census proves each fires from a unit cast, not from a hull in a fight (that is S10) |
+
 ## Retired assertions
 
 | Phase | Assertion | Why it no longer applies | Replacement |
@@ -963,4 +979,6 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | P5a | `combat_tests.gd`/`enemy_parts_test.gd` raw sector dicts keyed on `enemy_count`/`elite_count`/`core_defeated`/`kind:"core"` | `combat_world.start_sector` now spawns exactly the hulls the descriptor names (`enemy_hulls`/`elite_hulls`/`boss_hull`), never a count resolved through a runtime picker | Fixtures now build hull ids directly via `ShipGenerator.hull_id(faction,kind,element,tier)` |
 | P5a | `ship_roster_test.gd`/`ship_catalog.gd`: `ShipCatalog.pick_enemy`, `ShipCatalog.trim_to_tier` (`V02-ADAPTER`) | Deleted outright per the P5a brief; the world descriptor now names hulls directly instead of a runtime nearest-tier picker | `ShipGenerator.hull_id(faction,kind,element,tier)` (deterministic band clamp, no search) and `ShipCatalog.cap_to_tier` (same slot-cap behaviour, renamed and no longer tagged as a legacy shim) |
 | S0 | `combat_fx_render_test.gd` "enemy plasma projectile's pixel hue sits outside the player's light-blue band" (hue distance > 1/24, plasma only) | Blind: the player's white core was in the sampled patch, so every element read alike; hue alone cannot judge void's near-grey silver | Five lines, one per element: max-normalised RGB distance from the player's own projectile > 0.20 (measured 0.407–1.090), sampled two rendered frames after the buffer write |
+| S7 | `combat_tests.gd` "All 26 specified components have canonical metadata" | The ship design spec's catalogue adds twenty weapons | Restated as 46, exact |
+| S7 | `ships_validation.gd` "Shipped roster exposes <component>" for EVERY non-enemy ability | The twenty new weapons are mounted by no v0.3 hull on purpose; they reach the game with the rail roster at the cutover | The line still holds the v0.3 roster to the v0.3 components, and now also asserts that no v0.3 hull mounts a new one; the rail roster's own coverage is `ship_library_test` (S10) |
 | S0 | `acceptance_bot.gd` `light_chasing_faster_than_indifferent` (median chaser < median indifferent) | Medians folded capped runs in; its control compared two indifferent walks on different seeds | `light_chasing_unlocks_at_least_as_often` (16 vs 5 of 20) and `light_chasing_sooner_in_more_seeds` (12 / 0 / 8 ties), paired per seed; control pairs the indifferent walk with itself |

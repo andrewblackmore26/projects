@@ -97,6 +97,13 @@ var benchmark_stats: Dictionary = {}
 var simulation_ms: float = 0.0
 var profile_sections: bool = false
 var section_ms: Dictionary = {}
+## Activations per ability id since this world was made. Instrumentation only: bot runs read it to
+## prove every mounted weapon actually fires in play (lessons: a mechanic can pass its unit test and
+## never happen).
+var ability_events: Dictionary = {}
+## Live black-hole shots. The pull pass walks the bullet list only while this is above zero, so the
+## hot loop pays nothing when no such weapon is in the fight.
+var black_holes: int = 0
 var visuals_enabled: bool = true
 var show_element_labels: bool = false
 ## Spec §24: "Damage numbers off by default." Set from main.gd's settings.
@@ -653,6 +660,7 @@ func _physics_process(delta: float) -> void:
   section_ms.status_grid_telegraphs=(Time.get_ticks_usec()-section_start)/1000.0
   section_start=Time.get_ticks_usec()
  _update_bullets(dt)
+ _update_black_holes(dt)
  if profile_sections:
   section_ms.bullets=(Time.get_ticks_usec()-section_start)/1000.0
   section_start=Time.get_ticks_usec()
@@ -997,7 +1005,7 @@ func _fire_primary(actor: Dictionary, dt: float) -> void:
  if int(actor.id)!=0 and ai_firing_disabled: return
  if not _mount_alive(actor,"primary"): return
  var id: String=str(actor.primary)
- if id in ["beam","homing_beam"]:
+ if AbilityCatalog.is_continuous(id):
   _beam(actor,id,dt,_muzzle(actor,"primary"),actor.aim)
   if float(actor.fire_cd)<=0.0:
    _emit_shot(actor,id,actor.pos)
@@ -1033,6 +1041,7 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
  var damage: float=definition.damage*_damage_scale(actor)
  _emit_shot(actor,id,at)
  actor.shots_fired=int(actor.get("shots_fired",0))+1 # play-census instrumentation only; not read by gameplay
+ ability_events[id]=int(ability_events.get(id,0))+1 # census: a weapon that never fires in play is a content bug
  match id:
   "pulse_cannon":
    var regular: bool=int(actor.id)!=0 and not bool(actor.rival) and not bool(actor.elite)
@@ -1068,6 +1077,61 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
   "orbital_blockers":
    actor.blockers=definition.duration
    actor.blocker_hits=6
+  # ---- Ship design spec §6.3: the twenty weapons v0.3 did not have ------------------------
+  # Every enemy-usable instant hit below goes through a telegraph of >= 0.5 s (v0.3 §16).
+  "spiral_shot":
+   if int(actor.id)==0:
+    # Two shots weaving about the aim: the spiral is the sine of the shot count.
+    var weave: float=0.30*sin(float(int(actor.get("shots_fired",0)))*0.9)
+    _shoot(actor,aim.rotated(weave),520.0,damage,-1.0,0,at)
+    _shoot(actor,aim.rotated(-weave),520.0,damage,-1.0,0,at)
+   else:
+    for i: int in range(4): _shoot(actor,Vector2.from_angle(float(actor.age)*1.5+TAU*i/4.0),220.0,damage,-1.0,0,at)
+  "pulse_ring":
+   for i: int in range(12): _shoot(actor,Vector2.from_angle(TAU*i/12.0),240.0,damage,definition.range_pixels/240.0,0,at)
+  "chain_infection": _shoot(actor,aim,420.0,damage,-1.0,Pool.CHAIN|Pool.INFECT,at)
+  "overcharge":
+   # Every fourth shot is the charged one: triple damage and it chains.
+   actor.charge=int(actor.get("charge",0))+1
+   var charged: bool=int(actor.charge)%4==0
+   _shoot(actor,aim,600.0,damage*(3.0 if charged else 1.0),-1.0,Pool.CHAIN if charged else 0,at)
+  "phase_shot": _shoot(actor,aim,560.0 if int(actor.id)==0 else 250.0,damage,-1.0,Pool.PHASE,at)
+  "void_orb": _shoot(actor,aim,155.0,damage,-1.0,Pool.PIERCING,at)
+  "drone_hatch": _spawn_drones(actor,2,damage,at)
+  "drone_swarm":
+   var first: int=drones.size()
+   _spawn_drones(actor,4,damage,at)
+   for d: int in range(first,drones.size()):
+    drones[d].hp=20.0
+    drones[d].time=definition.duration
+  "slow_field":
+   # The player drops it where they stand; an enemy throws it ahead. It slows and does no damage.
+   if clouds.size()<80: clouds.append({"pos":at if int(actor.id)==0 else arena.clamp_point(at+aim*160.0),"radius":definition.range_pixels,"time":definition.duration,"damage":0.0,"owner":int(actor.id),"faction":int(actor.faction),"element":str(actor.element),"kind":"slow"})
+  "black_hole_shot":
+   var hole: int=_shoot(actor,aim,120.0,damage,definition.duration,Pool.BLACK_HOLE,at)
+   if hole>=0: black_holes+=1
+  "arc_tether","siphon_tether","siphon_leech":
+   var tethered: Dictionary=_nearest(actor,at)
+   if not tethered.is_empty() and at.distance_to(tethered.pos)<=definition.range_pixels and viruses.size()<128:
+    viruses.append({"target":int(tethered.id),"damage":damage,"generation":9,"owner":int(actor.id),"faction":int(actor.faction),"element":str(actor.element),"pos":tethered.pos,
+     "kind":id,"time":definition.duration,"break_range":definition.range_pixels*1.3,"warn":0.0 if int(actor.id)==0 else 0.5})
+  "ignition_lance": _beam(actor,id,_last_dt,at,aim)
+  "discharge": _queue_attack(actor,"explosive",Vector2(actor.pos),Vector2.ZERO,maxf(0.5,definition.duration),damage,definition.range_pixels,-1,mount)
+  "collapse_charge": _queue_attack(actor,"explosive",arena.clamp_point(at+aim*260.0,100.0),Vector2.ZERO,definition.duration,damage,definition.range_pixels,-1,mount)
+  "nova_pulse": _queue_attack(actor,"nova",at,Vector2.ZERO,maxf(0.5,definition.duration),damage,0.0,-1,mount)
+  "blink_mine": _queue_attack(actor,"mine",arena.clamp_point(at+aim*300.0),Vector2.ZERO,0.5,damage,definition.range_pixels,-1,mount)
+  "refract_beam":
+   # A beam with one bend: out along the aim, then from the elbow toward whoever is nearest it.
+   var elbow: Vector2=arena.clamp_point(at+aim*definition.range_pixels)
+   var struck: Dictionary=_nearest(actor,elbow)
+   var onward: Vector2=(Vector2(struck.pos)-elbow).normalized() if not struck.is_empty() and Vector2(struck.pos).distance_to(elbow)>1.0 else aim
+   _queue_attack(actor,"laser",at,elbow,0.6,damage,0.0,-1,mount)
+   _queue_attack(actor,"laser",elbow,_ray_end(elbow,onward),0.6,damage,0.0,-1,mount)
+  "incendiary_spores":
+   # Three spores land around the aim point and each blooms into a small burning cloud.
+   for i: int in range(3):
+    var landing: Vector2=arena.clamp_point(at+aim.rotated((i-1)*0.45)*180.0)
+    _queue_attack(actor,"spore",landing,Vector2.ZERO,0.8,damage,definition.range_pixels,-1,mount)
   "egg": pass # Reactive damage event activates this mount.
   "droid_bay": _spawn_drones(actor,2,damage,at)
   "deployment_ramp":
@@ -1111,6 +1175,10 @@ func _beam(actor: Dictionary, id: String, dt: float, origin: Vector2 = Vector2.I
    actor.beam_contact=end
    path.append(_ray_end(end,(end-control).normalized()))
   else: path.append(_ray_end(at,aim))
+ elif id=="ignition_lance":
+  # A SHORT beam: it stops at its range, or at the wall if that is nearer.
+  var wall: Vector2=_ray_end(at,aim)
+  path.append(at+aim.normalized()*minf(_ability(id).range_pixels,at.distance_to(wall)))
  else: path.append(_ray_end(at,aim))
  var damage: float=_ability(id).damage*_damage_scale(actor)*dt
  var hit_ids: Dictionary={}
@@ -1453,6 +1521,31 @@ func _update_viruses(dt: float) -> void:
      _attach_virus(source,int(next.id),float(virus.damage)*0.5,int(virus.generation)+1)
    continue
   virus.pos=target.pos
+  if virus.has("kind"):
+   # A tether (ship design spec: arc_tether, siphon_tether, siphon_leech). It lasts `time`, snaps
+   # past `break_range`, and an ENEMY's tether spends `warn` seconds drawing in before it hurts, so
+   # the player can break away on reaction (v0.3 §16). It never splits.
+   var caster: Dictionary=actors_by_id.get(int(virus.owner),{})
+   virus.time=float(virus.time)-dt
+   var snapped: bool=caster.is_empty() or bool(caster.get("dead",false)) or Vector2(caster.pos).distance_to(target.pos)>float(virus.break_range)
+   if float(virus.time)<=0.0 or snapped:
+    viruses.remove_at(i)
+    continue
+   virus.warn=float(virus.warn)-dt
+   if float(virus.warn)>0.0: continue
+   var drained: float=float(virus.damage)*dt
+   _damage_actor(target,drained,int(virus.owner),int(virus.faction))
+   # The two siphons give some of it back: light to the player, hull to an enemy.
+   if str(virus.kind)=="siphon_tether" and int(virus.owner)==0: collect_light(drained*0.25,str(target.get("element","neutral")))
+   elif str(virus.kind)=="siphon_leech" and not caster.is_empty(): caster.hp=minf(float(caster.max_hp),float(caster.hp)+drained*0.5)
+   continue
+  # A plain virus latches "until it dies" - which on the PLAYER meant for ever. It now lets go of
+  # the player after four seconds; on enemies it is unchanged.
+  if int(virus.target)==0:
+   virus.held=float(virus.get("held",0.0))+dt
+   if float(virus.held)>=4.0:
+    viruses.remove_at(i)
+    continue
   _damage_actor(target,float(virus.damage)*dt,int(virus.owner),int(virus.faction))
 func _update_clouds(dt: float) -> void:
  for i: int in range(clouds.size()-1,-1,-1):
@@ -1479,6 +1572,14 @@ func _update_telegraphs(dt: float) -> void:
    if not bool(attack.fired):
     attack.fired=true
     if attack.kind=="mine": bullets.add(attack.from,Vector2.ZERO,12.0,float(attack.damage),float(attack.radius),int(attack.owner),int(attack.faction),maxi(0,ELEMENTS.find(attack.element)),Pool.MINE)
+    # `nova_pulse`: after its warning, two staggered rings of twelve shots from where it was cast.
+    elif attack.kind=="nova":
+     for ring: int in range(2):
+      for shot: int in range(12):
+       bullets.add(attack.from,Vector2.from_angle(TAU*(float(shot)+0.5*float(ring))/12.0)*(230.0-40.0*float(ring)),-1.0,float(attack.damage),3.0,int(attack.owner),int(attack.faction),maxi(0,ELEMENTS.find(attack.element)),0)
+    # `incendiary_spores`: each spore blooms into a small burning cloud where it lands.
+    elif attack.kind=="spore" and clouds.size()<80:
+     clouds.append({"pos":attack.from,"radius":float(attack.radius),"time":3.0,"damage":float(attack.damage),"owner":int(attack.owner),"faction":int(attack.faction),"element":str(attack.element)})
    if attack.kind=="laser": _damage_segment(owner,attack.from,attack.to,float(attack.damage),attack.hit_ids)
    elif attack.kind=="explosive":
     for target: Dictionary in _hostiles(owner):
@@ -1510,6 +1611,27 @@ func _update_drones(dt: float) -> void:
     _damage_actor(target,float(drone.damage),int(drone.owner),int(drone.faction))
     drone.hp=0.0
   if float(drone.time)<=0.0 or float(drone.hp)<=0.0: drones.remove_at(i)
+
+## `black_hole_shot`: a slow shot that drags hostiles toward itself while it lives. Kept OUT of the
+## per-bullet hot loop: it runs only while a black hole exists, and recounts them as it goes so the
+## counter cannot drift when one expires or hits something.
+const BLACK_HOLE_REACH: float = 171.0 # the reach the projectile shader already draws
+const BLACK_HOLE_PULL: float = 60.0   # px/s
+func _update_black_holes(dt: float) -> void:
+ if black_holes<=0: return
+ var alive: int=0
+ for index: int in bullets.active_indices:
+  if (bullets.flags[index] & Pool.BLACK_HOLE)==0: continue
+  alive+=1
+  var at: Vector2=bullets.positions[index]
+  var source: Dictionary={"id":bullets.owners[index],"faction":bullets.factions[index]}
+  for target: Dictionary in _hostiles(source):
+   var gap: Vector2=at-Vector2(target.pos)
+   if gap.length()>BLACK_HOLE_REACH or gap.length()<4.0: continue
+   var pulled: Vector2=arena.clamp_point(Vector2(target.pos)+gap.normalized()*BLACK_HOLE_PULL*dt)
+   target.pos=pulled
+   if int(target.id)==0: player_position=pulled
+ black_holes=alive
 
 func _rebuild_actor_grid() -> void: _broadphase.rebuild()
 func _update_bullets(dt: float) -> void:
@@ -1587,6 +1709,8 @@ func _update_bullets(dt: float) -> void:
     var t: float=Pool.segment_circle_t(from,to,c.pos,float(c.radius)+bullets.radii[index])
     if t<0.0: continue
     if int(c.get("part_index",0))>0 and float(c.actor.part_hp[int(c.part_index)])<=0.0: continue
+    # `phase_shot` ignores limbs: it reaches the core through the armour (a blocker still stops it).
+    if (flag & Pool.PHASE)!=0 and int(c.get("part_index",0))>0: continue
     if t<nearest:
      nearest=t
      hit=c

@@ -45,7 +45,15 @@ func _initialize() -> void:
 	_check(counts.get("player") == 101 and counts.get("enemy") == 25 and counts.get("elite") == 10 and counts.get("boss") == 5, "Faction census")
 	_check(shape_census.line > 0 and (shape_census.circle_filled + shape_census.circle_unfilled) > 0, "Census contains circles and lines")
 	print("Shape census: ", shape_census)
+	# The ship design spec's twenty new weapons (S7) are mounted by NO v0.3 hull, on purpose: they
+	# reach the game with the rail roster at the cutover, and that roster's coverage ("every
+	# implemented piece is mounted by some hull") is ship_library_test's job. This line still holds
+	# the v0.3 roster to the v0.3 components it was written for.
+	const NOT_ON_THE_V03_ROSTER: Array[String] = ["arc_tether", "drone_hatch", "spiral_shot", "pulse_ring", "blink_mine", "void_orb", "slow_field", "black_hole_shot", "discharge", "chain_infection", "ignition_lance", "siphon_tether", "phase_shot", "overcharge", "incendiary_spores", "collapse_charge", "nova_pulse", "siphon_leech", "drone_swarm", "refract_beam"]
 	for component: String in AbilityCatalog.DEFINITIONS:
+		if NOT_ON_THE_V03_ROSTER.has(component):
+			_check(not shipped_components.has(component), "No v0.3 hull mounts " + component)
+			continue
 		if AbilityCatalog.get_definition(component).slot_kind != "enemy": _check(shipped_components.has(component), "Shipped roster exposes " + component)
 	var seed: ShipDefinition = ShipCatalog.get_ship("player_seed")
 	_check(seed.element == "neutral" and seed.secondaries.is_empty(), "Shared neutral seed with no secondary")

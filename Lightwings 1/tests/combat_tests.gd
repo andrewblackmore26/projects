@@ -324,7 +324,8 @@ func test_catalogue_execution() -> void:
  target.hp=100000
  target.max_hp=100000
  w.player.aim=Vector2.RIGHT
- check(AbilityCatalog.DEFINITIONS.size()==26,"All 26 specified components have canonical metadata")
+ # 26 v0.3 components + the ship design spec's 20 new catalogue weapons (S7). Restated, not loosened.
+ check(AbilityCatalog.DEFINITIONS.size()==46,"All 46 specified components have canonical metadata")
  for id: String in AbilityCatalog.DEFINITIONS:
   var a: AbilityDefinition=AbilityCatalog.get_definition(id)
   if a.slot_kind in ["primary","secondary","enemy"]:

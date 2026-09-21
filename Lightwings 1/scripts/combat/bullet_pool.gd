@@ -15,6 +15,8 @@ const CHAIN: int = 128
 const ROCKET: int = 256
 const ORBIT: int = 512
 const INFECT: int = 1024
+## Ship design spec, `phase_shot`: passes through a hull's limbs and can only hit a core.
+const PHASE: int = 2048
 
 var positions: PackedVector2Array = PackedVector2Array()
 var previous: PackedVector2Array = PackedVector2Array()
