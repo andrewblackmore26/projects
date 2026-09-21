@@ -19,9 +19,13 @@ func _run() -> void:
 	_check(world.get_parent() == compositor.background_viewport, "World renders into background HDR")
 	_check(world.process_mode == Node.PROCESS_MODE_PAUSABLE, "Gameplay remains pausable")
 	_check(world._bullet_canvas.get_parent() == compositor.foreground, "Threats render in foreground")
-	_check(void_actor.renderer.get_parent() == compositor.foreground, "Opaque Void hull masks processed background")
+	# v0.3's void hulls carried an opaque occlusion disc (`hull_radius`) and were lifted into the
+	# foreground to mask the background. Spec v2's void is a silver chassis with black fills and no
+	# disc (Appendix A), so a rail void hull is an ordinary hull: it has a renderer and no mask.
+	_check(is_instance_valid(void_actor.renderer) and float((void_actor.definition as ShipDefinition).hull_radius) == 0.0, "A rail void hull is an ordinary hull with no occlusion disc")
 	_check(world.player.renderer.get_parent() == compositor.foreground, "Player remains visible above Void")
-	_check(compositor._hull_masks.size() == 1, "Source hull suppresses occluded emissions before background glow")
+	# With no occlusion disc on any rail hull there is nothing to mask (the mask machinery goes in S12).
+	_check(compositor._hull_masks.size() == 0, "No rail hull carries an occlusion disc, so the compositor builds no hull mask")
 	paused = true
 	var frozen: float = world.elapsed
 	var before_visual: float = void_actor.renderer.animation_time

@@ -105,8 +105,13 @@ func _run() -> void:
 	var ship: ShipDefinition = _ship()
 	var rig: ShipMotion.ShipRig = ShipMotion.get_rig(ship)
 	h.check(not rig.legacy and rig.groups.is_empty(), "A schema-4 hull takes the forward-kinematics path")
-	var shipped: ShipMotion.ShipRig = ShipMotion.get_rig(ShipCatalog.get_ship("player_seed"))
-	h.check(shipped.legacy and shipped.solid_indices.size() == shipped.rest.size() - 1, "A shipped v0.3 hull stays on the legacy path with every circle but the core solid")
+	# A schema-3 hull built here: since the cutover no SHIPPED hull is v0.3 any more.
+	var old: ShipDefinition = ShipDefinition.new()
+	old.id = "legacy_fixture"
+	old.parts.append(_part("core", "", Vector2.ZERO, 6))
+	old.parts.append(_part("arm", "core", Vector2(20, 0), 5))
+	var shipped: ShipMotion.ShipRig = ShipMotion.get_rig(old)
+	h.check(old.schema_version == 3 and shipped.legacy and shipped.solid_indices.size() == shipped.rest.size() - 1, "A v0.3 hull stays on the legacy path with every circle but the core solid")
 
 	# --- The rail: spin about the rail's centre, and pump of the RADIUS (§9.1, §9.3) ---
 	var hub: int = rig.index_of("hub")

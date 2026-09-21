@@ -1,222 +1,46 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_k6w2t"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_baeud"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_77qp3"]
-
-[sub_resource type="Resource" id="Resource_knp3r"]
-script = ExtResource("1_k6w2t")
-root_id = "tail_0"
-chain_mode = "whip"
-
-[sub_resource type="Resource" id="Resource_ds53h"]
-script = ExtResource("2_baeud")
-id = "core"
-radius = 16.0
-stat_id = "speed"
-tp_cost = 1.25
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_bfxyy"]
-script = ExtResource("2_baeud")
-id = "tail_0"
-position = Vector2(0, 26)
-radius = 8.8
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_wvb45"]
-script = ExtResource("2_baeud")
-id = "tail_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "tail_0"
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_77qp3"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_knp3r"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ds53h"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_bfxyy"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_wvb45"]
 
 [sub_resource type="Resource" id="Resource_4vvrl"]
-script = ExtResource("2_baeud")
-id = "tail_1"
-position = Vector2(0, 35)
-radius = 7.4
-parent_id = "tail_0"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_77qp3")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
 
 [sub_resource type="Resource" id="Resource_f5ss5"]
-script = ExtResource("2_baeud")
-id = "tail_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "tail_0"
-to_id = "tail_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_77qp3")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_25q0g"]
-script = ExtResource("2_baeud")
-id = "tail_2"
-position = Vector2(0, 44)
-radius = 6.000000000000001
-parent_id = "tail_1"
-layer = 2
-light_phase = -1.3
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_77qp3")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
 
 [sub_resource type="Resource" id="Resource_7q853"]
-script = ExtResource("2_baeud")
-id = "tail_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "tail_1"
-to_id = "tail_2"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_77qp3")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_aaf4t"]
-script = ExtResource("2_baeud")
-id = "tail_3"
-position = Vector2(0, 53)
-radius = 4.600000000000001
-parent_id = "tail_2"
-layer = 2
-light_period = 1.6
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_d8dad"]
-script = ExtResource("2_baeud")
-id = "tail_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "tail_2"
-to_id = "tail_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_artvw"]
-script = ExtResource("2_baeud")
-id = "tail_4"
-position = Vector2(0, 62)
-radius = 3.200000000000001
-parent_id = "tail_3"
-layer = 2
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_g4q7p"]
-script = ExtResource("2_baeud")
-id = "tail_4_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "tail_3"
-to_id = "tail_4"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_dcwjx"]
-script = ExtResource("2_baeud")
-id = "primary"
-position = Vector2(0, -11.2)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_period = 1.6
-light_phase = -1.3
-ability_id = "pulse_cannon"
-mount_id = "primary"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_750sf"]
-script = ExtResource("2_baeud")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_jdgrc"]
-script = ExtResource("2_baeud")
-id = "secondary_0"
-position = Vector2(0, 23)
-radius = 3.5
-parent_id = "core"
-color_role = "green"
-layer = 4
-light_phase = -0.7
-ability_id = "droid_bay"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_wrb6n"]
-script = ExtResource("2_baeud")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_5hib4"]
-script = ExtResource("2_baeud")
-id = "secondary_1"
-position = Vector2(0, 32)
-radius = 3.5
-parent_id = "core"
-color_role = "green"
-layer = 4
-light_period = 1.6
-ability_id = "poison_cloud"
-mount_id = "secondary_1"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_b0e5b"]
-script = ExtResource("2_baeud")
-id = "secondary_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "secondary_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_77qp3")
+type = "node"
 
 [resource]
-script = ExtResource("3_77qp3")
+script = ExtResource("5_wvb45")
 id = "enemy_chain_corruption_t4"
 display_name = "Corruption Chain T4"
 tier = 4
-parts = Array[ExtResource("2_baeud")]([SubResource("Resource_ds53h"), SubResource("Resource_bfxyy"), SubResource("Resource_wvb45"), SubResource("Resource_4vvrl"), SubResource("Resource_f5ss5"), SubResource("Resource_25q0g"), SubResource("Resource_7q853"), SubResource("Resource_aaf4t"), SubResource("Resource_d8dad"), SubResource("Resource_artvw"), SubResource("Resource_g4q7p"), SubResource("Resource_dcwjx"), SubResource("Resource_750sf"), SubResource("Resource_jdgrc"), SubResource("Resource_wrb6n"), SubResource("Resource_5hib4"), SubResource("Resource_b0e5b")])
-groups = Array[ExtResource("1_k6w2t")]([SubResource("Resource_knp3r")])
-abilities = Array[String](["pulse_cannon", "droid_bay", "poison_cloud"])
+description = "seed 815329"
+schema_version = 4
 faction = "enemy"
-footprint = 130.4
-magnet_radius = 90.0
-secondaries = Array[String](["droid_bay", "poison_cloud"])
-tp_used = 9.5
-tp_max = 21.0
+speed = 240.0
+chassis_color = "green"
+archetype = "chain"
+chain_links = Array[ExtResource("1_77qp3")]([SubResource("Resource_4vvrl"), SubResource("Resource_f5ss5"), SubResource("Resource_25q0g"), SubResource("Resource_7q853"), SubResource("Resource_aaf4t")])

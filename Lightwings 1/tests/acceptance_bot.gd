@@ -168,7 +168,12 @@ func _run_camper(seed_value: int, duration: float, unlimited_pool: bool) -> Dict
 	var campaign: CampaignState = Campaign.new()
 	campaign.world_seed = 500000+seed_value
 	var combat: CombatWorld = _make_combat()
-	combat.setup_player("fire",3,GameTuning.capacity(3),[])
+	# A HALF-FULL tier-6 bar, not a full tier-3 one. This instrument counts light ABSORBED, and a
+	# full bar absorbs nothing: on the rail roster, where enemies are bigger targets and die faster,
+	# a tier-3 camper sat at 500/500 for 94-100 % of the run, so its "decline" was the bar's
+	# ceiling and the instant-refill control could not be caught (S10 Finding 1, probed in S11).
+	# Tier 6 cannot evolve further and half of 2300 leaves more room than a camper can fill.
+	combat.setup_player("fire",GameTuning.MAX_TIER,GameTuning.capacity(GameTuning.MAX_TIER)*0.5,[])
 	var coord: Vector2i = _camp_coord(campaign)
 	campaign.on_enter(coord)
 	combat.start_sector(campaign.sector_at(coord,0.0))
@@ -205,7 +210,7 @@ func _run_pusher(seed_value: int, duration: float) -> Dictionary:
 	var campaign: CampaignState = Campaign.new()
 	campaign.world_seed = 500000+seed_value
 	var combat: CombatWorld = _make_combat()
-	combat.setup_player("fire",3,GameTuning.capacity(3),[])
+	combat.setup_player("fire",GameTuning.MAX_TIER,GameTuning.capacity(GameTuning.MAX_TIER)*0.5,[]) # the same start as the camper it is compared with
 	var coord: Vector2i = Vector2i.ZERO
 	campaign.on_enter(coord)
 	combat.start_sector(campaign.sector_at(coord,0.0))
@@ -274,10 +279,21 @@ func _measure_camper_vs_pusher() -> Dictionary:
 	# only the lines it can reach"): under instant refill the camper's own
 	# within-visit decline (second half worse than first) must disappear.
 	var declined: int = 0
+	var instant_rates: Array[float] = []
+	var finite_rates: Array[float] = []
 	for seed_value: int in range(1,11):
 		var instant: Dictionary = _run_camper(seed_value,duration,true)
 		if instant.second_half_rate < instant.first_half_rate: declined += 1
-	_gate_negative("camper_pool_instant_refill",t.control("node pool refills instantly",declined <= 5))
+		instant_rates.append(instant.light_per_minute)
+		finite_rates.append(camper_rates[seed_value-1])
+	print("camper probe: instant-refill light/min median %.2f max %.2f | finite pool median %.2f max %.2f | instant declined %d/10" % [_median(instant_rates),_max(instant_rates),_median(finite_rates),_max(finite_rates),declined])
+	# The control is the INCOME comparison, not "the decline disappears". Measured in S11 on both
+	# rosters: an instantly refilling pool lifts a camper's median from 6.4 to 61.0 light/min on
+	# v0.3 hulls and to 29.7 on rail hulls, so the pool IS what starves a camper. But on rail hulls
+	# the half-against-half decline stays (10/10 seeds) even with an infinite pool, because bigger
+	# targets die early in the visit - so "declined <= 5" asked kill timing, not pool depletion, and
+	# could not be caught there. 2x is far inside the smaller of the two measured lifts (4.6x).
+	_gate_negative("camper_pool_instant_refill",t.control("node pool refills instantly (camper %.1f -> %.1f light/min)" % [_median(finite_rates),_median(instant_rates)],_median(instant_rates) >= _median(finite_rates)*2.0))
 	return result
 
 ## --- 3. Frictionless death: under 2s death-to-flying-again (spec §7.4/§27) -

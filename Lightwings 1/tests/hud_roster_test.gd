@@ -56,7 +56,9 @@ func _run() -> void:
 
 	# Negative controls: sabotage the exact invariant each check reads, on a
 	# real built hull, so the control fails for the reason the check exists.
-	var oversized: ShipDefinition = ShipCatalog.get_ship("player_lightning_t6_heavy")
+	# A hull that really flies THREE secondaries: lightning's pool has only two (slots are a cap),
+	# so its T6 heavy carries two and appending one would not overflow anything.
+	var oversized: ShipDefinition = ShipCatalog.get_ship("player_fire_t6_heavy")
 	oversized.secondaries.append("bolt")
 	h.control("a T6 heavy hull with a 4th secondary appended", oversized.secondaries.size() > 3)
 

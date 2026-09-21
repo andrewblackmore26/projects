@@ -1,147 +1,49 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_dwwfw"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_2ct3k"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_64tmj"]
-
-[sub_resource type="Resource" id="Resource_dxy0j"]
-script = ExtResource("2_2ct3k")
-id = "core"
-radius = 12.0
-stat_id = "speed"
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_vo72q"]
-script = ExtResource("2_2ct3k")
-id = "prong_0"
-position = Vector2(-10.54736, -19.306818)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_ilfin"]
-script = ExtResource("2_2ct3k")
-id = "prong_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "prong_0"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_frmpc"]
-script = ExtResource("2_2ct3k")
-id = "prong_1"
-position = Vector2(-9.616506e-07, -22)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_64tmj"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_dxy0j"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_vo72q"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ilfin"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_frmpc"]
 
 [sub_resource type="Resource" id="Resource_las5w"]
-script = ExtResource("2_2ct3k")
-id = "prong_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "prong_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_64tmj")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
 
 [sub_resource type="Resource" id="Resource_pnd0s"]
-script = ExtResource("2_2ct3k")
-id = "prong_2"
-position = Vector2(10.54736, -19.306818)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_phase = -1.3
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_64tmj")
+type = "node"
 
 [sub_resource type="Resource" id="Resource_072ei"]
-script = ExtResource("2_2ct3k")
-id = "prong_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "prong_2"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_64tmj")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
 
 [sub_resource type="Resource" id="Resource_qtvv8"]
-script = ExtResource("2_2ct3k")
-id = "primary"
-position = Vector2(0, -8.4)
-radius = 3.5
-parent_id = "core"
-color_role = "violet"
-layer = 4
-light_period = 1.6
-light_phase = -0.7
-ability_id = "bolt"
-mount_id = "primary"
-tp_cost = 0.0
+script = ExtResource("1_64tmj")
+type = "node"
 
 [sub_resource type="Resource" id="Resource_xbgou"]
-script = ExtResource("2_2ct3k")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_xgnsy"]
-script = ExtResource("2_2ct3k")
-id = "secondary_0"
-position = Vector2(0, 21)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-ability_id = "laser_prong"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_tnltb"]
-script = ExtResource("2_2ct3k")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_ilfin")
+order = 4
+speed = -0.8505
+phase = 1.4498
+slots = Array[ExtResource("1_64tmj")]([SubResource("Resource_las5w"), SubResource("Resource_pnd0s"), SubResource("Resource_072ei"), SubResource("Resource_qtvv8")])
 
 [resource]
-script = ExtResource("3_64tmj")
+script = ExtResource("5_frmpc")
 id = "enemy_sentry_lightning_t2"
 display_name = "Lightning Sentry T2"
 element = "lightning"
 tier = 2
-parts = Array[ExtResource("2_2ct3k")]([SubResource("Resource_dxy0j"), SubResource("Resource_vo72q"), SubResource("Resource_ilfin"), SubResource("Resource_frmpc"), SubResource("Resource_las5w"), SubResource("Resource_pnd0s"), SubResource("Resource_072ei"), SubResource("Resource_qtvv8"), SubResource("Resource_xbgou"), SubResource("Resource_xgnsy"), SubResource("Resource_tnltb")])
-abilities = Array[String](["bolt", "laser_prong"])
+description = "seed 54608"
+schema_version = 4
 faction = "enemy"
-footprint = 51.000004
-magnet_radius = 90.0
-motion_signature = "snap"
-primary = "bolt"
-secondaries = Array[String](["laser_prong"])
-tp_used = 7.0
-tp_max = 10.0
+speed = 240.0
+chassis_color = "yellow"
+core_weapon = "wedge_pair"
+archetype = "sentry"
+rails = Array[ExtResource("4_ilfin")]([SubResource("Resource_xbgou")])

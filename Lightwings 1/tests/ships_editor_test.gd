@@ -208,7 +208,11 @@ func _run() -> void:
 	_check(str(miss.kind) == "none", "CONTROL: a click 40 px off any rail and outside the core selects nothing")
 
 	# --- A schema-3 .tres is refused --------------------------------------------------------
-	var legacy_path: String = ShipCatalog.catalog_root.path_join("player_seed.tres")
+	# A schema-3 hull written here: since the cutover no SHIPPED hull is v0.3 any more.
+	var legacy_path: String = "user://ships_editor_v5_test/legacy_v3.tres"
+	var legacy_ship: ShipDefinition = ShipDefinition.new()
+	legacy_ship.id = "legacy_v3"
+	ResourceSaver.save(legacy_ship, legacy_path)
 	if ResourceLoader.exists(legacy_path):
 		var before_id: String = editor.working.id
 		editor._load_from(legacy_path)

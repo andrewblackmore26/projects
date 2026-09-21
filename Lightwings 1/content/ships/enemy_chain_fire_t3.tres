@@ -1,199 +1,47 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_axpnm"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_qoad8"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_qbvcx"]
-
-[sub_resource type="Resource" id="Resource_wsjqx"]
-script = ExtResource("1_axpnm")
-root_id = "tail_0"
-chain_mode = "whip"
-
-[sub_resource type="Resource" id="Resource_d0glk"]
-script = ExtResource("2_qoad8")
-id = "core"
-radius = 14.5
-stat_id = "speed"
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_q02v7"]
-script = ExtResource("2_qoad8")
-id = "tail_0"
-position = Vector2(0, 24.5)
-radius = 7.9750000000000005
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_x35cf"]
-script = ExtResource("2_qoad8")
-id = "tail_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "tail_0"
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_qbvcx"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_wsjqx"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_d0glk"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_q02v7"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_x35cf"]
 
 [sub_resource type="Resource" id="Resource_qu6yq"]
-script = ExtResource("2_qoad8")
-id = "tail_1"
-position = Vector2(0, 33.5)
-radius = 6.575000000000001
-parent_id = "tail_0"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_qbvcx")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
 
 [sub_resource type="Resource" id="Resource_28sjg"]
-script = ExtResource("2_qoad8")
-id = "tail_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "tail_0"
-to_id = "tail_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_qbvcx")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_7cfmq"]
-script = ExtResource("2_qoad8")
-id = "tail_2"
-position = Vector2(0, 42.5)
-radius = 5.175000000000001
-parent_id = "tail_1"
-layer = 2
-light_phase = -1.3
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_qbvcx")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
 
 [sub_resource type="Resource" id="Resource_q5rmk"]
-script = ExtResource("2_qoad8")
-id = "tail_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "tail_1"
-to_id = "tail_2"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_qbvcx")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_yssu7"]
-script = ExtResource("2_qoad8")
-id = "tail_3"
-position = Vector2(0, 51.5)
-radius = 3.7750000000000012
-parent_id = "tail_2"
-layer = 2
-light_period = 1.6
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_lrmyn"]
-script = ExtResource("2_qoad8")
-id = "tail_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "tail_2"
-to_id = "tail_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_rmvw3"]
-script = ExtResource("2_qoad8")
-id = "tail_4"
-position = Vector2(0, 60.5)
-radius = 3.0
-parent_id = "tail_3"
-layer = 2
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_0trmr"]
-script = ExtResource("2_qoad8")
-id = "tail_4_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "tail_3"
-to_id = "tail_4"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_tim7w"]
-script = ExtResource("2_qoad8")
-id = "primary"
-position = Vector2(0, -10.15)
-radius = 3.5
-parent_id = "core"
-color_role = "yellow"
-layer = 4
-light_period = 1.6
-light_phase = -1.3
-ability_id = "flame_cone"
-mount_id = "primary"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_p47d0"]
-script = ExtResource("2_qoad8")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_wfrvx"]
-script = ExtResource("2_qoad8")
-id = "secondary_0"
-position = Vector2(0, 21.5)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_phase = -0.7
-ability_id = "mine_layer"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_80ock"]
-script = ExtResource("2_qoad8")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_qbvcx")
+type = "node"
 
 [resource]
-script = ExtResource("3_qbvcx")
+script = ExtResource("5_x35cf")
 id = "enemy_chain_fire_t3"
 display_name = "Fire Chain T3"
 element = "fire"
 tier = 3
-parts = Array[ExtResource("2_qoad8")]([SubResource("Resource_d0glk"), SubResource("Resource_q02v7"), SubResource("Resource_x35cf"), SubResource("Resource_qu6yq"), SubResource("Resource_28sjg"), SubResource("Resource_7cfmq"), SubResource("Resource_q5rmk"), SubResource("Resource_yssu7"), SubResource("Resource_lrmyn"), SubResource("Resource_rmvw3"), SubResource("Resource_0trmr"), SubResource("Resource_tim7w"), SubResource("Resource_p47d0"), SubResource("Resource_wfrvx"), SubResource("Resource_80ock")])
-groups = Array[ExtResource("1_axpnm")]([SubResource("Resource_wsjqx")])
-abilities = Array[String](["flame_cone", "mine_layer"])
+description = "seed 818097"
+schema_version = 4
 faction = "enemy"
-footprint = 127.0
-magnet_radius = 90.0
-motion_signature = "flicker"
-primary = "flame_cone"
-secondaries = Array[String](["mine_layer"])
-tp_used = 8.0
-tp_max = 15.0
+speed = 240.0
+chassis_color = "red"
+archetype = "chain"
+chain_links = Array[ExtResource("1_qbvcx")]([SubResource("Resource_qu6yq"), SubResource("Resource_28sjg"), SubResource("Resource_7cfmq"), SubResource("Resource_q5rmk"), SubResource("Resource_yssu7")])

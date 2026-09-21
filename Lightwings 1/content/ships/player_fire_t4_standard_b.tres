@@ -1,376 +1,92 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_068l8"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_mrd0y"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_yi8qg"]
-
-[sub_resource type="Resource" id="Resource_unvim"]
-script = ExtResource("2_mrd0y")
-id = "core"
-radius = 15.0
-stat_id = "speed"
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_seda1"]
-script = ExtResource("2_mrd0y")
-id = "t2_pod_l"
-position = Vector2(-12.75, -3.75)
-radius = 11.25
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-mirror_id = "t2_pod_r"
-stat_id = "speed"
-tp_cost = 0.5
-stat_value = 4.0
-
-[sub_resource type="Resource" id="Resource_to2j7"]
-script = ExtResource("2_mrd0y")
-id = "t2_pod_r"
-position = Vector2(12.75, -3.75)
-radius = 11.25
-parent_id = "core"
-layer = 2
-light_phase = -1.3
-mirror_id = "t2_pod_l"
-stat_id = "speed"
-tp_cost = 0.5
-stat_value = 4.0
-
-[sub_resource type="Resource" id="Resource_wsm4l"]
-script = ExtResource("2_mrd0y")
-id = "t2_pod_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-from_id = "core"
-to_id = "t2_pod_l"
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_yi8qg"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_unvim"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_seda1"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_to2j7"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_wsm4l"]
 
 [sub_resource type="Resource" id="Resource_c5bd8"]
-script = ExtResource("2_mrd0y")
-id = "t2_pod_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "t2_pod_r"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_yi8qg")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
 
 [sub_resource type="Resource" id="Resource_kq1di"]
-script = ExtResource("2_mrd0y")
-id = "t3_pod_l"
-position = Vector2(-23.75, -8.75)
-radius = 9.55
-parent_id = "t2_pod_l"
-layer = 2
-light_phase = -1.3
-mirror_id = "t3_pod_r"
-stat_id = "magnet_radius"
-tp_cost = 0.5
-stat_value = 4.0
+script = ExtResource("1_yi8qg")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_umqhw"]
-script = ExtResource("2_mrd0y")
-id = "t3_pod_r"
-position = Vector2(23.75, -8.75)
-radius = 9.55
-parent_id = "t2_pod_r"
-layer = 2
-mirror_id = "t3_pod_l"
-stat_id = "magnet_radius"
-tp_cost = 0.5
-stat_value = 4.0
+script = ExtResource("1_yi8qg")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_m57x0"]
-script = ExtResource("2_mrd0y")
-id = "t3_pod_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -0.7
-from_id = "t2_pod_l"
-to_id = "t3_pod_l"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_yi8qg")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_ainnm"]
-script = ExtResource("2_mrd0y")
-id = "t3_pod_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "t2_pod_r"
-to_id = "t3_pod_r"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_yi8qg")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_qvsuj"]
-script = ExtResource("2_mrd0y")
-id = "t3_bud_l"
-position = Vector2(-28.525, -12.75)
-radius = 9.55
-parent_id = "t3_pod_l"
-layer = 2
-mirror_id = "t3_bud_r"
-stat_id = "structure"
-tp_cost = 0.5
+script = ExtResource("4_to2j7")
+order = 5
+slots = Array[ExtResource("1_yi8qg")]([SubResource("Resource_c5bd8"), SubResource("Resource_kq1di"), SubResource("Resource_umqhw"), SubResource("Resource_m57x0"), SubResource("Resource_ainnm")])
 
 [sub_resource type="Resource" id="Resource_c2abi"]
-script = ExtResource("2_mrd0y")
-id = "t3_bud_r"
-position = Vector2(28.525, -12.75)
-radius = 9.55
-parent_id = "t3_pod_r"
-layer = 2
-light_phase = -0.7
-mirror_id = "t3_bud_l"
-stat_id = "structure"
-tp_cost = 0.5
+script = ExtResource("1_yi8qg")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
+mount = "secondary_0"
 
 [sub_resource type="Resource" id="Resource_oichp"]
-script = ExtResource("2_mrd0y")
-id = "t3_bud_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -1.3
-from_id = "t3_pod_l"
-to_id = "t3_bud_l"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_yi8qg")
+type = "hub"
+pods = 2
+set_piece = "shell_pair"
+mount = "secondary_1"
 
 [sub_resource type="Resource" id="Resource_75f3q"]
-script = ExtResource("2_mrd0y")
-id = "t3_bud_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "t3_pod_r"
-to_id = "t3_bud_r"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_yi8qg")
+type = "hub"
+pods = 2
+set_piece = "shell_pair"
+mount = "secondary_1"
 
 [sub_resource type="Resource" id="Resource_6uj6o"]
-script = ExtResource("2_mrd0y")
-id = "t4_pod_l"
-position = Vector2(-34.75, -13.75)
-radius = 7.85
-parent_id = "t3_pod_l"
-layer = 2
-light_phase = -0.7
-mirror_id = "t4_pod_r"
-stat_id = "speed"
-tp_cost = 0.25
-stat_value = 4.0
+script = ExtResource("1_yi8qg")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
+mount = "secondary_0"
 
 [sub_resource type="Resource" id="Resource_5x453"]
-script = ExtResource("2_mrd0y")
-id = "t4_pod_r"
-position = Vector2(34.75, -13.75)
-radius = 7.85
-parent_id = "t3_pod_r"
-layer = 2
-light_phase = -1.3
-mirror_id = "t4_pod_l"
-stat_id = "speed"
-tp_cost = 0.25
-stat_value = 4.0
-
-[sub_resource type="Resource" id="Resource_qaief"]
-script = ExtResource("2_mrd0y")
-id = "t4_pod_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-from_id = "t3_pod_l"
-to_id = "t4_pod_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_rdaf0"]
-script = ExtResource("2_mrd0y")
-id = "t4_pod_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "t3_pod_r"
-to_id = "t4_pod_r"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_ft6k6"]
-script = ExtResource("2_mrd0y")
-id = "t4_bud_l"
-position = Vector2(-38.675, -17.75)
-radius = 7.85
-parent_id = "t4_pod_l"
-layer = 2
-light_phase = -1.3
-mirror_id = "t4_bud_r"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_388rv"]
-script = ExtResource("2_mrd0y")
-id = "t4_bud_r"
-position = Vector2(38.675, -17.75)
-radius = 7.85
-parent_id = "t4_pod_r"
-layer = 2
-mirror_id = "t4_bud_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_d0u3g"]
-script = ExtResource("2_mrd0y")
-id = "t4_bud_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -0.7
-from_id = "t4_pod_l"
-to_id = "t4_bud_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_kwlbo"]
-script = ExtResource("2_mrd0y")
-id = "t4_bud_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "t4_pod_r"
-to_id = "t4_bud_r"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_p6ou4"]
-script = ExtResource("2_mrd0y")
-id = "primary"
-position = Vector2(0, -10.5)
-radius = 3.5
-parent_id = "core"
-color_role = "yellow"
-layer = 4
-ability_id = "ricochet"
-mount_id = "primary"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_pbg6j"]
-script = ExtResource("2_mrd0y")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_xqlsv"]
-script = ExtResource("2_mrd0y")
-id = "secondary_0"
-position = Vector2(0, 22)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_period = 1.6
-light_phase = -1.3
-ability_id = "mine_layer"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_p51os"]
-script = ExtResource("2_mrd0y")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_3elrv"]
-script = ExtResource("2_mrd0y")
-id = "secondary_1"
-position = Vector2(0, 31)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_phase = -0.7
-ability_id = "explosives"
-mount_id = "secondary_1"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_oq147"]
-script = ExtResource("2_mrd0y")
-id = "secondary_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "secondary_1"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_rv4mf"]
-script = ExtResource("2_mrd0y")
-id = "passive_0"
-position = Vector2(0, -23)
-radius = 3.5
-parent_id = "core"
-color_role = "yellow"
-layer = 4
-light_period = 1.6
-ability_id = "radar"
-mount_id = "passive_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_p8n6a"]
-script = ExtResource("2_mrd0y")
-id = "passive_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "passive_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_to2j7")
+radius = 96
+order = 4
+speed = 0.4125
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_yi8qg")]([SubResource("Resource_c2abi"), SubResource("Resource_oichp"), SubResource("Resource_75f3q"), SubResource("Resource_6uj6o")])
 
 [resource]
-script = ExtResource("3_yi8qg")
+script = ExtResource("5_wsm4l")
 id = "player_fire_t4_standard_b"
-display_name = "Furnace Standard B"
+display_name = "Fire T4 Standard B"
 element = "fire"
 tier = 4
-is_player = true
-parts = Array[ExtResource("2_mrd0y")]([SubResource("Resource_unvim"), SubResource("Resource_seda1"), SubResource("Resource_to2j7"), SubResource("Resource_wsm4l"), SubResource("Resource_c5bd8"), SubResource("Resource_kq1di"), SubResource("Resource_umqhw"), SubResource("Resource_m57x0"), SubResource("Resource_ainnm"), SubResource("Resource_qvsuj"), SubResource("Resource_c2abi"), SubResource("Resource_oichp"), SubResource("Resource_75f3q"), SubResource("Resource_6uj6o"), SubResource("Resource_5x453"), SubResource("Resource_qaief"), SubResource("Resource_rdaf0"), SubResource("Resource_ft6k6"), SubResource("Resource_388rv"), SubResource("Resource_d0u3g"), SubResource("Resource_kwlbo"), SubResource("Resource_p6ou4"), SubResource("Resource_pbg6j"), SubResource("Resource_xqlsv"), SubResource("Resource_p51os"), SubResource("Resource_3elrv"), SubResource("Resource_oq147"), SubResource("Resource_rv4mf"), SubResource("Resource_p8n6a")])
-abilities = Array[String](["ricochet", "mine_layer", "explosives", "radar"])
+description = "seed 818128"
+schema_version = 4
 family = "standard_b"
-footprint = 100.80741424560547
-magnet_radius = 98.0
-speed = 236.0
-motion_signature = "flicker"
-primary = "ricochet"
-secondaries = Array[String](["mine_layer", "explosives"])
-passives = Array[String](["radar"])
-tp_used = 15.5
-tp_max = 21.0
+speed = 240.0
+passives = Array[String](["thrusters"])
+chassis_color = "blue"
+accent_color = "red"
+core_depth = 3
+rails = Array[ExtResource("4_to2j7")]([SubResource("Resource_qvsuj"), SubResource("Resource_5x453")])

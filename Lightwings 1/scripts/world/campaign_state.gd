@@ -262,7 +262,10 @@ func _enemy_hulls_for(coord: Vector2i, archetype: String, element: String, tier:
 
 func _elite_hulls_for(coord: Vector2i, archetype: String, element: String, tier: int, roll: int) -> Array[String]:
 	if archetype == "elite_lair":
+		# Ship design spec §8: the heavy elite, a lair's third kind from node tier 3 up. Wandering
+		# elites (below) stay radial or irregular, so their rolls mean what they meant before.
 		var kinds: Array[String] = ["radial", "irregular"]
+		if tier >= 3: kinds.append("heavy") # (a ternary of two array literals is untyped and will not assign to Array[String])
 		return [ShipGenerator.hull_id("elite", kinds[roll % kinds.size()], element, tier)]
 	if float(roll % 100000) / 100000.0 < elite_chance_for(coord):
 		return [ShipGenerator.hull_id("elite", "radial" if roll % 2 == 0 else "irregular", element, tier)]

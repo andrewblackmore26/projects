@@ -94,6 +94,15 @@ static func _update_regular(world, actor: Dictionary, dt: float) -> void:
 	_steer(world, actor, dt, 0.45)
 	world._regular_pattern(actor, dt)
 	for i: int in range(actor.secondaries.size()): world._use_secondary(actor, i)
+	_fire_hub_guns(world, actor, dt)
+
+## A rail hull's weapons are set pieces on HUBS ("guns"), not `secondaries`. v0.3's regulars never
+## had guns, so only the elite path updated them - and a rail sentry's or chain's hub weapons never
+## fired at all (found in S11: a camper's bar stayed full 94-100 % of the time on the rail roster).
+## A regular aims with full information, so every tick counts as a decision.
+static func _fire_hub_guns(world, actor: Dictionary, dt: float) -> void:
+	if str(actor.get("archetype", "")) == "": return
+	if actor.get("gun_indices", PackedInt32Array()).size() > 0: world._update_guns(actor, dt, true)
 
 ## Sentry: speed 0 always (never moves - spec §14/§16), the weapon tracks the
 ## target continuously (full information, no human limits: it is a regular
@@ -109,6 +118,7 @@ static func _update_sentry(world, actor: Dictionary, dt: float) -> void:
 		actor.aim = Vector2.from_angle(rotate_toward(Vector2(actor.aim).angle(), actor.desired_aim.angle(), float(actor.turn_rate) * dt))
 	world._fire_primary(actor, dt)
 	for i: int in range(actor.secondaries.size()): world._use_secondary(actor, i)
+	_fire_hub_guns(world, actor, dt)
 
 ## --- Decision-driven: elites and bosses ------------------------------------
 

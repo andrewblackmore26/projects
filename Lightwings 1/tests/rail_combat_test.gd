@@ -62,6 +62,7 @@ func run() -> void:
 	_test_debris(t)
 	_test_core_weapon_fires(t)
 	_test_twins(t)
+	_test_regular_hub_guns_fire(t)
 	_unstage()
 	t.finish(self)
 
@@ -184,22 +185,48 @@ func _test_core_weapon_fires(t: RefCounted) -> void:
 		w.set_command(ShipCommand.new())
 		w._physics_process(1.0 / 60.0)
 		if elite.is_empty() or bool(elite.get("dead", false)): break
-	for index: int in w.bullets.active_indices:
-		if int(w.bullets.owners[index]) == int(elite.id): from_core += 1
-	t.check(str((elite.definition as ShipDefinition).primary) == "bolt" and from_core > 0, "With its hubs silenced, an elite still fires its core weapon (%d bolts live after 10 s)" % from_core)
+	# Counted on the play census, not as bolts still in flight: a bolt leaves the arena in about a
+	# second, so "live at the end" was luck (it read 0 once the player's hull changed at the cutover).
+	from_core = int(w.ability_events.get("bolt", 0))
+	t.check(str((elite.definition as ShipDefinition).primary) == "bolt" and from_core > 0, "With its hubs silenced, an elite still fires its core weapon (bolt fired %d times in 10 s)" % from_core)
 	release(w)
 	var quiet: CombatWorld = make_world()
 	var mute: Dictionary = _elite(quiet)
-	mute.archetype = "" # what a v0.3 hull declares: the core-weapon call is skipped
+	# What a v0.3 ELITE looked like to the AI: no declared archetype (so the core-weapon call is
+	# skipped) but an `elite_radial` id prefix (so it stays on the decision-driven path). Blanking
+	# the archetype alone is not a sabotage: the AI then reads `fixture_…` as a DRONE, and a drone
+	# fires its primary - the first version of this control "passed" only by counting bolts in flight.
+	mute.archetype = ""
+	mute.hull_id = "elite_radial_fixture"
 	for i: int in mute.gun_indices: mute.part_cd[i] = 9999.0
 	for tick: int in range(600):
 		quiet.set_command(ShipCommand.new())
 		quiet._physics_process(1.0 / 60.0)
-	var silent: int = 0
-	for index: int in quiet.bullets.active_indices:
-		if int(quiet.bullets.owners[index]) == int(mute.id): silent += 1
+	var silent: int = int(quiet.ability_events.get("bolt", 0))
 	t.control("the elite's declared archetype blanked, as on a v0.3 hull (%d bolts)" % silent, silent == 0)
 	release(quiet)
+
+## S11: a REGULAR rail enemy's hub weapons must fire. v0.3's regulars had no guns, so only the
+## elite path updated them, and a rail sentry's set pieces were decoration. Counted on the play
+## census, with the core weapon's own ability excluded so only the HUB piece can satisfy the check.
+func _test_regular_hub_guns_fire(t: RefCounted) -> void:
+	var sentry: ShipDefinition = ShipRecipe.generate({"id": "fixture_sentry", "faction": "enemy", "archetype": "sentry", "element": "fire", "tier": 3, "chassis_color": "red", "seed": 5})
+	ShipCatalog.save_ship(sentry, stage.path_join("fixture_sentry.tres"))
+	ShipCatalog.invalidate()
+	var hub_ability: String = ""
+	for piece: String in ShipGrammar.mounted_pieces(sentry):
+		if piece != sentry.core_weapon: hub_ability = SetPieceCatalog.ability_of(piece)
+	for blank: bool in [false, true]:
+		var w: CombatWorld = make_world()
+		var actor: Dictionary = w._spawn_named_enemy("fixture_sentry", "fire", 3, Vector2(760, 500), false, false)
+		if blank: actor.archetype = "" # what a v0.3 regular declares: the hub guns are skipped
+		for tick: int in range(900):
+			w.set_command(ShipCommand.new())
+			w._physics_process(1.0 / 60.0)
+		var fired: int = int(w.ability_events.get(hub_ability, 0))
+		if blank: t.control("the sentry's declared archetype blanked (%s fired %d times)" % [hub_ability, fired], fired == 0)
+		else: t.check(hub_ability != "" and fired > 0, "A regular rail sentry fires its HUB weapon, not only its core (%s fired %d times in 15 s)" % [hub_ability, fired])
+		release(w)
 
 func _test_twins(t: RefCounted) -> void:
 	var w: CombatWorld = make_world()

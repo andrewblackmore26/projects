@@ -1,147 +1,49 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_s1j3e"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_framk"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_uojob"]
-
-[sub_resource type="Resource" id="Resource_mgcg3"]
-script = ExtResource("2_framk")
-id = "core"
-radius = 13.5
-stat_id = "speed"
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_5cb8v"]
-script = ExtResource("2_framk")
-id = "prong_0"
-position = Vector2(-11.266499, -20.623192)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_wai4k"]
-script = ExtResource("2_framk")
-id = "prong_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "prong_0"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_cu468"]
-script = ExtResource("2_framk")
-id = "prong_1"
-position = Vector2(-1.0272176e-06, -23.5)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_uojob"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_mgcg3"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_5cb8v"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_wai4k"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_cu468"]
 
 [sub_resource type="Resource" id="Resource_iwdwy"]
-script = ExtResource("2_framk")
-id = "prong_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "prong_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_uojob")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
 
 [sub_resource type="Resource" id="Resource_nh5ph"]
-script = ExtResource("2_framk")
-id = "prong_2"
-position = Vector2(11.266499, -20.623192)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_phase = -1.3
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_uojob")
+type = "node"
 
 [sub_resource type="Resource" id="Resource_5oxl1"]
-script = ExtResource("2_framk")
-id = "prong_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "prong_2"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_uojob")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
 
 [sub_resource type="Resource" id="Resource_k8edy"]
-script = ExtResource("2_framk")
-id = "primary"
-position = Vector2(0, -9.45)
-radius = 3.5
-parent_id = "core"
-color_role = "yellow"
-layer = 4
-light_period = 1.6
-light_phase = -0.7
-ability_id = "flame_cone"
-mount_id = "primary"
-tp_cost = 0.0
+script = ExtResource("1_uojob")
+type = "node"
 
 [sub_resource type="Resource" id="Resource_krm00"]
-script = ExtResource("2_framk")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_h7xob"]
-script = ExtResource("2_framk")
-id = "secondary_0"
-position = Vector2(0, 22.5)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-ability_id = "laser_prong"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_8than"]
-script = ExtResource("2_framk")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_wai4k")
+order = 4
+speed = -0.8233
+phase = 1.3674
+slots = Array[ExtResource("1_uojob")]([SubResource("Resource_iwdwy"), SubResource("Resource_nh5ph"), SubResource("Resource_5oxl1"), SubResource("Resource_k8edy")])
 
 [resource]
-script = ExtResource("3_uojob")
+script = ExtResource("5_cu468")
 id = "enemy_sentry_fire_t3"
 display_name = "Fire Sentry T3"
 element = "fire"
 tier = 3
-parts = Array[ExtResource("2_framk")]([SubResource("Resource_mgcg3"), SubResource("Resource_5cb8v"), SubResource("Resource_wai4k"), SubResource("Resource_cu468"), SubResource("Resource_iwdwy"), SubResource("Resource_nh5ph"), SubResource("Resource_5oxl1"), SubResource("Resource_k8edy"), SubResource("Resource_krm00"), SubResource("Resource_h7xob"), SubResource("Resource_8than")])
-abilities = Array[String](["flame_cone", "laser_prong"])
+description = "seed 803283"
+schema_version = 4
 faction = "enemy"
-footprint = 54.0
-magnet_radius = 90.0
-motion_signature = "flicker"
-primary = "flame_cone"
-secondaries = Array[String](["laser_prong"])
-tp_used = 7.0
-tp_max = 15.0
+speed = 240.0
+chassis_color = "red"
+core_weapon = "vent_fan"
+archetype = "sentry"
+rails = Array[ExtResource("4_wai4k")]([SubResource("Resource_krm00")])

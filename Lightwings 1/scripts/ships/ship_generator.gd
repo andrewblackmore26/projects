@@ -98,7 +98,7 @@ static func hull_id(faction: String, kind: String, element: String, tier: int) -
 	match faction:
 		"boss": return "boss_%s" % element
 		"elite":
-			if kind not in ["radial", "irregular"]: return ""
+			if kind not in ["radial", "irregular", "heavy"]: return ""
 			return "elite_%s_%s_t%d" % [kind, element, hi]
 		"enemy":
 			if kind == "chain": return "enemy_chain_%s_t%d" % [element, hi]

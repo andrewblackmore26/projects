@@ -1,307 +1,82 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_3q10h"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_x4vs4"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_pxson"]
-
-[sub_resource type="Resource" id="Resource_acetl"]
-script = ExtResource("2_x4vs4")
-id = "core"
-radius = 18.0
-stat_id = "speed"
-tp_cost = 1.25
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_8qg73"]
-script = ExtResource("2_x4vs4")
-id = "t2_spoke_l"
-position = Vector2(-43.2, -3.6)
-radius = 6.5
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-mirror_id = "t2_spoke_r"
-stat_id = "magnet_radius"
-tp_cost = 0.25
-stat_value = 4.0
-
-[sub_resource type="Resource" id="Resource_mg46s"]
-script = ExtResource("2_x4vs4")
-id = "t2_spoke_r"
-position = Vector2(43.2, -3.6)
-radius = 6.5
-parent_id = "core"
-layer = 2
-light_phase = -1.3
-mirror_id = "t2_spoke_l"
-stat_id = "magnet_radius"
-tp_cost = 0.25
-stat_value = 4.0
-
-[sub_resource type="Resource" id="Resource_4doxd"]
-script = ExtResource("2_x4vs4")
-id = "t2_spoke_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-from_id = "core"
-to_id = "t2_spoke_l"
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_pxson"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_acetl"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_8qg73"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_mg46s"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_4doxd"]
 
 [sub_resource type="Resource" id="Resource_md0yp"]
-script = ExtResource("2_x4vs4")
-id = "t2_spoke_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "t2_spoke_r"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_pxson")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_3847y"]
-script = ExtResource("2_x4vs4")
-id = "t2_barb_l"
-position = Vector2(-53.6, 2.4)
-radius = 3.9
-parent_id = "t2_spoke_l"
-layer = 2
-light_phase = -1.3
-mirror_id = "t2_barb_r"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_pxson")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_s5lvj"]
-script = ExtResource("2_x4vs4")
-id = "t2_barb_r"
-position = Vector2(53.6, 2.4)
-radius = 3.9
-parent_id = "t2_spoke_r"
-layer = 2
-mirror_id = "t2_barb_l"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_pxson")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_1ed1a"]
-script = ExtResource("2_x4vs4")
-id = "t2_barb_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -0.7
-from_id = "t2_spoke_l"
-to_id = "t2_barb_l"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_pxson")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_3mu1f"]
-script = ExtResource("2_x4vs4")
-id = "t2_barb_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "t2_spoke_r"
-to_id = "t2_barb_r"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_mg46s")
+order = 4
+speed = -0.8889
+phase = 0.7854
+slots = Array[ExtResource("1_pxson")]([SubResource("Resource_md0yp"), SubResource("Resource_3847y"), SubResource("Resource_s5lvj"), SubResource("Resource_1ed1a")])
 
 [sub_resource type="Resource" id="Resource_6bbbw"]
-script = ExtResource("2_x4vs4")
-id = "t3_spoke_l"
-position = Vector2(-72, -12)
-radius = 7.4
-parent_id = "core"
-layer = 2
-mirror_id = "t3_spoke_r"
-stat_id = "speed"
-tp_cost = 0.25
-stat_value = 4.0
+script = ExtResource("1_pxson")
+type = "hub"
+pods = 4
+set_piece = "lens_stack"
+mount = "primary"
 
 [sub_resource type="Resource" id="Resource_x4igb"]
-script = ExtResource("2_x4vs4")
-id = "t3_spoke_r"
-position = Vector2(72, -12)
-radius = 7.4
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-mirror_id = "t3_spoke_l"
-stat_id = "speed"
-tp_cost = 0.25
-stat_value = 4.0
+script = ExtResource("1_pxson")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+mount = "secondary_0"
 
 [sub_resource type="Resource" id="Resource_kmcb8"]
-script = ExtResource("2_x4vs4")
-id = "t3_spoke_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -1.3
-from_id = "core"
-to_id = "t3_spoke_l"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_pxson")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+mount = "secondary_0"
 
 [sub_resource type="Resource" id="Resource_tnrhh"]
-script = ExtResource("2_x4vs4")
-id = "t3_spoke_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "t3_spoke_r"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_cxhbg"]
-script = ExtResource("2_x4vs4")
-id = "t3_barb_l"
-position = Vector2(-83.84, -6)
-radius = 4.44
-parent_id = "t3_spoke_l"
-layer = 2
-light_phase = -0.7
-mirror_id = "t3_barb_r"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_lw2mr"]
-script = ExtResource("2_x4vs4")
-id = "t3_barb_r"
-position = Vector2(83.84, -6)
-radius = 4.44
-parent_id = "t3_spoke_r"
-layer = 2
-light_phase = -1.3
-mirror_id = "t3_barb_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_7ychq"]
-script = ExtResource("2_x4vs4")
-id = "t3_barb_link_l"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-from_id = "t3_spoke_l"
-to_id = "t3_barb_l"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_en1qx"]
-script = ExtResource("2_x4vs4")
-id = "t3_barb_link_r"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "t3_spoke_r"
-to_id = "t3_barb_r"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_45uih"]
-script = ExtResource("2_x4vs4")
-id = "primary"
-position = Vector2(0, -12.6)
-radius = 3.5
-parent_id = "core"
-color_role = "violet"
-layer = 4
-light_phase = -1.3
-ability_id = "bolt"
-mount_id = "primary"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_kggta"]
-script = ExtResource("2_x4vs4")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_8ha8b"]
-script = ExtResource("2_x4vs4")
-id = "secondary_0"
-position = Vector2(0, 25)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_period = 1.6
-light_phase = -0.7
-ability_id = "laser_prong"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_64fhg"]
-script = ExtResource("2_x4vs4")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_qfee4"]
-script = ExtResource("2_x4vs4")
-id = "secondary_1"
-position = Vector2(0, 34)
-radius = 3.5
-parent_id = "core"
-color_role = "yellow"
-layer = 4
-ability_id = "shield"
-mount_id = "secondary_1"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_hch4q"]
-script = ExtResource("2_x4vs4")
-id = "secondary_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "secondary_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_mg46s")
+radius = 96
+pump_phase = 0.9
+slots = Array[ExtResource("1_pxson")]([SubResource("Resource_6bbbw"), SubResource("Resource_x4igb"), SubResource("Resource_kmcb8")])
 
 [resource]
-script = ExtResource("3_pxson")
+script = ExtResource("5_4doxd")
 id = "player_lightning_t3_heavy"
-display_name = "Fork Heavy"
+display_name = "Lightning T3 Heavy"
 element = "lightning"
 tier = 3
-is_player = true
-parts = Array[ExtResource("2_x4vs4")]([SubResource("Resource_acetl"), SubResource("Resource_8qg73"), SubResource("Resource_mg46s"), SubResource("Resource_4doxd"), SubResource("Resource_md0yp"), SubResource("Resource_3847y"), SubResource("Resource_s5lvj"), SubResource("Resource_1ed1a"), SubResource("Resource_3mu1f"), SubResource("Resource_6bbbw"), SubResource("Resource_x4igb"), SubResource("Resource_kmcb8"), SubResource("Resource_tnrhh"), SubResource("Resource_cxhbg"), SubResource("Resource_lw2mr"), SubResource("Resource_7ychq"), SubResource("Resource_en1qx"), SubResource("Resource_45uih"), SubResource("Resource_kggta"), SubResource("Resource_8ha8b"), SubResource("Resource_64fhg"), SubResource("Resource_qfee4"), SubResource("Resource_hch4q")])
-abilities = Array[String](["bolt", "laser_prong", "shield"])
+description = "seed 360024"
+schema_version = 4
 role = "heavy"
 family = "heavy"
-footprint = 176.9888409423828
-magnet_radius = 98.0
-speed = 193.79999999999998
+speed = 200.0
 turn_rate = 8.0
 accel = 700.0
 drag = 3.5
 hp_buffer = 1.3
 damage_multiplier = 1.15
-motion_signature = "snap"
-primary = "bolt"
-secondaries = Array[String](["laser_prong", "shield"])
-tp_used = 12.0
-tp_max = 15.0
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 3
+rails = Array[ExtResource("4_mg46s")]([SubResource("Resource_3mu1f"), SubResource("Resource_tnrhh")])

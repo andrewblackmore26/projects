@@ -86,7 +86,10 @@ func test_progression() -> void:
  check(not w.active and w.light_total==0,"Zero bar dies directly")
  w.setup_player("fire",6,2299.5,[],Vector2(500,500))
  consumed=w.collect_light(20,"plasma")
- check(is_equal_approx(consumed,0.5) and w.light_total==2300,"Terminal capacity preserves fractional excess")
+ # The hull this lands on may carry `siphon` (x1.25 absorbed), as the rail fire T6 does: filling the
+ # last 0.5 of the bar then CONSUMES 0.5/1.25. The claim is about the bar, so it is stated per hull.
+ var absorb: float=1.25 if w._has_ability(w.player,"siphon") else 1.0
+ check(is_equal_approx(consumed,0.5/absorb) and w.light_total==2300,"Terminal capacity preserves fractional excess")
  check(not w.evolve_hull("player_fire_t6_heavy"),"Terminal tier cannot evolve")
  w.setup_player("corruption",4,899,[],Vector2(500,500))
  w.player.ability_set.siphon=true
@@ -350,36 +353,16 @@ func test_regular_patterns() -> void:
   w._regular_pattern(actor,0.016)
   for slot: int in range(actor.secondaries.size()): w._use_secondary(actor,slot)
   counts[element]=w.bullets.count()
-  check(w.bullets.count()>0 and w.beams.is_empty(),"Regular "+element+" emits bullet pattern, not player continuous beam")
-  if element=="fire": check(not w.telegraphs.is_empty() and w.telegraphs[0].kind=="mine","Fire also lays warned mines")
-  if element=="lightning":
-   var i: int=w.bullets.active_indices[0]
-   check((w.bullets.flags[i]&Pool.CHAIN)!=0 and w.bullets.velocities[i].length()>=600,"Lightning has fast chain bolts")
-  if element=="corruption":
-   var i: int=w.bullets.active_indices[0]
-   check((w.bullets.flags[i]&Pool.INFECT)!=0 and not w.drones.is_empty(),"Corruption combines infection shots and droids")
-  if element=="plasma":
-   var orbiting: int=0
-   for i: int in w.bullets.active_indices:
-    if (w.bullets.flags[i]&Pool.ORBIT)!=0: orbiting+=1
-   check(orbiting==3 and w.bullets.count()>=7,"Plasma combines rotating spiral and three orbiting shots")
-  if element=="void":
-   actor.blockers=0.0
-   actor.shield=0.0
-   # P4a: isolate the core/mouth path from the new per-circle peripheral
-   # hitboxes (spec §16) - see the comment in test_arena_collision().
-   for i: int in range(1,actor.rig.ids.size()):
-    actor.part_hp[i]=0.0
-    actor.part_attached[i]=0
-   w.bullets.clear()
-   w._rebuild_actor_grid()
-   var hp: float=actor.hp
-   w.bullets.add(Vector2(900,500),Vector2.RIGHT*1000,-1,7,2,0,0,0)
-   w._update_bullets(0.2)
-   check(actor.hp==hp,"Void mouth consumes frontal shots")
-   w.bullets.add(Vector2(1100,500),Vector2.LEFT*1000,-1,7,2,0,0,0)
-   w._update_bullets(0.2)
-   check(actor.hp==hp-7,"Void core remains vulnerable from behind")
+  # Ship design spec (S11). v0.3 gave each element's regulars a pattern through special cases
+  # inside the `pulse_cannon` arm; blue is the player's, so no enemy mounts it now, and a regular's
+  # identity IS its core set piece (its colour says which). The v0.3 lines - fire's warned mines,
+  # lightning's chain bolt, corruption's infecting shot and droids, plasma's orbiting shots, the
+  # void's bullet-eating mouth - are retired with the loadouts and body features they described.
+  var core_weapon: String=str((actor.definition as ShipDefinition).primary)
+  var produced: int=w.bullets.count()+w.clouds.size()+w.telegraphs.size()+w.viruses.size()+w.drones.size()
+  check(core_weapon!="" and int(w.ability_events.get(core_weapon,0))>0 and produced>0,"Regular "+element+" fires its core weapon ("+core_weapon+") and it does something")
+  check(w.beams.is_empty(),"Regular "+element+" never fires the player's continuous beam")
+  check(SetPieceCatalog.colours_of(SetPieceCatalog.for_ability(core_weapon))==[Elements.color_key(element)],"Regular "+element+"'s core weapon is a mono piece in its own colour")
  w._clear_encounter()
  w.setup_player("fire",3,300,[],w.arena.center-Vector2(w.arena.radius-4.0,0))
  w.player.slow=2.0
@@ -452,31 +435,22 @@ func test_authored_runtime_contract() -> void:
  check((w.bullets.flags[bullet]&Pool.RICOCHET)!=0,"Changing actual primary mount changes projectile mechanic")
  check(w.bullets.positions[bullet]==Vector2(1025,400),"Projectiles originate at authored mounted circle position")
  w._clear_encounter()
- actor=w._spawn_enemy("corruption",3,Vector2(1000,500),false)
- w._update_ai(actor,0.016)
- check(not w.drones.is_empty() and actor.secondaries.has("droid_bay"),"Corruption droids originate from actual mounted droid bay")
- definition=actor.definition.duplicate(true)
- definition.secondaries.assign(["shield"])
- for part: PartDefinition in definition.parts:
-  if part.mount_id=="secondary_0": part.ability_id="shield"
- w._configure_actor(actor,definition,true)
- w.drones.clear()
- w._update_ai(actor,0.016)
- check(w.drones.is_empty() and actor.shield>0,"Replacing authored droid bay with shield changes behavior; no intrinsic drones remain")
- definition.secondaries.clear()
- w._configure_actor(actor,definition,true)
- w._update_ai(actor,0.016)
- check(actor.shield==0 and w.drones.is_empty(),"Removing secondaries removes their effects")
+ # Retired at the cutover (S11): three checks that a corruption regular's `droid_bay` sat on a
+ # `secondary_0` mount and could be swapped for a shield. The droid bay is a retired enemy-only
+ # component and a rail enemy mounts set pieces on HUBS, not on secondary slots.
  for element: String in World.ELEMENTS:
   for tier: int in range(1,6):
    var elite: Dictionary=w._spawn_elite(element,tier,Vector2(1400,700))
    var weapons: int=0
    var valid: bool=true
    for part: PartDefinition in elite.definition.parts:
-    if not part.ability_id.is_empty() and AbilityCatalog.get_definition(part.ability_id).slot_kind!="passive":
+    # A rail elite's guns are its armed HUBS. Its core also carries an ability (the main weapon),
+    # but the core is the kill target, not a destructible gun, so it is not counted here.
+    if part.id!="core" and part.shape=="circle" and not part.ability_id.is_empty() and AbilityCatalog.get_definition(part.ability_id).slot_kind!="passive":
      weapons+=1
      valid=valid and part.hp>0.0
-   check(valid and weapons==elite.guns.size() and weapons>=3 and weapons<=8,"Every visible elite weapon is active/destructible: "+element+str(tier))
+   # Spec §8: a radial elite mounts 3 set pieces, an irregular 6-12 (one of them the core weapon).
+   check(valid and weapons==elite.guns.size() and weapons>=3 and weapons<=12,"Every visible elite weapon is active/destructible: "+element+str(tier)+" ("+str(weapons)+" hub guns)")
  w._clear_encounter()
  actor=w._spawn_enemy("plasma",3,Vector2(1000,500),false)
  definition=actor.definition.duplicate(true)

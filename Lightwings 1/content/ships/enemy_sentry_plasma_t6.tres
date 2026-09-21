@@ -1,159 +1,49 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_tky1i"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_6bu71"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_0d4v3"]
-
-[sub_resource type="Resource" id="Resource_3cppi"]
-script = ExtResource("2_6bu71")
-id = "core"
-radius = 18.0
-stat_id = "speed"
-tp_cost = 1.25
-stat_value = 40.0
-
-[sub_resource type="Resource" id="Resource_k7orp"]
-script = ExtResource("2_6bu71")
-id = "orbit_0"
-radius = 26.0
-filled = false
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "projectile_orbit"
-stat_value = 65.0
-
-[sub_resource type="Resource" id="Resource_odnut"]
-script = ExtResource("2_6bu71")
-id = "prong_0"
-position = Vector2(-13.423913, -24.572313)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_phase = -1.3
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_byxyd"]
-script = ExtResource("2_6bu71")
-id = "prong_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-from_id = "core"
-to_id = "prong_0"
-stat_id = "structure"
-tp_cost = 0.25
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_0d4v3"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_3cppi"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_k7orp"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_odnut"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_byxyd"]
 
 [sub_resource type="Resource" id="Resource_84opg"]
-script = ExtResource("2_6bu71")
-id = "prong_1"
-position = Vector2(-1.2239188e-06, -28)
-radius = 3.5
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_0d4v3")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
 
 [sub_resource type="Resource" id="Resource_q1dxd"]
-script = ExtResource("2_6bu71")
-id = "prong_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "prong_1"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_0d4v3")
+type = "node"
 
 [sub_resource type="Resource" id="Resource_y27ln"]
-script = ExtResource("2_6bu71")
-id = "prong_2"
-position = Vector2(13.423914, -24.572313)
-radius = 3.5
-parent_id = "core"
-layer = 2
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_0d4v3")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
 
 [sub_resource type="Resource" id="Resource_k100v"]
-script = ExtResource("2_6bu71")
-id = "prong_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -0.7
-from_id = "core"
-to_id = "prong_2"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_0d4v3")
+type = "node"
 
 [sub_resource type="Resource" id="Resource_ymkrx"]
-script = ExtResource("2_6bu71")
-id = "primary"
-position = Vector2(0, -12.6)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_phase = -1.3
-ability_id = "pulse_cannon"
-mount_id = "primary"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_l3ery"]
-script = ExtResource("2_6bu71")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_cd0hs"]
-script = ExtResource("2_6bu71")
-id = "secondary_0"
-position = Vector2(0, 27)
-radius = 3.5
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_phase = -0.7
-ability_id = "laser_prong"
-mount_id = "secondary_0"
-tp_cost = 0.0
-
-[sub_resource type="Resource" id="Resource_v7dj4"]
-script = ExtResource("2_6bu71")
-id = "secondary_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_period = 1.6
-light_phase = -1.3
-from_id = "core"
-to_id = "secondary_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_odnut")
+order = 4
+speed = -1.0559
+phase = 0.6365
+slots = Array[ExtResource("1_0d4v3")]([SubResource("Resource_84opg"), SubResource("Resource_q1dxd"), SubResource("Resource_y27ln"), SubResource("Resource_k100v")])
 
 [resource]
-script = ExtResource("3_0d4v3")
+script = ExtResource("5_byxyd")
 id = "enemy_sentry_plasma_t6"
 display_name = "Plasma Sentry T6"
 element = "plasma"
 tier = 6
-parts = Array[ExtResource("2_6bu71")]([SubResource("Resource_3cppi"), SubResource("Resource_k7orp"), SubResource("Resource_odnut"), SubResource("Resource_byxyd"), SubResource("Resource_84opg"), SubResource("Resource_q1dxd"), SubResource("Resource_y27ln"), SubResource("Resource_k100v"), SubResource("Resource_ymkrx"), SubResource("Resource_l3ery"), SubResource("Resource_cd0hs"), SubResource("Resource_v7dj4")])
-abilities = Array[String](["pulse_cannon", "laser_prong"])
+description = "seed 83822"
+schema_version = 4
 faction = "enemy"
-footprint = 63.000004
-magnet_radius = 90.0
-motion_signature = "counter_rotate"
-secondaries = Array[String](["laser_prong"])
-tp_used = 7.25
-tp_max = 36.0
+speed = 240.0
+chassis_color = "violet"
+core_weapon = "spin_ring"
+archetype = "sentry"
+rails = Array[ExtResource("4_odnut")]([SubResource("Resource_ymkrx")])

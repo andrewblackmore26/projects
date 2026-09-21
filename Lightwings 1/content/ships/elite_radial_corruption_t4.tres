@@ -1,484 +1,86 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="1_ixym1"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="2_aygab"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="3_wf825"]
-
-[sub_resource type="Resource" id="Resource_4lpm4"]
-script = ExtResource("1_ixym1")
-root_id = "hub_0"
-orbit_radius = 154.0
-orbit_speed = 0.4
-reach_ring = true
-
-[sub_resource type="Resource" id="Resource_fwxls"]
-script = ExtResource("1_ixym1")
-root_id = "hub_1"
-orbit_radius = 154.0
-orbit_speed = -0.4
-
-[sub_resource type="Resource" id="Resource_5ahib"]
-script = ExtResource("1_ixym1")
-root_id = "hub_2"
-orbit_radius = 154.0
-orbit_speed = 0.4
-
-[sub_resource type="Resource" id="Resource_umryn"]
-script = ExtResource("1_ixym1")
-root_id = "hub_3"
-orbit_radius = 154.0
-orbit_speed = -0.4
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_wf825"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_4lpm4"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_fwxls"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_5ahib"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_umryn"]
 
 [sub_resource type="Resource" id="Resource_x6rpt"]
-script = ExtResource("1_ixym1")
-root_id = "hub_4"
-orbit_radius = 154.0
-orbit_speed = 0.4
+script = ExtResource("1_wf825")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_upud1"]
-script = ExtResource("1_ixym1")
-root_id = "sat_l"
-orbit_radius = 55.2
-orbit_speed = -0.8
+script = ExtResource("1_wf825")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_2tbty"]
-script = ExtResource("1_ixym1")
-root_id = "sat_r"
-orbit_radius = 55.2
-orbit_speed = 0.8
+script = ExtResource("1_wf825")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_py6pr"]
-script = ExtResource("2_aygab")
-id = "core"
-radius = 138.0
-stat_id = "speed"
-tp_cost = 6.0
-stat_value = 40.0
+script = ExtResource("1_wf825")
+type = "node"
+node_radius = 7
 
 [sub_resource type="Resource" id="Resource_ii70y"]
-script = ExtResource("2_aygab")
-id = "hub_0"
-position = Vector2(154, 0)
-radius = 8.0
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_5ahib")
+order = 4
+speed = -1.0026
+phase = 0.4889
+slots = Array[ExtResource("1_wf825")]([SubResource("Resource_x6rpt"), SubResource("Resource_upud1"), SubResource("Resource_2tbty"), SubResource("Resource_py6pr")])
 
 [sub_resource type="Resource" id="Resource_ch7qj"]
-script = ExtResource("2_aygab")
-id = "hub_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "hub_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_wf825")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
 
 [sub_resource type="Resource" id="Resource_0ip4t"]
-script = ExtResource("2_aygab")
-id = "pod_0"
-position = Vector2(164, 0)
-radius = 4.0
-parent_id = "hub_0"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_wf825")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
 
 [sub_resource type="Resource" id="Resource_cedfn"]
-script = ExtResource("2_aygab")
-id = "pod_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "hub_0"
-to_id = "pod_0"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("1_wf825")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
 
 [sub_resource type="Resource" id="Resource_qd620"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_0"
-position = Vector2(154, 8)
-radius = 6.0
-parent_id = "core"
-color_role = "green"
-layer = 4
-light_phase = -1.3
-ability_id = "virus"
-mount_id = "elite_weapon_0"
-tp_cost = 0.0
-hp = 84.0
-
-[sub_resource type="Resource" id="Resource_stprw"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_0_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "elite_weapon_0"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_tle1e"]
-script = ExtResource("2_aygab")
-id = "hub_1"
-position = Vector2(47.588615, 146.4627)
-radius = 8.0
-parent_id = "core"
-layer = 2
-light_period = 1.6
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_ldcxm"]
-script = ExtResource("2_aygab")
-id = "hub_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "hub_1"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_2ri0b"]
-script = ExtResource("2_aygab")
-id = "pod_1"
-position = Vector2(50.678783, 155.97327)
-radius = 4.0
-parent_id = "hub_1"
-layer = 2
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_6775g"]
-script = ExtResource("2_aygab")
-id = "pod_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "hub_1"
-to_id = "pod_1"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_j2q0r"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_1"
-position = Vector2(39.980164, 148.93484)
-radius = 6.0
-parent_id = "core"
-color_role = "green"
-layer = 4
-light_period = 1.6
-light_phase = -1.3
-ability_id = "poison_cloud"
-mount_id = "elite_weapon_1"
-tp_cost = 0.0
-hp = 84.0
-
-[sub_resource type="Resource" id="Resource_eiyil"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_1_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "elite_weapon_1"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_j6b3p"]
-script = ExtResource("2_aygab")
-id = "hub_2"
-position = Vector2(-124.58863, 90.51892)
-radius = 8.0
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_3eo8e"]
-script = ExtResource("2_aygab")
-id = "hub_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "hub_2"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_gid6a"]
-script = ExtResource("2_aygab")
-id = "pod_2"
-position = Vector2(-132.6788, 96.396774)
-radius = 4.0
-parent_id = "hub_2"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_gikcv"]
-script = ExtResource("2_aygab")
-id = "pod_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "hub_2"
-to_id = "pod_2"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_yblq0"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_2"
-position = Vector2(-129.29091, 84.04678)
-radius = 6.0
-parent_id = "core"
-color_role = "red"
-layer = 4
-light_phase = -1.3
-ability_id = "seeker_missiles"
-mount_id = "elite_weapon_2"
-tp_cost = 0.0
-hp = 84.0
-
-[sub_resource type="Resource" id="Resource_c8ef5"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_2_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "elite_weapon_2"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_kfym7"]
-script = ExtResource("2_aygab")
-id = "hub_3"
-position = Vector2(-124.58861, -90.51894)
-radius = 8.0
-parent_id = "core"
-layer = 2
-light_period = 1.6
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_sgh2l"]
-script = ExtResource("2_aygab")
-id = "hub_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "hub_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_dw685"]
-script = ExtResource("2_aygab")
-id = "pod_3"
-position = Vector2(-132.67877, -96.3968)
-radius = 4.0
-parent_id = "hub_3"
-layer = 2
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_tq80j"]
-script = ExtResource("2_aygab")
-id = "pod_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "hub_3"
-to_id = "pod_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_rr4xw"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_3"
-position = Vector2(-119.88633, -96.99108)
-radius = 6.0
-parent_id = "core"
-color_role = "green"
-layer = 4
-light_period = 1.6
-light_phase = -1.3
-ability_id = "virus"
-mount_id = "elite_weapon_3"
-tp_cost = 0.0
-hp = 84.0
-
-[sub_resource type="Resource" id="Resource_rx4sk"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_3_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "elite_weapon_3"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_4thob"]
-script = ExtResource("2_aygab")
-id = "hub_4"
-position = Vector2(47.58864, -146.46269)
-radius = 8.0
-parent_id = "core"
-layer = 2
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_jq6o1"]
-script = ExtResource("2_aygab")
-id = "hub_4_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -1.3
-from_id = "core"
-to_id = "hub_4"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_hmy5s"]
-script = ExtResource("2_aygab")
-id = "pod_4"
-position = Vector2(50.67881, -155.97325)
-radius = 4.0
-parent_id = "hub_4"
-layer = 2
-light_period = 1.6
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_x88nr"]
-script = ExtResource("2_aygab")
-id = "pod_4_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "hub_4"
-to_id = "pod_4"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_yw335"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_4"
-position = Vector2(55.19709, -143.99055)
-radius = 6.0
-parent_id = "core"
-color_role = "green"
-layer = 4
-light_phase = -1.3
-ability_id = "poison_cloud"
-mount_id = "elite_weapon_4"
-tp_cost = 0.0
-hp = 84.0
-
-[sub_resource type="Resource" id="Resource_ehmli"]
-script = ExtResource("2_aygab")
-id = "elite_weapon_4_link"
-shape = "line"
-radius = 1.0
-layer = 1
-from_id = "core"
-to_id = "elite_weapon_4"
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_dbh4t"]
-script = ExtResource("2_aygab")
-id = "sat_l"
-position = Vector2(-55.2, 0)
-radius = 4.0
-parent_id = "core"
-layer = 2
-light_period = 1.6
-light_phase = -0.7
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_6ic7x"]
-script = ExtResource("2_aygab")
-id = "sat_r"
-position = Vector2(55.2, 0)
-radius = 4.0
-parent_id = "core"
-layer = 2
-light_phase = -1.3
-stat_id = "structure"
-tp_cost = 0.25
-
-[sub_resource type="Resource" id="Resource_v2qb1"]
-script = ExtResource("2_aygab")
-id = "primary"
-position = Vector2(0, -96.6)
-radius = 8.0
-parent_id = "core"
-color_role = "red"
-layer = 4
-ability_id = "pulse_cannon"
-mount_id = "primary"
-tp_cost = 0.0
-hp = 84.0
-
-[sub_resource type="Resource" id="Resource_osx3l"]
-script = ExtResource("2_aygab")
-id = "primary_link"
-shape = "line"
-radius = 1.0
-layer = 1
-light_phase = -0.7
-from_id = "core"
-to_id = "primary"
-stat_id = "structure"
-tp_cost = 0.25
+script = ExtResource("4_5ahib")
+radius = 96
+speed = 0.4281
+phase = 0.0132
+pump_phase = 0.9
+slots = Array[ExtResource("1_wf825")]([SubResource("Resource_ch7qj"), SubResource("Resource_0ip4t"), SubResource("Resource_cedfn")])
 
 [resource]
-script = ExtResource("3_wf825")
+script = ExtResource("5_umryn")
 id = "elite_radial_corruption_t4"
 display_name = "Corruption Radial Elite T4"
 tier = 4
-symmetry = "radial"
-parts = Array[ExtResource("2_aygab")]([SubResource("Resource_py6pr"), SubResource("Resource_ii70y"), SubResource("Resource_ch7qj"), SubResource("Resource_0ip4t"), SubResource("Resource_cedfn"), SubResource("Resource_qd620"), SubResource("Resource_stprw"), SubResource("Resource_tle1e"), SubResource("Resource_ldcxm"), SubResource("Resource_2ri0b"), SubResource("Resource_6775g"), SubResource("Resource_j2q0r"), SubResource("Resource_eiyil"), SubResource("Resource_j6b3p"), SubResource("Resource_3eo8e"), SubResource("Resource_gid6a"), SubResource("Resource_gikcv"), SubResource("Resource_yblq0"), SubResource("Resource_c8ef5"), SubResource("Resource_kfym7"), SubResource("Resource_sgh2l"), SubResource("Resource_dw685"), SubResource("Resource_tq80j"), SubResource("Resource_rr4xw"), SubResource("Resource_rx4sk"), SubResource("Resource_4thob"), SubResource("Resource_jq6o1"), SubResource("Resource_hmy5s"), SubResource("Resource_x88nr"), SubResource("Resource_yw335"), SubResource("Resource_ehmli"), SubResource("Resource_dbh4t"), SubResource("Resource_6ic7x"), SubResource("Resource_v2qb1"), SubResource("Resource_osx3l")])
-groups = Array[ExtResource("1_ixym1")]([SubResource("Resource_4lpm4"), SubResource("Resource_fwxls"), SubResource("Resource_5ahib"), SubResource("Resource_umryn"), SubResource("Resource_x6rpt"), SubResource("Resource_upud1"), SubResource("Resource_2tbty")])
-abilities = Array[String](["pulse_cannon"])
+description = "seed 502592"
+schema_version = 4
 faction = "elite"
 role = "heavy"
 family = "heavy"
-footprint = 336.0
-magnet_radius = 90.0
-speed = 187.0
+speed = 200.0
 turn_rate = 8.0
 accel = 700.0
 drag = 3.5
 hp_buffer = 1.3
 damage_multiplier = 1.15
-tp_used = 24.0
-tp_max = 52.5
+chassis_color = "green"
+accent_color = "silver"
+core_depth = 3
+core_weapon = "well_cup"
+archetype = "radial_elite"
+rails = Array[ExtResource("4_5ahib")]([SubResource("Resource_ii70y"), SubResource("Resource_qd620")])
