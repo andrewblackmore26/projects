@@ -3,6 +3,7 @@
 builds/
 artifacts/
 *.tmp
+__pycache__/
 *.log
 .DS_Store
 steam_appid.txt

@@ -32,6 +32,10 @@ The document below is the supplied v0.3 product specification, verbatim. It is r
 | v0.2 (schema 3) saves | Exact bytes archived as `.legacy-v3`; deaths and story flags carried over; unlocks reset to Lightning |
 | Enemy roster | 40 hulls: per element two drones, two sentries, one chain, one radial elite, one irregular elite, plus one boss per level |
 
+**Superseded on 2026-09-21 by the ship design spec**
+
+`docs/LIGHTSHIP_SHIP_DESIGN_SPEC.md` (spec v2) replaces five sections of the text below: **§14** (enemies and enemy models), **§17** (visual system), **§18** (motion system), **§21** (ship editor) and **§22** (ships as data). Everything else in v0.3 stands. §17's stroke weights carry forward; §18's running-light timings do not (v2 §9.4 sets the lap period by radius). Each superseded section carries a one-line note under its heading; those notes are the only edits inside the supplied text. The "Enemy roster: 40 hulls" default above becomes 45 (a heavy elite per element is added).
+
 `GameTuning` is the numeric source of truth. The milestone acceptance tests below remain acceptance criteria, not a declaration that human playtesting is complete. Verification and its limits are recorded in `VALIDATION.md` and `tasks/todo.md`.
 
 ---
@@ -228,6 +232,8 @@ Handling needs to feel fast and loose, because Section 7 is asking players to ch
 
 ## 14. Enemies and enemy models
 
+> **Superseded** by `LIGHTSHIP_SHIP_DESIGN_SPEC.md` (§4, §8, §9). The behaviour rules below (reaction time, aim error, reward per tier gap) still stand; the construction, archetype models and enemy-only components do not.
+
 ### Construction
 
 Enemies are built from the same system as player ships (Section 17) with a looser ruleset.
@@ -324,6 +330,8 @@ Never available to the player.
 
 ## 17. Visual system — circles and lines
 
+> **Superseded** by `LIGHTSHIP_SHIP_DESIGN_SPEC.md` (§2–§6). The two primitives and the screen-space stroke weights carry forward unchanged; the element shape language and free arrangement do not.
+
 ### Primitives
 
 **There are exactly two.**
@@ -363,6 +371,8 @@ Constant in screen space at any zoom: rim 1.5 px, lines 2 px, running light 2.6 
 **Player hulls** are majority light blue — body circles and lines. The element shows through arrangement and component colours.
 
 ## 18. Motion system
+
+> **Superseded** by `LIGHTSHIP_SHIP_DESIGN_SPEC.md` §9, which gives every motion layer real numbers: rail speeds by radius, pod bob, arm pump (radius, never scale), shine period by radius, core pulse, chains, aim slew and destruction.
 
 Every ship carries motion. A static ship is a bug.
 
@@ -427,6 +437,8 @@ All of it in circles and lines. This is where the game's identity lives — budg
 
 ## 21. Ship editor
 
+> **Superseded in part** by `LIGHTSHIP_SHIP_DESIGN_SPEC.md` §11–§13: the Body tab and free placement are replaced by Core / Rails / Slots / Colours / Motion and a read-only set-piece library; the ship library becomes the gallery (§12) and "generate from description" becomes the seeded recipe (§13). The shell (top bar, previews, library, validation-blocks-save) stands.
+
 In-engine, dev-facing, modelled on the Bubble Tanks 3 tank editor, TRON-themed. The designer uses it daily — it is an M2 deliverable, not a debug panel.
 
 **Top bar:** `Symmetric Mode` (forced on for player hulls) · `Load Ship…` · `Save` · `Save and Exit` · `Exit` · `Stats`
@@ -450,6 +462,8 @@ In-engine, dev-facing, modelled on the Bubble Tanks 3 tank editor, TRON-themed. 
 **Preview modes.** Live running lights, group motion and bloom exactly as in-game · base zoom and minimum zoom side by side · reshape tween between any two saved ships · bullet pattern preview against a dummy · elite mode showing per-circle HP, firing timers and what detaches when each circle dies.
 
 ## 22. Ships as data
+
+> **Superseded** by `LIGHTSHIP_SHIP_DESIGN_SPEC.md` §10. Positions are no longer authored; a ship stores colours, a core stack, rails and slots, and every circle and line is derived.
 
 ```json
 {

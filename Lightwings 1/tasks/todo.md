@@ -15,6 +15,11 @@ adversarial review found real defects the green gate could not see; the ones fix
 open are both listed in the P10 section below, and the open list is the honest starting point for
 whoever picks this up next.
 
+**Since 2026-09-21 the ship design spec is being built on top of that** (`# Ship design spec — build
+plan` below, phases S0–S15): every hull is rebuilt on a rail grammar, weapons become colour-gated set
+pieces, and the editor moves off free placement. The S-phase checklists sit after P10's carried-forward
+list; their reviews sit with the other reviews, before `## Retired assertions`.
+
 ~~Mandatory stop for hands-on review: **after P7**.~~ **Waived by the user on 2026-09-20: "run through the entire spec, don't stop until you've finished everything."** Every phase still ends green with its numbers recorded and its own commit; what is gone is the pause for hands-on feedback. Human-feel questions (handling, warp, boss difficulty, whether testers push out rather than camp) therefore stay unverified at the end and are listed as such in the final record.
 
 ---
@@ -163,13 +168,20 @@ Not completed / stated plainly: `main.gd`'s map screen, minimap and death/reboot
 | Not completed / stated plainly | **Dev evolution grouped offer screen** ("all hulls available at every evolution", tab strip x 4 hulls): NOT implemented - `_show_evolution()` still always calls the standard `EvolutionRules.offers()` 3-card path regardless of `mode_config.offer_policy()`; the `"all_hulls"` policy value exists in `ModeConfig` but nothing reads it yet. `scripts/ui/hud.gd` and `scripts/world/run_controller.gd` were NOT extracted into their own files this step (P1's re-sequencing note for `run_controller.gd` still points at P6/P7; `hud.gd` extraction is now the one genuinely unfinished P5 promise, done in-place inside `main.gd` instead - the HUD overlap bug itself IS fixed, just not moved to its own file). Campaign-mode "continue" still resumes an existing save exactly where it left off and does NOT route through the new level-select screen (a deliberate scope decision, stated in `main.gd::_show_level_select`'s doc comment) - level-select only applies to starting a NEW run. The demo's own tier-cap-removal claim was cross-checked only via `ui_flow_test.gd`/`ModeConfig`, not a fresh demo playthrough capture. Human-feel questions (does the dev console genuinely help testing, is the map screen readable at a glance) remain unverified per the standing waiver at the top of this file.
 
 ## P6 — Handling and the warp
-- [ ] Momentum per role; rim slow; enemy easing
-- [ ] Dash: command, bindings, Steam Input action, HUD icon, no i-frames
-- [ ] `scripts/combat/trail_pool.gd`; ship lightstreams
-- [ ] Compositor zoom + focus; `screen_to_world`
-- [ ] Warp state machine (sim) + presentation; reduced-warp option; Options reflow
-- [ ] Saves moved to calm moments; `_save_game` timed
-- [ ] Proof list with negative controls; commit
+- [x] Momentum per role; rim slow; enemy easing
+- [x] Dash: command, bindings, Steam Input action, HUD icon, no i-frames
+- [x] `scripts/combat/trail_pool.gd`; ship lightstreams
+- [x] Compositor zoom + focus; `screen_to_world`
+- [x] Warp state machine (sim) + presentation; reduced-warp option; Options reflow
+- [x] Saves moved to calm moments; `_save_game` timed
+- [x] Proof list with negative controls; commit
+
+### Review — P6 (written in S0, 2026-09-21: bookkeeping only)
+| What | Measured |
+|---|---|
+| Why this is late | The boxes were never ticked and no review was written, though commit `382a40e` ("P6: momentum, dash, trails and the warp") shipped the work and README/INTERFACES describe it. Ticked from the commit's own contents, not from memory |
+| Evidence that exists | That commit added `tests/handling_test.gd` (190 lines), `tests/warp_test.gd` (177), `tests/warp_render_test.gd` (147, GPU) and re-recorded the golden trace. All three pass in the S0 baseline suite (38/38) |
+| Not completed / stated plainly | No P6 numbers were recorded at the time and none are reconstructed here. Known gaps stay where P10 listed them: no inverted warp on death or level travel; warp streaks fan from the ship instead of converging ahead; trails are immediate `draw_line`, not a MultiMesh |
 
 ## P7 — Pace and the run loop → STOP for hands-on review
 - [x] `_update_pace`: decay, combo, sized pickups + 3× enemy light, pool refill, respawn
@@ -375,6 +387,164 @@ Carried forward for the review pass (found while verifying earlier phases, none 
   (contention), then measured inside budget on three standalone re-runs. If it recurs, either run
   the benchmark first in `gates.ps1` or take the best of N runs rather than widening the budget.
 
+# Ship design spec — build plan
+
+Spec: `docs/LIGHTSHIP_SHIP_DESIGN_SPEC.md` (spec **v2** verbatim, under the scope approved
+2026-09-21; v2 replaced v1 the same day, before any v1 code existed, adding the motion numbers of §9,
+the gallery of §12 and the generator of §13). It supersedes v0.3 §14, §17, §18, §21 and §22: all 141 hulls are discarded and every ship is
+rebuilt on one grammar (core stack, rails at 52/96/140/184, slots, spokes, hub/pod clusters, weapon
+set pieces, two colours that gate what may be mounted). Reference image:
+`docs/ship-design-reference.png`. Same house rules and the same judge (`tools\gates.ps1 -GPU -Exports`).
+Commits: `Lightship v0.3 S<n>: <clause>, and <finding>`, path-scoped to `Lightwings 1`.
+
+**No mid-build stops** (user, 2026-09-21). Captures for each would-be review point are saved and
+listed in the review tables. "Trace identical" means `golden_trace_test` passes without re-recording;
+everything new is gated on `schema_version == 4`, so that holds until the S11 cutover.
+
+Architecture in one paragraph: the grammar is the only stored truth and parts are compiled on load
+(`ShipCompiler`), so `ShipMesh`, the outline shader, the rig, the broadphase, `_destroy_part` and saves
+keep working. Motion becomes one forward-kinematics pass (`_step_fk`) beside the untouched legacy
+evaluator, because nested groups do not compose today; its joints are v2 §9's layers (rail spin, pod
+and node bob, arm pump of the rail RADIUS, aim slew, chains) with defaults in `ShipGrammar.MOTION`.
+Nothing scales except the render-only core-dot pulse. Circles gain a `solid` flag (rail rings, inner
+core rings, passive rings and set-piece circles carry no HP, collider, reward or TP). The hub is the
+mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. One recipe engine
+(`ship_recipe.gd`, §13) builds both the pinned roster and seeded ships. The new roster is built in
+`content/ships_next/`, reviewed through the gallery's contact sheets, and swapped in by one commit.
+
+## S0 — Spec, reference, baselines, honest instruments (trace identical)
+- [x] This plan in `tasks/todo.md`; spec saved with the approved-scope header; V3 §14/17/18/21/22 marked superseded (v2)
+- [x] `docs/ship-design-reference.png` + measured census `docs/ship-design-reference.json`
+- [x] Bookkeeping: P6 ticked with a short review; open P10 items triaged (superseded / fixed here / open)
+- [x] Pillar-5 instrument repaired for PROJECTILES, all five elements (void 0.433, plasma 0.407 from player blue); the SHIP-RIM half moves to S2, where the first silver-chassis rail hull is rendered; acceptance
+      bot's light-chasing control and failure-folding median repaired
+- [x] `motion` and `grid` benchmark sections, each line with its own negative control
+- [x] Baselines ×3 recorded below: suite counts, bot medians and maxima over 20 seeds, both benchmarks,
+      footprint and circle census of today's roster; gates; commit (renderer profile NOT run: it is taken in S1 beside the `_rig_to_mesh` change it judges)
+
+## S1 — Behaviour-neutral seams (trace identical)
+- [ ] `scripts/data/elements.gd`; the three duplicated ELEMENTS/COLORS arrays become aliases; `"blue"` palette entries
+- [ ] Part joint/solid/style fields, rig packed arrays, `_step_fk` beside `_step_legacy`, `solid_indices`
+      in the broadphase, `ShipRenderer.external_pose`, `_rig_to_mesh` index map
+- [ ] `ShipGrammar.MOTION` (§9 tables); `ship_motion_test`: pod bob on a spinning rail, node bob, arm
+      pump moves the hub and never its radius, aim joint, chain wave; a control that disables
+      parent-angle inheritance must fail; commit
+
+## S2 — Grammar, compiler, validator, first set pieces, rail rendering (trace identical; `content/` diff empty)
+- [ ] Schema-4 resources, `ShipGrammar` (coded `RULES`), `ShipCompiler`, `SetPieceCatalog` format with
+      `v_rack`, `coil_pair`, `twin_barrel`; shader styles 4/5 and lines-under-fills, shipped with a GPU test
+- [ ] Fixtures `tests/fixtures/ships_v4/{radial_elite, player_t3, drone, boss, irregular}.json`
+- [ ] `ship_grammar_test.gd` (one control per coded rule + every rule triggered by some control);
+      `ship_compiler_test.gd` (compile twice byte-equal, ids unique, DFS order, `budget()` = compiled, boss ≤ 128)
+- [ ] `tests/support/ring_probe.gd` + `ship_reference_render_test.gd` (structural signature vs the
+      reference; controls: 4 arms, equal orders, third colour, no set piece, blank image, wrong scale); `rail_render_test.gd`
+- [ ] Pillar 5 for SHIP RIMS (carried from S0): a silver-chassis rail hull's rim vs the player's, same
+      max-normalised distance and two-frame wait as the projectile lines, with its own control
+- [ ] Review capture 1: `artifacts/acceptance/reference_vs_render.png`; commit
+
+## S3 — Rails in combat (gated on schema 4; trace identical)
+- [ ] Aim slew (≤ 3.0 rad/s, back to outward over 1.0 s) and follow-the-leader chains stepped per sim
+      tick; rail-ring visibility rule; `mount_index` muzzles and twin mounts; core-weapon firing for
+      decision-driven AI; `archetype` dispatch; audit of every `part_hp <= 0` reader
+- [ ] Shine period by ladder radius + the (part, cluster) phase rule, assigned by the compiler; line
+      shine; core-dot pulse (render-only, from the tick); rail dash 2/5 at 28%
+- [ ] Destruction (§9.8): 0.10 s collapse, 5–7 fragments along the incoming vector, debris inherits rail
+      velocity, spins 0.5–1.5 rad/s, fades over 1.0 s, drops light at 0.5 s
+- [ ] Acceptance 3 and 4 as instruments: no two rails share an angular velocity and no two circles a
+      shine (period, phase); over 10 s bob ≥ 0.28 rad peak-to-peak, pump 6%, adjacent signs opposite;
+      GPU two-tick check; one control per line
+- [ ] GPU reshape with a ghost mesh; CPU `_draw_part` path deleted; mid-tween GPU frame test
+- [ ] `enemy_parts_test` on fixtures (cluster detach, rail deletion, reward conservation with a "ring
+      marked solid" control); GPU test that a set piece stays aim-aligned while its rail turns
+- [ ] `ship_ladder_render_test.gd` (acceptance 2): hub span equal on drone, boss, T1 and T6 player at
+      base and minimum zoom and at two ticks (nothing scales); 16 px hub control; `motion` cost for 17
+      boss-fixture actors; commit
+
+## S4 — The 33 set pieces and the colour gate (trace identical)
+- [ ] All 33 authored (2–5 ladder circles; lines end on circles or the hub); `implemented` = its ability exists
+- [ ] `set_piece_test.gd`: 18 mono + 15 duo, colours match §6.3, `legal_for` equals the §6.5 lists
+      hard-coded from the spec, pairwise glyph distance with a duplicate-piece control, silver-vs-blue on pieces
+- [ ] Review capture 2: the 33-piece sheet at 1×; commit
+
+## S5 — Editor on the grammar (trace identical)
+- [ ] Shell kept; tabs Core / Rails / Slots / Colours / Motion / Set-piece library in flat `tab_*.gd`
+      files (Motion: per-rail speed and pump, per-cluster bob, chain mode, live preview; speed sign
+      auto-alternates with a warning on override); one
+      `edit()` choke point; free placement, drag, line tool, macros and mirror authoring deleted
+- [ ] `ship_canvas.gd` as a ring diagram with polar slot picking; illegal mounts ringed red
+- [ ] Colours tab never blocks a change; greys out illegal pieces and lists mounted-but-illegal ones
+      through the validator's own `illegal_mounts()`
+- [ ] `ShipAuthoring` JSON on the §10 schema (strict, canonical, byte-stable)
+- [ ] `ships_editor_test.gd` and `docs/SHIP_WORKSHOP_V2.md` rewritten; package check that no editor script ships; commit
+
+## S6 — Gallery (§12; trace identical)
+- [ ] Pure `GalleryModel`: scans a catalog root INCLUDING invalid files; metadata (counts, footprint,
+      set pieces, errors, mtime); §12.3 filters, sorts and search; roster coverage grid; the "≤ 24
+      animating, nearest-to-centre, off-screen frozen" scheduler as a pure function
+- [ ] Views in flat editor-only files: contact sheet with live tiles and true-scale toggle; detail
+      (part tree with HP, detach preview from the rig's `subtree_size`, weapon legality, motion panel
+      with a tick scrub bar, silhouette); compare 2–4; coverage → editor pre-seed; PNG export (sheet,
+      single ship, rails on/off); mtime-poll live reload. Replaces the editor's library window
+- [ ] `gallery_model_test.gd` (a control per filter, sort, coverage, invalid-still-listed and scheduler
+      line); `gallery_render_test.gd` (a visible tile changes between ticks, a frozen one does not;
+      detach highlight sits on the hub's subtree only — acceptance 7); commit
+
+## S7 — Weapons I: cheap and shared machinery (additive; trace identical)
+- [ ] Batch 0: `drone_hatch`, `slow_field`, `void_orb` lite
+- [ ] Batch A: `spiral_shot`, `pulse_ring`, `chain_infection`, `overcharge`, `drone_swarm`, `phase_shot`
+- [ ] Batch B (tethers on the virus list; fixes the never-expiring virus on the player): `arc_tether`,
+      `siphon_tether`, `siphon_leech`, `ignition_lance`
+- [ ] `weapon_behaviour_test.gd`: fresh world per id, swapped-ability control, enemy damage ≥ 0.5 s after activation; commit
+
+## S8 — Weapons II: telegraphs and the hot loop
+- [ ] Batch C: `discharge`, `collapse_charge`, `nova_pulse`, `refract_beam`, `blink_mine`
+- [ ] Batch D: `void_orb` full, `black_hole_shot`, `incendiary_spores`
+- [ ] Both benchmarks ×3; budgets restated only from measurement with stated headroom; commit
+
+## S9 — Generator (§13; trace identical)
+- [ ] `scripts/ships/ship_recipe.gd`: `generate(params)` (the 12 steps, own seeded RNG) and
+      `style_check(ship)` = validator errors + circle count ±20% of the archetype target from
+      `budget()`, one set piece per hub, reach ring and core dot present. ONE engine: a roster entry
+      pins its structure, a generated ship leaves it to the seed
+- [ ] Editor "generate from description" resolves text into the §13.1 template (theme biases set-piece
+      weights and speed jitter only); gallery coverage cells pre-seed it
+- [ ] `ship_recipe_test.gd`: 20 seeds × every archetype × a spread of pairs pass validate + style check
+      unedited; same seed byte-identical; different seeds differ; a control per style rule; stub band 10–25%; commit
+
+## S10 — The roster, in staging
+- [ ] Roster manifest as pinned recipe inputs: 101 player hulls (four shapes and four loadouts per
+      element/tier), 25 mono regulars, 15 elites (radial = next element on the reveal ring,
+      irregular = previous, heavy = two ahead), 5 bosses
+- [ ] `ship_library_test.gd` (our own gate: zero errors, zero warnings, manifest = disk, max circles ≤ 128);
+      `colour_language_test.gd` (acceptance 5 proxies); distinct-shape roster test; slot chord ≥ measured cluster width
+- [ ] Bots and both benchmarks on `--catalog-root=content/ships_next`, 20 seeds, per-ability event
+      census and the marking-to-shot angle at fire events; far-end benchmark (boss + 2 heavy elites at 2000 bullets)
+- [ ] Review capture 3: gallery contact sheets of the staging roster at uniform and true scale;
+      acceptance 8 line-up sheet (generated among pinned, with an answer key); commit
+
+## S11 — Cutover, one commit (trace re-recorded: name the first differing field first)
+- [ ] `export_catalog.gd --rebuild` from staging; ability table remap with the `.tres` rebuild and a `.tres`-equals-table test
+- [ ] Offers, campaign descriptors (heavy elites at node tier ≥ 3), `SchemaVersion` 5, HUD model ids
+- [ ] Every migrated test restated; Retired assertions filled
+- [ ] Bots before/after; both benchmarks ×3; budgets restated with the reason; `gates.ps1 -GPU -Exports`; commit
+
+## S12 — Delete the legacy (content and tests byte-identical; trace identical)
+- [ ] Growth builders, `add_pair`, `mount_component`, `ABILITIES`, v3 validate/warnings, `GroupDefinition`,
+      `_step_legacy`, reach-ring synthesis, `symmetry`/`mirror_id`, v2/v3 JSON import, retired ability
+      branches and body-feature sim code; commit
+
+## S13 — HUD, docs, acceptance (no briefings: v2 dropped them)
+- [ ] Evolution cards with colour chips and set-piece glyphs; HUD slots draw the 1× glyph
+- [ ] README, `docs/INTERFACES.md`, `docs/VALIDATION.md`, store draft and art; `docs/ACCEPTANCE_HUMAN.md`
+- [ ] Review capture 4: two-colour enemy cold-capture set; commit
+
+## S14 — Tuning from measurement
+- [ ] Re-tune only what the S11 numbers moved so the v0.3 M1/M5 bot gates hold; trace re-recorded; budgets restated with history; commit
+
+## S15 — Adversarial review
+- [ ] Three lenses, one dedicated to tautological controls and blind instruments; fix or list; final
+      gates; project memory updated; honest open list; commit
+
 ---
 
 ## Review — P0 (numbers measured, not asserted)
@@ -487,6 +657,23 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | `tests/campaign_playthrough_test.gd` fix | `_test_core_escape`'s single 1,000,000-damage `_damage_actor` call on the rival no longer kills it outright now that a boss can be shielded/multi-cored — updated to destroy the shield generator and every sub-core first (mirroring real play), then the qualifying hit. `debug_clear()` (`combat_world.gd`) also now zeroes `shield_generator_indices`/`sub_core_indices`, not just `gun_indices`, so a debug full-clear (used by `_test_campaign_route`) still actually kills a boss |
 | Not completed / stated plainly | `egg`/`deployment_ramp` were only added to the BOSS archetype, not to elites/regulars, given the time budget — the spec does not name which archetype must carry each component, and bosses ("all of the above layered") are the least risky place to add new mounted circles without touching the already-locked elite/regular roster invariants (`ship_roster_test.gd`'s 825 checks). The editor's elite/boss preview (per-circle HP, what detaches) is still P4's own unchecked line and was not touched this step. `_add_enemy_body_feature` (void `bullet_eater`/`void_pull`, plasma `projectile_orbit`) is authored on regular/elite hulls but never on bosses — found while reading `ship_generator.gd`, not fixed (out of scope: not part of P4b's brief, and touching `build_boss` further risked the TP/circle-count margins already spent on the new mounts) |
 
+## Review — S0 (ship design spec: spec, reference, baselines, honest instruments)
+| What | Measured |
+|---|---|
+| Spec | v1 arrived first and v2 replaced it in full the same day, before any v1 code existed. `docs/LIGHTSHIP_SHIP_DESIGN_SPEC.md` is v2 byte-for-byte under the approved-scope header; V3 §14/17/18/21/22 carry supersede notes |
+| Reference image | `tools/measure_reference.py` (numpy Hough + least-squares refit) → `docs/ship-design-reference.json`. 22 circles; hubs 15.00 / 15.02 / 15.02 units; pods 6.95–7.22; inner rail dashes at 51.5 (order 4), outer at 95.4 (order 3, hubs at 92.9); pods 29.4–30.3 from the hub at 0° and ±51–52°; inner core ring 17.0 and dot 2.6 (both off the ladder: the image predates it). The `v_rack` is a yellow V plus a red pin ending in an r 5.2 ring, not the "red V" of the prose |
+| Census tool, how its thresholds were set | First run found NOTHING: I assumed a perfect rim scores ~1.0; measured, real circles peak 0.44–0.52 and clutter ≤ 0.31, so 0.40. Five false circles (V lines closing a loop with the hub rim; an arm and a node spoke 3 px apart) matched real occluded pods on every fit statistic, so they are rejected structurally ("centre inside a larger circle", "weak AND hollow"). The first "inside" rule asked for full containment and missed one by 0.1 px. Rails: real 0.39 / 0.43 lit, next strongest 0.15, threshold 0.25. Overlay looked at: every circle and both rails sit on the drawing |
+| Pillar-5 instrument (P10: blind) | Was blind three ways: the player stood IN the sampled patch, only plasma was tested, and hue alone is meaningless for silver. Repairing it exposed a fourth: one rendered frame after a MultiMesh write is not enough, so readings were a blend of this bullet and the last, and which elements read wrong changed between runs. With two frames, identical over 3 runs: distance from the player's projectile fire 1.090, lightning 0.941, corruption 0.569, void 0.433, plasma 0.407; second player projectile 0.000. Threshold 0.20. Controls 6/6 (adds "empty patch is not 'not blue'") |
+| Light-chasing bot (P10: tautological) | Old gate: medians with capped runs folded in, control on different seeds. New: paired per seed, a capped run is a failure. Chaser unlocks fire in 16/20 seeds, indifferent in 5/20; chaser sooner in 12, later in 0, tied 8. The old median would have read the wrong way: unlocked-only medians are 9.2 s (chaser) vs 3.1 s (the indifferent walk's few lucky seeds). Control (preference off on both sides): 0 vs 0 |
+| Acceptance bot, other lines (baseline) | novice first evolution 20/20, median 20.7 s, max 47.7 s, deaths median 0 / max 1; perfect median 5.2 s, max 10.8 s; camper 6.4 vs pusher 60.05 light/min; death-to-flying median 558 ms, max 683 ms. 11 checks, 3 controls caught, 292.6 s |
+| Benchmark sections | `motion` was never timed (it ran before the first `section_start`). Now timed, with `grid` split out; a gate line fails an absent or zero section; control `--require-section=not_a_section` fails exactly its own 2 lines and leaves the 4 real ones ok=1 |
+| Headless benchmark ×3 (baseline) | 1000 bullets: mean 5.11–5.47, p95 8.13–8.71 ms. 2000 bullets: mean 7.45–7.81, p95 10.46–11.14 ms. Sections at 2000: bullets 4.00–4.20, ai 1.31–1.37, upload 1.09–1.14, grid 0.37–0.39, **motion 0.157–0.168**. Budgets unchanged |
+| Roster census (baseline, `tests/roster_census.gd`) | 141 hulls. Footprint / circles: drone 49–95 / 4–10; sentry 48–63 / 5–8; chain 124–139 / 8–11; radial elite 210–396 / 16–22; irregular elite 204–390 / 25–38; boss 196–228 / **13**; player T1 53 / 4, T6 72–366 / 25–37 |
+| P10 open items, triaged | **Fixed here:** pillar-5 instrument; light-chasing control and median. **Superseded by the rebuild:** breathing scale vs collider (v2 has no scale), reshape ignoring the pose (S3 GPU reshape), missing reach rings and motionless drones (every rail draws its ring and moves), `turret_ring` / thin enemy-only components / bosses without body features (all retire at S11), `standard_a` = `standard_b` geometry (S10 distinct-shape test). **Still open:** the other tautological controls (`combat_fx_test` ×3, `enemy_parts_test`, `enemy_ai_test`, `hud_model_test` overlap and diagonals), no inverted warp, respawn records outside the snapshot, dead code, trails not a MultiMesh, warp streak geometry, `run_controller.gd`, unprofiled tick remainder, p95 frame tail, no Steam Deck measurement |
+| P6 bookkeeping | Ticked with its own review, from commit `382a40e`'s contents |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 766.5 s (12 before; +1 is the untimed-section control, caught 2/2 with the 4 real section lines still ok). Suite 38/38, golden trace NOT re-recorded (the two new timers only run under `profile_sections`). Rendered frame (30 s, 2000 bullets, 400 pickups, 17 actors): mean 8.14 ms, p95 15.72 ms against 14.0 / 26.0. Both Windows exports built and verified 2/2 |
+| Not completed / stated plainly | The rendered-frame benchmark and renderer profile baselines are taken from the gate run, not three separate runs. The `hud_model_test` diagonal fix the design notes suggested for S0 was not done; it stays on the open list. The reference census trusts one image at one scale; its ±0.3-unit agreement with the ladder on hubs and pods is the evidence that the scale basis (core_1 = 34) is right |
+
 ## Retired assertions
 
 | Phase | Assertion | Why it no longer applies | Replacement |
@@ -500,3 +687,5 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | P5a | `combat_tests.gd` "Same-life node return never respawns or replenishes" | v0.3 removes the permanent per-node `cleared` flag for regular nodes (spec §7: a node is a losing strategy to camp, not a one-time clear) | "Leaving and returning within one epoch restores the exact state left behind" (same underlying `sector_cache`/`encounter_records` cache as before, now exercised through the new `enemy_hulls` descriptor key instead of `enemy_count`) |
 | P5a | `combat_tests.gd`/`enemy_parts_test.gd` raw sector dicts keyed on `enemy_count`/`elite_count`/`core_defeated`/`kind:"core"` | `combat_world.start_sector` now spawns exactly the hulls the descriptor names (`enemy_hulls`/`elite_hulls`/`boss_hull`), never a count resolved through a runtime picker | Fixtures now build hull ids directly via `ShipGenerator.hull_id(faction,kind,element,tier)` |
 | P5a | `ship_roster_test.gd`/`ship_catalog.gd`: `ShipCatalog.pick_enemy`, `ShipCatalog.trim_to_tier` (`V02-ADAPTER`) | Deleted outright per the P5a brief; the world descriptor now names hulls directly instead of a runtime nearest-tier picker | `ShipGenerator.hull_id(faction,kind,element,tier)` (deterministic band clamp, no search) and `ShipCatalog.cap_to_tier` (same slot-cap behaviour, renamed and no longer tagged as a legacy shim) |
+| S0 | `combat_fx_render_test.gd` "enemy plasma projectile's pixel hue sits outside the player's light-blue band" (hue distance > 1/24, plasma only) | Blind: the player's white core was in the sampled patch, so every element read alike; hue alone cannot judge void's near-grey silver | Five lines, one per element: max-normalised RGB distance from the player's own projectile > 0.20 (measured 0.407–1.090), sampled two rendered frames after the buffer write |
+| S0 | `acceptance_bot.gd` `light_chasing_faster_than_indifferent` (median chaser < median indifferent) | Medians folded capped runs in; its control compared two indifferent walks on different seeds | `light_chasing_unlocks_at_least_as_often` (16 vs 5 of 20) and `light_chasing_sooner_in_more_seeds` (12 / 0 / 8 ties), paired per seed; control pairs the indifferent walk with itself |

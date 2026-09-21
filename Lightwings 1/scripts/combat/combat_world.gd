@@ -582,8 +582,12 @@ func _physics_process(delta: float) -> void:
  var began: int=Time.get_ticks_usec()
  var dt: float=minf(delta,0.05)
  _last_dt=dt
+ # `motion` had no section until S0: it ran before the first section_start, so the cost every
+ # rail-grammar hull will add was invisible to the benchmark.
+ var motion_start: int=Time.get_ticks_usec() if profile_sections else 0
  _step_motion(player)
  for actor: Dictionary in enemies: _step_motion(actor)
+ if profile_sections: section_ms.motion=(Time.get_ticks_usec()-motion_start)/1000.0
  elapsed+=dt
  player_invulnerable=maxf(0.0,player_invulnerable-dt)
  reshape_remaining=maxf(0.0,reshape_remaining-dt)
@@ -608,7 +612,9 @@ func _physics_process(delta: float) -> void:
  _update_actor_status(player,dt)
  for actor: Dictionary in enemies: _update_actor_status(actor,dt)
  _update_pace(dt)
+ var grid_start: int=Time.get_ticks_usec() if profile_sections else 0
  _rebuild_actor_grid()
+ if profile_sections: section_ms.grid=(Time.get_ticks_usec()-grid_start)/1000.0 # also inside status_grid_telegraphs
  _update_telegraphs(dt)
  if profile_sections:
   section_ms.status_grid_telegraphs=(Time.get_ticks_usec()-section_start)/1000.0

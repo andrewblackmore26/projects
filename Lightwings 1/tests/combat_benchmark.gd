@@ -31,6 +31,14 @@ func _scale_argument(prefix: String) -> float:
 		if argument.begins_with(prefix): return maxf(0.0, argument.trim_prefix(prefix).to_float())
 	return 1.0
 
+const REQUIRED_SECTIONS: Array[String] = ["motion", "grid"]
+
+func _extra_sections() -> Array[String]:
+	var extra: Array[String] = []
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with("--require-section="): extra.append(argument.trim_prefix("--require-section="))
+	return extra
+
 func _run() -> void:
 	var reports: Array = []
 	var asserting: bool = "--assert" in OS.get_cmdline_user_args()
@@ -83,6 +91,14 @@ func _run() -> void:
 			gate_checks += 1
 			if not filled: gate_failures += 1
 			print("measure: benchmark bullets=%d peak=%d required=%d rejected=%d ok=%d" % [requested, report.peak_bullets, required, report.pool_rejected, int(filled)])
+			# The sections the ship rebuild will move must actually be timed. A section that is absent
+			# or reads 0 means its timer is not wrapped around the work. `--require-section=<name>`
+			# adds a name; asking for one that does not exist is this line's negative control.
+			for name: String in REQUIRED_SECTIONS + _extra_sections():
+				var timed: bool = float(section_totals.get(name, 0.0)) > 0.0
+				gate_checks += 1
+				if not timed: gate_failures += 1
+				print("measure: benchmark bullets=%d section=%s section_avg=%.4f ok=%d" % [requested, name, float(section_totals.get(name, 0.0)), int(timed)])
 		world.queue_free()
 		await process_frame
 	print("COMBAT BENCHMARK: " + JSON.stringify({"engine": Engine.get_version_info().string, "platform": OS.get_name(), "mode": "Headless simulation plus instance-buffer preparation; excludes GPU rendering and is not Steam Deck qualification", "reports": reports}))

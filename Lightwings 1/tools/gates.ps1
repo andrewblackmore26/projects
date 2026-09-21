@@ -76,6 +76,13 @@ if (-not $Quick) {
     $bench = Invoke-Godot '--headless --script "res://tests/combat_benchmark.gd" -- --assert --fill-scale=2' $logDir 'benchmark-negative-fill' 600
     $fill = Measure-Lines $bench.Out 'required='
     Add-Gate 'NEGATIVE benchmark fill doubled' ($bench.ExitCode -ne 0 -and $fill.Total -gt 0 -and $fill.Failed -eq $fill.Total) $bench.Seconds ("fill lines failed {0}/{1}" -f $fill.Failed, $fill.Total)
+
+    # The section lines (motion, grid) cannot be reached by either sabotage above: demand a section
+    # that is not timed, and exactly those lines must fail while the real ones still pass.
+    $bench = Invoke-Godot '--headless --script "res://tests/combat_benchmark.gd" -- --assert --require-section=not_a_section' $logDir 'benchmark-negative-section' 600
+    $missing = Measure-Lines $bench.Out 'section=not_a_section '
+    $real = Measure-Lines $bench.Out 'section=(motion|grid) '
+    Add-Gate 'NEGATIVE benchmark untimed section' ($bench.ExitCode -ne 0 -and $missing.Total -gt 0 -and $missing.Failed -eq $missing.Total -and $real.Total -gt 0 -and $real.Failed -eq 0) $bench.Seconds ("untimed lines failed {0}/{1}, real section lines ok {2}/{3}" -f $missing.Failed, $missing.Total, ($real.Total-$real.Failed), $real.Total)
 }
 
 if ($GPU) {

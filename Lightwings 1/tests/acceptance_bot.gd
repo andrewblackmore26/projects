@@ -442,24 +442,46 @@ func _chase_step(campaign: CampaignState, coord: Vector2i, visited: Dictionary, 
 	return walk
 
 func _measure_light_chasing() -> Dictionary:
-	var chaser_seconds: Array[float] = []
-	var indifferent_seconds: Array[float] = []
+	# Repaired in S0 (P10): the old gate compared medians that folded capped (failed) runs in, and
+	# its control compared two indifferent walks on DIFFERENT seeds, which can differ either way by
+	# luck. Now a run that never unlocks is a failure, counted; the claim is paired per seed (same
+	# world, only the preference differs); and the control is the same pairing with the preference
+	# off on both sides, where the advantage must be exactly nil.
+	var chaser_runs: Array = []
+	var indifferent_runs: Array = []
 	for seed_value: int in range(1,SEEDS+1):
-		chaser_seconds.append(_run_chase(seed_value,true,240.0).seconds)
-		indifferent_seconds.append(_run_chase(seed_value,false,240.0).seconds)
+		chaser_runs.append(_run_chase(seed_value,true,240.0))
+		indifferent_runs.append(_run_chase(seed_value,false,240.0))
+	var score: Dictionary = _chase_score(chaser_runs,indifferent_runs)
 	var result: Dictionary = {
-		"chaser_median_s":_median(chaser_seconds),"chaser_max_s":_max(chaser_seconds),
-		"indifferent_median_s":_median(indifferent_seconds),"indifferent_max_s":_max(indifferent_seconds),
+		"chaser_unlocked":score.a_unlocked,"indifferent_unlocked":score.b_unlocked,
+		"chaser_sooner":score.a_sooner,"indifferent_sooner":score.b_sooner,"ties":score.ties,
+		"chaser_median_s_unlocked_only":score.a_median,"indifferent_median_s_unlocked_only":score.b_median,
 	}
-	_gate("light_chasing_faster_than_indifferent",t.check(_median(chaser_seconds) < _median(indifferent_seconds),"Chasing %s on purpose unlocks it sooner than an indifferent walk (%.1fs vs %.1fs)" % [CHASE_TARGET,_median(chaser_seconds),_median(indifferent_seconds)]))
-	# Control: run the "chaser" with its preference disabled (prefer=false path only) twice under different seed offsets - the advantage must disappear.
-	var control_a: Array[float] = []
-	var control_b: Array[float] = []
-	for seed_value: int in range(1,11):
-		control_a.append(_run_chase(seed_value,false,240.0).seconds)
-		control_b.append(_run_chase(seed_value+1000,false,240.0).seconds)
-	_gate_negative("light_chasing_preference_disabled",t.control("chase preference disabled",not (_median(control_a) < _median(control_b)*0.85)))
+	_gate("light_chasing_unlocks_at_least_as_often",t.check(score.a_unlocked >= score.b_unlocked and score.a_unlocked > 0,"Chasing %s unlocks it in at least as many seeds as an indifferent walk (%d vs %d of %d)" % [CHASE_TARGET,score.a_unlocked,score.b_unlocked,SEEDS]))
+	_gate("light_chasing_sooner_in_more_seeds",t.check(score.a_sooner > score.b_sooner,"Seed for seed, chasing gets there sooner more often than it gets there later (%d sooner, %d later, %d ties)" % [score.a_sooner,score.b_sooner,score.ties]))
+	var control: Dictionary = _chase_score(indifferent_runs,indifferent_runs)
+	_gate_negative("light_chasing_preference_disabled",t.control("chase preference disabled on both sides",not (control.a_sooner > control.b_sooner)))
 	return result
+
+## Pairs two lists of `_run_chase` results seed for seed. A run that hit the cap is a FAILURE:
+## it never counts as "sooner", and its time never enters a median.
+func _chase_score(a_runs: Array, b_runs: Array) -> Dictionary:
+	var a_times: Array[float] = []
+	var b_times: Array[float] = []
+	var a_sooner: int = 0
+	var b_sooner: int = 0
+	var ties: int = 0
+	for i: int in range(a_runs.size()):
+		var a: Dictionary = a_runs[i]
+		var b: Dictionary = b_runs[i]
+		if a.unlocked: a_times.append(float(a.seconds))
+		if b.unlocked: b_times.append(float(b.seconds))
+		if a.unlocked and (not b.unlocked or float(a.seconds) < float(b.seconds)): a_sooner += 1
+		elif b.unlocked and (not a.unlocked or float(b.seconds) < float(a.seconds)): b_sooner += 1
+		else: ties += 1
+	return {"a_unlocked":a_times.size(),"b_unlocked":b_times.size(),"a_sooner":a_sooner,"b_sooner":b_sooner,"ties":ties,
+		"a_median":_median(a_times) if not a_times.is_empty() else -1.0,"b_median":_median(b_times) if not b_times.is_empty() else -1.0}
 
 func _run() -> void:
 	t = Harness.new("ACCEPTANCE V0.3")
