@@ -196,17 +196,12 @@ func _initialize() -> void:
 	for part: PartDefinition in broken.parts:
 		if part.shape == "circle" and part.mount_id.is_empty(): part.color_role = "fire"
 	_check(not ShipCatalog.validate(broken).is_empty(), "Player hull that is no longer majority light blue rejected")
-	var portable: Dictionary = ShipAuthoring.from_json(ShipAuthoring.to_json(ship))
-	_check(portable.errors.is_empty() and portable.ship.parts.size() == ship.parts.size() and portable.ship.id == ship.id, "Portable JSON roundtrip")
-	_check(not ShipAuthoring.from_json('{"schema_version":99,"parts":[]}').errors.is_empty(), "Future schema rejected")
+	# ShipAuthoring's v2/v3 JSON round trip and local-compiler generation retired with the v0.3
+	# circle-authoring editor (ship design spec S5): a rail hull's JSON is `ShipGrammar`'s §10 shape
+	# (covered by ships_editor_test.gd), and generation moves to ShipRecipe in a later phase.
+	_check(not ShipAuthoring.from_json('{"unknown_ship_key":1}').has("ship"), "An unknown top-level key is rejected, not silently ignored")
 	var generated: Dictionary = ShipAuthoring.from_description("compact fire tier 3 with ricochet and mines")
-	_check(generated.errors.is_empty() and generated.ship.primary == "ricochet" and generated.ship.secondaries == ["mine_layer"], "Local compiler honors role/tier/components and synonyms")
-	generated = ShipAuthoring.from_description("void tier 3 with homing beam and shield")
-	_check(generated.errors.is_empty() and generated.ship.primary == "homing_beam", "Longest component match avoids beam collision")
-	generated = ShipAuthoring.from_description("fire tier 3 with enormous butterfly wings")
-	_check(not generated.warnings.is_empty(), "Uninterpreted description terms reported")
-	generated = ShipAuthoring.from_description("fire tier 1 with shield")
-	_check(not generated.errors.is_empty(), "Generator cannot bypass tier/slots")
+	_check(not generated.get("errors", []).is_empty(), "Generation is a stub now (moves to ShipRecipe in S9)")
 	var outline: PackedVector2Array = ShipGeometry.outline("circle", 10)
 	var lengths: PackedFloat32Array = ShipGeometry.lengths(outline)
 	var section: PackedVector2Array = ShipGeometry.section(outline, lengths, 0, lengths[-1] * 0.13)

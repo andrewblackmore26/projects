@@ -474,15 +474,31 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
 - [x] Review capture 2: `artifacts/acceptance/set_pieces.png`, the 33-piece sheet at 1×; commit
 
 ## S5 — Editor on the grammar (trace identical)
-- [ ] Shell kept; tabs Core / Rails / Slots / Colours / Motion / Set-piece library in flat `tab_*.gd`
+- [x] Shell kept; tabs Core / Rails / Slots / Colours / Motion / Set-piece library in flat `tab_*.gd`
       files (Motion: per-rail speed and pump, per-cluster bob, chain mode, live preview; speed sign
       auto-alternates with a warning on override); one
       `edit()` choke point; free placement, drag, line tool, macros and mirror authoring deleted
-- [ ] `ship_canvas.gd` as a ring diagram with polar slot picking; illegal mounts ringed red
-- [ ] Colours tab never blocks a change; greys out illegal pieces and lists mounted-but-illegal ones
+- [x] `ship_canvas.gd` as a ring diagram with polar slot picking; illegal mounts ringed red
+- [x] Colours tab never blocks a change; greys out illegal pieces and lists mounted-but-illegal ones
       through the validator's own `illegal_mounts()`
-- [ ] `ShipAuthoring` JSON on the §10 schema (strict, canonical, byte-stable)
-- [ ] `ships_editor_test.gd` and `docs/SHIP_WORKSHOP_V2.md` rewritten; package check that no editor script ships; commit
+- [x] `ShipAuthoring` JSON on the §10 schema (strict, canonical, byte-stable)
+- [x] `ships_editor_test.gd` and `docs/SHIP_WORKSHOP_V2.md` rewritten; package check that no editor script ships; commit
+      — measured: `tools/test.ps1 -GPU` 48 passed / 0 failed / 98.9s total, `golden_trace_test`
+      unchanged (4 checks, 1 control). `ships_editor_test.gd` has no separate printed check/control
+      counts (it is a scenario-style test, not a counted one like `ship_grammar_test`); it covers
+      the S5 brief's ten listed behaviours, each with its own negative control, 0 failures. NOT
+      done from the original brief: no live-preview scrub through Motion beyond static overrides
+      (no per-frame preview scrubbing was built — the base/min zoom previews already animate live
+      via the production renderer, but there is no frame-by-frame scrub bar; that belongs to S6's
+      detail view per §12.4); the Slots tab's "mirror twin sharing one mount" for an off-axis player
+      weapon (spec §5) is NOT implemented — "apply to symmetric orbit" only guarantees rotational
+      uniformity across a whole rail, which is sufficient for `SYM-ROT` but not a literal built
+      mirror-twin/shared-mount mechanism for `SYM-MIRROR`; a player hull must still satisfy
+      `SYM-MIRROR` by hand-placed slot symmetry today. `tests/ships_validation.gd` (pre-existing,
+      out of S5's file list) needed a small fix: it exercised the now-retired v2/v3
+      `ShipAuthoring.to_json`/`from_json`/`from_description` round trip and local-compiler
+      generation; updated its three affected assertions to the stub/strict behaviour this phase
+      requires, leaving its 141-hull schema-3 roster checks untouched (11003 checks, 0 failures).
 
 ## S6 — Gallery (§12; trace identical)
 - [ ] Pure `GalleryModel`: scans a catalog root INCLUDING invalid files; metadata (counts, footprint,
@@ -899,6 +915,16 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | Silver vs blue on pieces | Not re-measured here: S2 measured chassis rims (silver 0.561, violet 0.423 from player blue). A piece's circles draw through the same rim path in the same palette keys |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 871.5 s; suite 48/48 (+ `set_piece_test`). Golden trace not re-recorded; `content/` untouched |
 | Not completed / stated plainly | The glyph distance is a CPU raster of outlines, not rendered pixels, so it does not see colour or fill; two pieces identical in outline but different in colour would read as the same. None are |
+
+## Review — S5 (editor on the grammar)
+| What | Measured |
+|---|---|
+| How it was built | By a subagent from a written brief, then reviewed by me: I read its test line by line, ran it, and ran the suite and the gates myself. Its own notes are inline in the S5 checklist above |
+| The editor | `ship_editor.gd` 848 → 351 lines: a shell with ONE mutation choke point `edit(label, mutate)`, undo over whole-grammar snapshots, a compiled copy for the canvas and the two zoom previews. Six flat tab files (Core 117, Rails 128, Slots 121, Colours 94, Motion 91, Set pieces 20 lines). `ship_canvas.gd` is a ring diagram with a static, pure polar picker. `ship_authoring.gd` 397 → 98 lines: canonical §10 JSON, strict import through `ShipGrammar.from_dict`, the v2/v3 import paths deleted. `ship_object_card.gd` deleted |
+| `ships_editor_test` | Rewritten, headless, against the real scene. One edit is one undo step; a new rail takes the next ladder radius and the opposite sign, and forcing the same sign raises both the tab's warning and the validator's RAIL-SIGN; an order change re-tiles slots; "apply to symmetric orbit" keeps a rail symmetric and turning it off produces SYM-ROT; a recolour is accepted, names the now-illegal `v_rack`, blocks the save on COLOUR-GATE, and Unmount all clears it; save refuses an invalid hull and a valid one is written with NO parts; JSON export → import → export is byte-identical for all five fixtures and a 0.001 rad nudge changes the bytes; the picker finds slots 0 and 2 and a click between rails selects nothing; a schema-3 `.tres` is refused; `export_presets.cfg` excludes `scripts/editor/*` |
+| What my review changed | The palette check proved every legal, implemented piece was OFFERED but not that nothing else was — it would have passed a palette offering all 33. Added the converse; it passes |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 866.6 s; suite 48/48; golden trace not re-recorded; both Windows exports build and verify 2/2 with the six new `tab_*.gd` files present, so the `scripts/editor/*` exclusion covers them |
+| Not completed / stated plainly | The test does not use the shared harness, so it prints no check or control count, and its "controls" are contrast checks inside one scenario rather than counted negative controls. No Motion scrub bar (that is the gallery's detail view, S6). No mirror-twin helper: a player's off-axis weapon must be placed symmetrically by hand. `from_description` is a stub until the generator (S9). The editor's library window is gone and Load Ship… is a plain file dialog until the gallery (S6). Nobody has LOOKED at the editor running: there is no capture of it yet |
 
 ## Retired assertions
 

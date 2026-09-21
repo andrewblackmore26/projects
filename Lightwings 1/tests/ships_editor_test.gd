@@ -1,233 +1,230 @@
 extends SceneTree
+## S5: the editor on the grammar. Headless; instantiates the real scene like the v0.3 test did.
 var editor: Control
 var failures: int = 0
+
 func _initialize() -> void:
 	editor = load("res://scenes/ship_editor.tscn").instantiate()
 	root.add_child.call_deferred(editor)
 	_run.call_deferred()
+
+func _check(condition: bool, label: String) -> void:
+	if not condition: failures += 1; push_error(label)
+
+func _tab_of(script_class: Script) -> EditorTab:
+	for tab: EditorTab in editor.tabs:
+		if tab.get_script() == script_class: return tab
+	return null
+
+func _has(errors: PackedStringArray, code: String) -> bool:
+	for e: String in errors:
+		if e.begins_with(code): return true
+	return false
+
+func _use(ship: ShipDefinition) -> void:
+	editor.working = ship
+	editor.select_core()
+	editor._refresh()
+
+func _enemy_hull(order: int = 4, slot_type: String = "node") -> ShipDefinition:
+	var ship: ShipDefinition = ShipDefinition.new()
+	ship.schema_version = 4
+	ship.id = "test_enemy"
+	ship.display_name = "Test Enemy"
+	ship.faction = "enemy"
+	ship.archetype = "sentry"
+	ship.chassis_color = "yellow"
+	ship.accent_color = "red"
+	ship.core_depth = 2
+	ship.core_weapon = "coil_pair" # yellow-only, legal on this yellow/red pair; sentries need one
+	var rail: RailDefinition = RailDefinition.new()
+	rail.radius = ShipGrammar.RAIL_RADII[0]
+	rail.order = order
+	rail.speed = -0.95
+	var slots: Array[SlotDefinition] = []
+	for i: int in range(order):
+		var slot: SlotDefinition = SlotDefinition.new()
+		slot.type = slot_type
+		slot.node_radius = 7
+		slots.append(slot)
+	rail.slots = slots
+	ship.rails = [rail]
+	return ship
+
 func _run() -> void:
 	await process_frame
-	_check(editor.symmetry.disabled and editor.symmetry.button_pressed, "Player symmetry forced")
-	var initial: int = editor.working.parts.size()
-	editor._add_part()
-	_check(editor.working.parts.size() == initial + 2, "Placement automatically creates mirrored pair")
-	editor._rename_part("test_added")
-	editor._part_vector("position", 0, 27.0)
-	var part: PartDefinition = editor.working.parts[editor.selected]
-	var mirror: PartDefinition
-	for other: PartDefinition in editor.working.parts:
-		if other.id == part.mirror_id: mirror = other
-	_check(mirror != null and mirror.position.x == -27 and mirror.mirror_id == "test_added", "Rename and transform preserve linked symmetry")
-	editor._add_line()
-	_check(editor.working.parts.size() == initial + 4, "Mirrored lines added")
-	editor._delete_part()
-	_check(editor.working.parts.size() == initial, "Deleting pair removes its lines")
+
+	# --- edit() is the only mutation path; one edit == one undo step -------------------------
+	_use(_enemy_hull())
+	editor.edit("rename a", func(s: ShipDefinition) -> void: s.display_name = "A")
+	editor.edit("rename b", func(s: ShipDefinition) -> void: s.display_name = "B")
+	_check(editor.working.display_name == "B", "Two edits land in order")
 	editor.undo.undo()
-	_check(editor.working.parts.size() == initial + 4, "Undo restores complete mirrored operation")
+	_check(editor.working.display_name == "A", "One undo reverts exactly the last edit")
+	editor.undo.undo()
+	_check(editor.working.display_name == "Test Enemy", "A second undo reverts the first edit: two edits needed two undos")
 	editor.undo.redo()
-	_check(editor.working.parts.size() == initial, "Redo deletes complete mirrored operation")
-	editor.description.text = "compact fire tier 3 with ricochet and mines"
-	editor._generate()
-	_check(editor.working.role == "compact" and editor.working.primary == "ricochet", "Generate valid template into editable canvas")
-	editor._place_object("ricochet", "Primary", Vector2(24, -12))
-	var primary_positions: Array[Vector2] = []
-	for mounted: PartDefinition in editor.working.parts:
-		if mounted.mount_id == "primary": primary_positions.append(mounted.position)
-	_check(primary_positions.has(Vector2(24, -12)) and primary_positions.has(Vector2(-24, -12)), "Dragged component preserves position and mirror with one logical slot")
-	var before_slots: int = editor.working.secondaries.size()
-	editor._place_object("shield", "Secondary", Vector2.ZERO)
-	_check(editor.working.secondaries.size() == before_slots and "blocked" in editor.status.text, "Slot overflow placement blocked")
+	editor.undo.redo()
+	_check(editor.working.display_name == "B", "CONTROL: redoing both edits returns to the same state a single big edit could not distinguish from")
 
-	# --- Motion tab: editing a group and the live preview reflecting it ---
-	editor.object_tab = "Motion"
-	editor._refresh_objects()
-	var core_index: int = -1
-	for index: int in range(editor.working.parts.size()):
-		if editor.working.parts[index].id == "core": core_index = index
-	editor._select_part(core_index)
-	_check(editor._group_for("core") == null, "New hull has no motion group on the core yet")
-	editor._add_group("core")
-	_check(editor._group_for("core") != null, "Motion tab adds a group to the selected subtree")
-	editor._group_property("core", "orbit_speed", 1.25)
-	_check(is_equal_approx(editor._group_for("core").orbit_speed, 1.25), "Motion tab edits orbit_speed on the selected group")
-	var rig_before: ShipMotion.ShipRig = ShipMotion.get_rig(editor.working)
-	var pose_preview: ShipMotion.ShipPose = ShipMotion.ShipPose.new(rig_before)
-	ShipMotion.step(rig_before, pose_preview, 30)
-	var moved: bool = false
-	for i: int in range(rig_before.ids.size()):
-		if rig_before.group_index[i] >= 0 and not pose_preview.local[i].is_equal_approx(rig_before.rest[i]): moved = true
-	_check(moved, "Live preview evaluator (ship_motion.gd) actually moves the group's subtree, not just the schema")
-	editor._remove_group("core")
-	_check(editor._group_for("core") == null, "Motion tab removes a group")
-	# Negative control: sabotage the group lookup key so the instrument would
-	# have to notice a group that is not actually there.
-	_check(not editor.working.groups.any(func(g: GroupDefinition) -> bool: return g.root_id == "core"), "CONTROL: removed group cannot be found by a stale lookup")
-	editor.object_tab = "Body"
-	editor._refresh_objects()
+	# --- Adding a rail picks the next ladder radius and the opposite sign --------------------
+	var rails_tab: TabRails = _tab_of(TabRails)
+	_use(_enemy_hull())
+	var before_speed: float = editor.working.rails[0].speed
+	rails_tab._add_rail()
+	_check(editor.working.rails.size() == 2, "Add rail appends a rail")
+	_check(editor.working.rails[1].radius == ShipGrammar.RAIL_RADII[1], "New rail sits at the next ladder radius")
+	_check(editor.working.rails[1].speed * before_speed < 0.0, "New rail's default speed opposes the rail before it")
+	editor.select_rail(1)
+	rails_tab.refresh(editor.working, editor.compiled, editor.selection)
+	_check(rails_tab.sign_warning.text == "", "No sign warning while rails alternate")
+	editor.edit("force same sign", func(s: ShipDefinition) -> void: s.rails[1].speed = s.rails[0].speed)
+	rails_tab.refresh(editor.working, editor.compiled, editor.selection)
+	_check(rails_tab.sign_warning.text != "", "CONTROL: forcing the same sign raises the tab's own warning")
+	_check(_has(ShipGrammar.validate(editor.working), "RAIL-SIGN"), "CONTROL: forcing the same sign also raises the validator's RAIL-SIGN")
 
-	# --- Parent dropdown must exclude the selected part's own subtree, and a
-	# line requires picking two existing circles. Run these on a disposable
-	# scratch hull (positions on the centreline, so no mirror is required) so
-	# they cannot perturb the TP budget the save/JSON tests below rely on.
-	var saved_working: ShipDefinition = editor.working
-	var saved_selected: int = editor.selected
-	var scratch: ShipDefinition = ShipCatalog.get_ship("player_seed")
-	ShipCatalog.add_part(scratch, "branch_a", "circle", Vector2(0, 30), 8, "chassis", "hp_buffer", 3, true, "core")
-	ShipCatalog.add_part(scratch, "branch_b", "circle", Vector2(0, 45), 6, "chassis", "hp_buffer", 3, true, "branch_a")
-	editor.working = scratch
-	_check(not editor._is_descendant("core", "branch_b"), "CONTROL: a real ancestor (core) is correctly not flagged as its own descendant's descendant")
-	_check(editor._is_descendant("branch_b", "branch_a"), "A grandchild is correctly detected as a descendant (the cycle the parent dropdown must exclude when re-parenting branch_a onto branch_b)")
-	var before_line_count: int = 0
-	for p: PartDefinition in scratch.parts:
-		if p.shape == "line": before_line_count += 1
-	editor.object_tab = "Body"
-	editor._place_object("line", "Body", Vector2.ZERO) # arms the two-click flow, adds nothing yet
-	var after_arm_count: int = 0
-	for p: PartDefinition in editor.working.parts:
-		if p.shape == "line": after_arm_count += 1
-	_check(after_arm_count == before_line_count, "Placing 'line' from the object list does not add a part by itself; it requires two circle picks")
-	editor._add_line_between("branch_a", "branch_b")
-	var after_line_count: int = 0
-	for p: PartDefinition in editor.working.parts:
-		if p.shape == "line": after_line_count += 1
-	_check(after_line_count == before_line_count + 1, "Explicit two-circle line placement adds exactly one line")
-	editor._add_line_between("branch_a", "branch_a")
-	var unchanged_count: int = 0
-	for p: PartDefinition in editor.working.parts:
-		if p.shape == "line": unchanged_count += 1
-	_check(unchanged_count == after_line_count and "blocked" in editor.status.text, "CONTROL: a line cannot connect a circle to itself")
-	editor._add_line_between("no_such_circle", "branch_b")
-	var still_unchanged: int = 0
-	for p: PartDefinition in editor.working.parts:
-		if p.shape == "line": still_unchanged += 1
-	_check(still_unchanged == after_line_count and "blocked" in editor.status.text, "CONTROL: a line cannot name a circle that does not exist")
-	editor.working = saved_working
-	editor.selected = saved_selected
+	# --- Changing a rail's order re-tiles slots to exactly that many -------------------------
+	_use(_enemy_hull(4))
+	editor.select_rail(0)
+	rails_tab.refresh(editor.working, editor.compiled, editor.selection)
+	rails_tab._retile_order(7)
+	_check(editor.working.rails[0].slots.size() == 7 and editor.working.rails[0].order == 7, "Order change re-tiles the slot array to exactly the new order")
+	rails_tab._retile_order(3)
+	_check(editor.working.rails[0].slots.size() == 3, "Shrinking the order re-tiles down as well")
 
-	# --- Missing view is derived from the manifest, never a hard-coded count ---
-	editor._refresh_library()
-	_check(editor.missing_label.text.begins_with("All %d player roster slots are filled." % ShipGenerator.player_hull_count()) or editor.missing_label.text.begins_with("Missing:"), "Missing-slot view reports against ShipGenerator.roster_manifest(), not a hard-coded total")
-	_check(not editor.missing_label.text.contains("81"), "CONTROL: the stale hard-coded '81 player roster slots' count is gone")
+	# --- "Apply to symmetric orbit" keeps an enemy rail rotationally symmetric ----------------
+	var slots_tab: TabSlots = _tab_of(TabSlots)
+	_use(_enemy_hull(4, "node"))
+	editor.select_slot(0, 1)
+	slots_tab.symmetric_box.button_pressed = true
+	slots_tab._apply(func(slot: SlotDefinition) -> void: slot.node_radius = 4)
+	_check(not _has(ShipGrammar.validate(editor.working), "SYM-ROT"), "With the box on, editing one slot keeps the rail uniform, so it stays rotationally symmetric")
+	_use(_enemy_hull(4, "node"))
+	editor.select_slot(0, 1)
+	slots_tab.symmetric_box.button_pressed = false
+	slots_tab._apply(func(slot: SlotDefinition) -> void: slot.node_radius = 4)
+	_check(_has(ShipGrammar.validate(editor.working), "SYM-ROT"), "CONTROL: with the box off, one edit breaks rotational symmetry (SYM-ROT)")
+
+	# --- A colour change is never blocked; it flags mounted-but-illegal pieces and Unmount clears them
+	var enemy_with_piece: ShipDefinition = _enemy_hull(4, "node")
+	enemy_with_piece.core_weapon = "" # isolate the illegal-mount count to the one piece under test
+	enemy_with_piece.rails[0].slots[0].type = "hub"
+	enemy_with_piece.rails[0].slots[0].pods = 1
+	enemy_with_piece.rails[0].slots[0].set_piece = "v_rack" # needs yellow + red, currently legal
+	_use(enemy_with_piece)
+	_check(ShipGrammar.illegal_mounts(editor.working).is_empty(), "v_rack starts legal on a yellow/red hull")
+	editor.edit("recolour", func(s: ShipDefinition) -> void: s.chassis_color = "green")
+	_check(editor.working.chassis_color == "green", "CONTROL: a colour change is never refused")
+	var illegal: Array[Dictionary] = ShipGrammar.illegal_mounts(editor.working)
+	_check(illegal.size() == 1 and str(illegal[0].piece) == "v_rack", "The now-illegal mount is flagged by name")
+	_check(_has(ShipGrammar.validate(editor.working), "COLOUR-GATE"), "The save is blocked on COLOUR-GATE")
+	editor.edit("unmount all", func(s: ShipDefinition) -> void:
+		for mount: Dictionary in ShipGrammar.illegal_mounts(s): TabColours._unmount_at(s, str(mount.where)))
+	_check(ShipGrammar.illegal_mounts(editor.working).is_empty(), "Unmount all clears the flagged mounts")
+
+	# --- The Slots palette offers exactly legal_for INTERSECT implemented --------------------
+	_use(_enemy_hull(4, "node"))
+	editor.working.rails[0].slots[0].type = "hub"
+	editor.working.rails[0].slots[0].pods = 1
+	editor.select_slot(0, 0)
+	slots_tab.refresh(editor.working, editor.compiled, editor.selection)
+	var offered: Dictionary = {}
+	for i: int in range(slots_tab.set_piece_field.item_count): offered[slots_tab.set_piece_field.get_item_text(i)] = true
+	var expected: Array[String] = []
+	for id: String in SetPieceCatalog.legal_for(editor.working.chassis_color, editor.working.accent_color):
+		if SetPieceCatalog.is_implemented(id): expected.append(id)
+	var matches: bool = true
+	for id: String in expected:
+		if not offered.has(id): matches = false
+	_check(matches, "Every colour-legal, implemented piece is offered")
+	# ...and nothing else. "Every legal piece is offered" alone would pass a palette that offered all 33.
+	var strangers: Array[String] = []
+	for text: String in offered:
+		if SetPieceCatalog.has(text) and not expected.has(text): strangers.append(text)
+	_check(strangers.is_empty(), "The palette offers EXACTLY the legal, implemented pieces (also offered: %s)" % str(strangers))
+	var unimplemented: String = ""
+	for id: String in SetPieceCatalog.legal_for(editor.working.chassis_color, editor.working.accent_color):
+		if not SetPieceCatalog.is_implemented(id): unimplemented = id
+	if unimplemented != "": _check(not offered.has(unimplemented), "CONTROL: a colour-legal piece with no implemented weapon is absent from the palette")
+
+	# --- Save refuses an invalid ship, and writes no parts for a valid one --------------------
+	var scratch_root: String = "user://ships_editor_v5_test"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(scratch_root))
 	var old_root: String = ShipCatalog.catalog_root
-	ShipCatalog.catalog_root = "user://workshop_v2_test"
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(ShipCatalog.catalog_root))
-	var path: String = ShipCatalog.catalog_root.path_join(editor.working.id + ".tres")
-	editor._save_to(path)
-	_check(FileAccess.file_exists(path) and editor._library_ids.has(editor.working.id), "Save appears immediately in browsable library")
-	editor._save_to(ShipCatalog.catalog_root.path_join("portable.json"))
-	editor._load_from(ShipCatalog.catalog_root.path_join("portable.json"))
-	_check(ShipCatalog.validate(editor.working).is_empty(), "Editor portable JSON roundtrip")
+	ShipCatalog.catalog_root = scratch_root
+	var invalid_ship: ShipDefinition = _enemy_hull(4, "stub") # every slot unoccupied: RAIL-EMPTY
+	_use(invalid_ship)
+	var invalid_path: String = scratch_root.path_join(invalid_ship.id + ".tres")
+	editor._save_to(invalid_path)
+	_check(not FileAccess.file_exists(invalid_path), "Save refuses an invalid ship (no file written)")
+	_check("Save blocked" in editor.status.text, "Status line reports the block")
+	var valid_ship: ShipDefinition = _enemy_hull(4, "node")
+	valid_ship.id = "test_valid_hull"
+	_use(valid_ship)
+	_check(ShipGrammar.validate(editor.working).is_empty(), "The valid fixture actually validates clean")
+	var valid_path: String = scratch_root.path_join(valid_ship.id + ".tres")
+	editor._save_to(valid_path)
+	_check(FileAccess.file_exists(valid_path), "A valid ship is written")
+	var reloaded: ShipDefinition = ResourceLoader.load(valid_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	_check(reloaded != null and reloaded.parts.is_empty(), "A saved rail hull stores no compiled parts (positions are derived, never authored)")
 	ShipCatalog.catalog_root = old_root
-	editor._preview_combat()
-	await process_frame
-	await process_frame
-	var preview: WorkshopCombatPreview = editor._combat_window.get_child(0)
-	_check(preview.actor.definition.id == editor.working.id, "Unsaved custom hull launches in real combat preview")
-	_check(preview.actor.primary == "ricochet", "Preview uses authored loadout")
-	preview.pilot = true
-	var key: InputEventKey = InputEventKey.new()
-	key.physical_keycode = KEY_D
-	key.keycode = KEY_D
-	key.pressed = true
-	Input.parse_input_event(key)
-	Input.flush_buffered_events()
-	preview._process(1.0 / 60.0)
-	var before_flight: Vector2 = preview.world.player_position
-	preview.world._physics_process(1.0 / 60.0)
-	_check(preview.world.player_position.x > before_flight.x, "Pilot mode flies the authored hull through actual movement simulation")
-	var released: InputEventKey = key.duplicate()
-	released.pressed = false
-	Input.parse_input_event(released)
-	editor._combat_window.queue_free()
-	await process_frame
 
-	# --- §22 JSON round trip: mirrored pairs regenerated, groups preserved ---
-	var source: ShipDefinition = ShipCatalog.get_ship("player_corruption_t3_standard_a")
-	var source_mirror_pairs: int = 0
-	var source_circles: int = 0
-	var source_lines: int = 0
-	for p: PartDefinition in source.parts:
-		if p.shape == "circle":
-			source_circles += 1
-			if not p.mirror_id.is_empty(): source_mirror_pairs += 1
-		else: source_lines += 1
-	_check(source.groups.size() > 0 and source_mirror_pairs > 0, "Fixture hull actually exercises both mirrored circles and motion groups")
-	var json_text: String = ShipAuthoring.to_json(source)
-	var exported: Dictionary = JSON.parse_string(json_text)
-	_check(exported.circles.size() < source_circles - 1, "Export drops the generated (positive-x) half of every mirrored pair, not just re-lists it")
-	var reimport: Dictionary = ShipAuthoring.from_json(json_text)
-	_check(reimport.get("errors", ["missing"]).is_empty(), "§22 export re-imports to a valid ship: " + str(reimport.get("errors", [])))
-	var restored: ShipDefinition = reimport.ship
-	var restored_circles: int = 0
-	var restored_lines: int = 0
-	var restored_mirror_pairs: int = 0
-	var restored_ids: Dictionary = {}
-	for p: PartDefinition in restored.parts:
-		restored_ids[p.id] = true
-		if p.shape == "circle":
-			restored_circles += 1
-			if not p.mirror_id.is_empty(): restored_mirror_pairs += 1
-		else: restored_lines += 1
-	_check(restored_circles == source_circles, "Round trip regenerates every mirrored circle back, same total count (%d vs %d)" % [restored_circles, source_circles])
-	_check(restored_lines == source_lines, "Round trip regenerates every mirrored line back, same total count (%d vs %d)" % [restored_lines, source_lines])
-	_check(restored_mirror_pairs == source_mirror_pairs, "Round trip preserves the mirror-pair count")
-	for p: PartDefinition in source.parts:
-		_check(restored_ids.has(p.id), "Round trip preserves the exact original id (including regenerated mirror twins): " + p.id)
-	_check(restored.groups.size() == source.groups.size(), "Round trip preserves motion groups")
-	if restored.groups.size() == source.groups.size():
-		for i: int in range(source.groups.size()):
-			_check(restored.groups[i].root_id == source.groups[i].root_id and is_equal_approx(restored.groups[i].orbit_speed, source.groups[i].orbit_speed), "Round-tripped group keeps its root and signed orbit_speed")
-	var reexported: String = ShipAuthoring.to_json(restored)
-	_check(reexported == json_text, "Exporting the restored ship again reproduces byte-identical §22 JSON (lossless round trip)")
-	# Negative control: drop a line's endpoint, as a hand-edited file might.
-	var broken: Dictionary = JSON.parse_string(json_text)
-	broken.lines[0].erase("to")
-	var broken_result: Dictionary = ShipAuthoring.from_json(JSON.stringify(broken))
-	_check(not broken_result.get("errors", []).is_empty(), "CONTROL: a line JSON entry with a dropped endpoint is rejected, not silently imported")
+	# --- JSON round trip is byte-identical for every fixture ---------------------------------
+	var fixture_paths: PackedStringArray = PackedStringArray()
+	var dir: DirAccess = DirAccess.open("res://tests/fixtures/ships_v4")
+	if dir != null:
+		for file: String in dir.get_files():
+			if file.ends_with(".json"): fixture_paths.append("res://tests/fixtures/ships_v4/".path_join(file))
+	_check(fixture_paths.size() == 5, "Found all five §10 fixtures (found %d)" % fixture_paths.size())
+	for path: String in fixture_paths:
+		var text: String = FileAccess.get_file_as_string(path)
+		var imported: Dictionary = ShipAuthoring.from_json(text)
+		_check(imported.has("ship"), "%s parses as a schema-4 ship: %s" % [path, str(imported.get("errors", []))])
+		if not imported.has("ship"): continue
+		var exported_once: String = ShipAuthoring.to_json(imported.ship)
+		var reimported: Dictionary = ShipAuthoring.from_json(exported_once)
+		var exported_twice: String = ShipAuthoring.to_json(reimported.ship)
+		_check(exported_once == exported_twice, "%s: export -> import -> export is byte-identical" % path)
+		# Negative control: nudging a phase must change the bytes.
+		if not imported.ship.rails.is_empty():
+			var nudged: ShipDefinition = imported.ship.duplicate(true)
+			nudged.rails[0].phase += 0.001
+			var nudged_json: String = ShipAuthoring.to_json(nudged)
+			_check(nudged_json != exported_once, "CONTROL: a nudged phase changes the exported bytes (%s)" % path)
 
-	# --- Legacy v2 import: ellipse/ring/crescent/tether upgraded, parents inferred ---
-	# Faction "enemy" so the player-only mirror rule is out of scope here (the
-	# §22 round trip above already covers mirrored-part regeneration).
-	var legacy_text: String = JSON.stringify({
-		"schema_version": 2, "id": "legacy_import_draft", "display_name": "Legacy Draft",
-		"faction": "enemy", "element": "corruption", "tier": 2, "role": "standard", "is_player": false,
-		"primary": "pulse_cannon",
-		"parts": [
-			{"id": "body", "shape": "ellipse", "position": [0, 0], "size": [20, 16]},
-			{"id": "rim", "shape": "ring", "position": [0, 0], "radius": 30},
-			{"id": "wing", "shape": "crescent", "position": [18, 0], "radius": 10},
-			{"id": "gun", "shape": "circle", "position": [0, -10], "radius": 4, "component": "pulse_cannon"},
-			{"id": "link_rim", "shape": "tether", "from_id": "body", "to_id": "rim"},
-			{"id": "link_wing", "shape": "tether", "from_id": "body", "to_id": "wing"},
-			{"id": "link_gun", "shape": "tether", "from_id": "body", "to_id": "gun"},
-		]
-	})
-	var legacy_result: Dictionary = ShipAuthoring.from_legacy_v2(JSON.parse_string(legacy_text))
-	_check(legacy_result.has("ship") and legacy_result.get("errors", ["missing"]).is_empty(), "Legacy v2 fixture upgrades to a valid ship: " + str(legacy_result.get("errors", [])))
-	var legacy_ship: ShipDefinition = legacy_result.get("ship")
-	if legacy_ship != null:
-		var legacy_shapes: Dictionary = {}
-		for p: PartDefinition in legacy_ship.parts: legacy_shapes[p.id] = p.shape
-		_check(legacy_shapes.get("core", "") == "circle" and legacy_shapes.get("rim", "") == "circle" and legacy_shapes.get("wing", "") == "circle" and legacy_shapes.get("wing_cover", "") == "circle" and legacy_shapes.get("link_rim", "") == "line", "Legacy shapes upgrade: body->core, ellipse/ring/crescent -> circle(s), tether -> line")
-		var legacy_by_id: Dictionary = {}
-		for p: PartDefinition in legacy_ship.parts: legacy_by_id[p.id] = p
-		_check(legacy_by_id.rim.parent_id == "core" and legacy_by_id.wing.parent_id == "core", "Parents inferred by walking the legacy tether graph from the renamed core")
-	# Negative control: an unsupported schema version is rejected outright.
-	var unsupported: Dictionary = ShipAuthoring.from_json(JSON.stringify({"schema_version": 1, "core": {}, "circles": [], "lines": []}))
-	_check(not unsupported.get("errors", []).is_empty(), "CONTROL: an unsupported schema version is rejected, not silently accepted")
+	# --- Polar picking: a known click lands on the right slot ---------------------------------
+	var pick_ship: ShipDefinition = _enemy_hull(4, "node")
+	pick_ship.rails[0].phase = 0.9146
+	var step: float = TAU / 4.0
+	var slot0_point: Vector2 = Vector2(sin(pick_ship.rails[0].phase), -cos(pick_ship.rails[0].phase)) * float(pick_ship.rails[0].radius)
+	var hit: Dictionary = ShipCanvas.pick(slot0_point, pick_ship)
+	_check(str(hit.kind) == "slot" and int(hit.rail) == 0 and int(hit.slot) == 0, "A click on slot 0's rest position picks slot 0")
+	var slot2_angle: float = pick_ship.rails[0].phase + 2.0 * step
+	var slot2_point: Vector2 = Vector2(sin(slot2_angle), -cos(slot2_angle)) * float(pick_ship.rails[0].radius)
+	var hit2: Dictionary = ShipCanvas.pick(slot2_point, pick_ship)
+	_check(str(hit2.kind) == "slot" and int(hit2.slot) == 2, "A click on slot 2's rest position picks slot 2")
+	var miss_point: Vector2 = Vector2(0, -74) # between the 52 and 96 rails, and outside the 34 px core
+	var miss: Dictionary = ShipCanvas.pick(miss_point, pick_ship)
+	_check(str(miss.kind) == "none", "CONTROL: a click 40 px off any rail and outside the core selects nothing")
+
+	# --- A schema-3 .tres is refused --------------------------------------------------------
+	var legacy_path: String = ShipCatalog.catalog_root.path_join("player_seed.tres")
+	if ResourceLoader.exists(legacy_path):
+		var before_id: String = editor.working.id
+		editor._load_from(legacy_path)
+		_check(editor.working.id == before_id, "CONTROL: a schema-3 hull does not replace the working ship")
+		_check("retired by the ship design spec" in editor.status.text, "A schema-3 .tres is refused with the retirement message")
+	else:
+		_check(false, "player_seed.tres (schema-3 fixture) not found at " + legacy_path)
+
+	# --- Package check: the editor never ships in an export --------------------------------
+	var export_cfg: String = FileAccess.get_file_as_string("res://export_presets.cfg")
+	_check(export_cfg.contains("scripts/editor/*"), "export_presets.cfg excludes scripts/editor/*")
 
 	editor.queue_free()
 	await process_frame
 	await process_frame
-	DirAccess.remove_absolute(path)
-	DirAccess.remove_absolute("user://workshop_v2_test/portable.json")
-	print("Ship editor v2: ", failures, " failures")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://ships_editor_v5_test/test_enemy.tres"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://ships_editor_v5_test/test_valid_hull.tres"))
+	print("Ship editor S5: ", failures, " failures")
 	quit(1 if failures else 0)
-func _check(condition: bool, label: String) -> void:
-	if not condition: failures += 1; push_error(label)
-
-
-
-
-
-
