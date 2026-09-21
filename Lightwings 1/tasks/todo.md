@@ -433,16 +433,17 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       the rest of the stateful motion**
 
 ## S2 — Grammar, compiler, validator, first set pieces, rail rendering (trace identical; `content/` diff empty)
-- [ ] Schema-4 resources, `ShipGrammar` (coded `RULES`), `ShipCompiler`, `SetPieceCatalog` format with
-      `v_rack`, `coil_pair`, `twin_barrel`; shader styles 4/5 and lines-under-fills, shipped with a GPU test
-- [ ] Fixtures `tests/fixtures/ships_v4/{radial_elite, player_t3, drone, boss, irregular}.json`
-- [ ] `ship_grammar_test.gd` (one control per coded rule + every rule triggered by some control);
-      `ship_compiler_test.gd` (compile twice byte-equal, ids unique, DFS order, `budget()` = compiled, boss ≤ 128)
-- [ ] `tests/support/ring_probe.gd` + `ship_reference_render_test.gd` (structural signature vs the
+- [x] Schema-4 resources, `ShipGrammar` (coded `RULES`), `ShipCompiler`, `SetPieceCatalog` with ALL 33
+      pieces (S4 now only tests, gates and captures them); shader styles 4/5, line kind 2 and
+      paint-order baking, shipped with a GPU test
+- [x] Fixtures `tests/fixtures/ships_v4/{radial_elite, player_t3, drone, boss, irregular}.json`
+- [x] `ship_grammar_test.gd` (one control per coded rule + every rule triggered by some control);
+      `ship_compiler_test.gd` (compile twice byte-equal, ids unique, paint order, `budget()` = compiled, boss ≤ 128)
+- [x] `tests/support/ring_probe.gd` + `ship_reference_render_test.gd` (structural signature vs the
       reference; controls: 4 arms, equal orders, third colour, no set piece, blank image, wrong scale); `rail_render_test.gd`
-- [ ] Pillar 5 for SHIP RIMS (carried from S0): a silver-chassis rail hull's rim vs the player's, same
-      max-normalised distance and two-frame wait as the projectile lines, with its own control
-- [ ] Review capture 1: `artifacts/acceptance/reference_vs_render.png`; commit
+- [x] Pillar 5 for SHIP RIMS (carried from S0): all five chassis colours vs the player's rim (nearest is
+      violet at 0.423, not silver), same metric and threshold as the projectile lines, two controls
+- [x] Review capture 1: `artifacts/acceptance/reference_vs_render.png`; commit
 
 ## S3 — Rails in combat (gated on schema 4; trace identical)
 - [ ] Aim slew (≤ 3.0 rad/s, back to outward over 1.0 s) and follow-the-leader chains stepped per sim
@@ -689,6 +690,23 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | Lesson recorded | I edited three GDScript files with a Python read-replace-write. Byte-safe, and it still failed halfway: the third file did not match, after two were already rewritten. Edit refuses before touching anything. In `tasks/lessons.md` |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 771.0 s; suite 40/40. Headless 2000 bullets: mean 7.00, p95 9.80 ms (S0: 7.45–7.81 / 10.46–11.14). Rendered frame: mean 7.65, p95 14.89 ms (S0: 8.14 / 15.72). One run each, so "no regression", not "faster" |
 | Not completed / stated plainly | The renderer profile has no sim, so it measures the index map and NOT the saved second evaluation; that saving shows up only in the rendered-frame gate, which is dominated by other work. Chains and the aim SLEW are not here: both are stateful and belong with the sim in S3; S1 only gives the aim joint its input array. The 2-run profile comparison is small-sample: it shows direction, not a budget |
+
+## Review — S2 (grammar, compiler, validator, first set pieces, rail rendering)
+| What | Measured |
+|---|---|
+| Schema 4 | `RailDefinition`, `SlotDefinition`, and the grammar fields on `ShipDefinition` (colours, `core_depth`, `core_weapon`, `archetype`, rails, chain links). `ShipCatalog.refresh` compiles a rail hull on load, `save_ship` strips the derived parts, `validate`/`warnings` dispatch on schema. No shipped hull is schema 4 yet: `content/` is untouched and the golden trace passes without re-recording |
+| `ShipCompiler` | Grammar → parts in PAINT order (rings, spokes and links, core, passives, nodes and pods, hubs, set-piece lines, set-piece circles), because the mesh bakes a rail hull in part order. Positional ids; hub is the mount; rails 1–2 spoke to the core, 3–4 to the inner ring. `ship_compiler_test`: 54 checks, 3 controls over five fixtures — each validates with no warnings, compiles to the same bytes twice, has unique ids, a `budget()` equal to the compiled counts, and a rig that walks only the solid circles. It passed on its first run |
+| Circle budget, measured (`tests/fixture_census.gd`) | circles / lines / solid / footprint: drone 9 / 6 / 4 / 112 px; player T3 24 / 14 / 13 / 263; radial elite 29 / 25 / 17 / 266; irregular 49 / 33 / 23 / 373; boss **101** / 71 / 48 / 438 of 128 (13 hub pieces + core weapon, 2 pods per hub). I first wrote this row from memory (14 / 40 / 52 / 104) and every number was wrong. Four pods on every boss hub is still legal, which I only learned when my over-budget control stopped failing; it now also mounts five-circle pieces. Against S0's census the rebuilt drone is 112 px where today's are 49–95, and the boss 438 where today's are 196–228 |
+| Set pieces | All 33 authored now, not just the three S2 needs, because the format was the hard part: per-primitive intrinsic colours, lines that may start at the hub's centre. `v_rack` is traced from the census (red r5 ring at 22 on a red pin); its yellow V ends on two rim beads because the image's V runs to the PODS, which bob while a piece tracks the aim |
+| Validator | 22 coded rules in `ShipGrammar.RULES`. `ship_grammar_test`: 52 checks, **44 controls**, one mutation each through the real validator, asserting THAT rule's code; a final assertion requires every rule to have been triggered. Behavioural control: the SYM-ROT mutation is legal on an irregular elite. `illegal_mounts()` is the one function behind both COLOUR-GATE and the editor's future Colours tab |
+| Shader | Style 4 (thin passive ring), style 5 (rail: 1 px, 2 on / 5 off, 28 %, no running light), line kind 2 (starts at its hub's centre). `rail_render_test` (GPU): rail ring lit over 0.252 of its circumference with peak 1.08 against a core rim's 0.970 and 3.65; the `v_rack`'s red pin is visible INSIDE the hub; controls for each (ring drawn solid; lines clipped at the rim) |
+| Pillar 5, ship rims (carried from S0) | Same metric and threshold as the projectile lines. Distance of each chassis rim from the player's: red 1.165, yellow 1.046, green 0.670, silver 0.561, **violet 0.423**. Second player hull 0.000. Threshold 0.20. Silver is NOT the nearest on ships, violet is |
+| Acceptance 1, automated | `ship_reference_render_test` (GPU): the reference PNG and the rendered fixture give the IDENTICAL signature through one probe — core rim at 34 units, 4-fold inner rail, 3-fold outer rail, pods [3,3,3], 3 armed hubs, red core, two colour families, no third. 8/8 sabotage controls, each moving its own line |
+| The probe, how it went wrong first | It counted BRIGHT lobes and read the reference as 0 inner / 1 outer: a circle here is a dark fill inside a thin rim, so a ring crossing it sees two 2° hits. It now asks "inside a shape?" (max channel > 0.12; background 0.08, fill 0.16), and only clusters answer widely |
+| Review capture 1 (looked at) | `artifacts/acceptance/reference_vs_render.png`: reference, render, onion skin. Structure matches. Differences, all recorded decisions: our hubs sit on the 96 rail (image 92.9), pod fan 0.78 rad (image 0.90), inner core ring 22 (image 17), dot 5 (image 2.6), two yellow beads on each hub rim. First capture looked unfilled: the HDR viewport is linear and I had not converted; `Image.linear_to_srgb` only takes 8-bit data, so it is done per pixel |
+| A rule read from the image | The first render drew the core weapon's set piece over the core, which the reference keeps clean. Rule adopted: a core of depth ≥ 3 has an accent inner ring and THAT marks the core weapon; only a depth-2 core (drone, sentry) draws the piece |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 774.9 s; suite 44/44 (S1's 40 + `ship_compiler_test`, `ship_grammar_test`, `rail_render_test`, `ship_reference_render_test`). Headless 2000 bullets mean 7.35 / p95 10.12 ms; rendered frame mean 9.37 / p95 17.19 ms (S1: 7.65 / 14.89, S0: 8.14 / 15.72 — single runs; no rail hull is in play yet, so this spread is run-to-run noise, and it is wide) |
+| Not completed / stated plainly | Chain hulls compile (links trail the core) but have no fixture and no test until S3 gives them motion. The core-dot pulse is not here: the fragment shader assumes the quad's extent is `core_radius + 0.75`, so it needs a shader change and lands in S3. `compile_key` is set but no cache keys on it yet (the rig and mesh keys still serialise parts) |
 
 ## Retired assertions
 

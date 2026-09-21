@@ -66,7 +66,8 @@ void vertex() {
 		vec2 direction = to_position - from_position;
 		float center_distance = length(direction);
 		vec2 unit_direction = direction / max(center_distance, 0.001);
-		float from_radius = rim(from_part, unit_direction);
+		// Kind 2 (ship design spec): a set-piece line starts at its hub's CENTRE, not its rim.
+		float from_radius = primitive_kind > 1.5 ? 0.0 : rim(from_part, unit_direction);
 		float to_radius = rim(to_part, -unit_direction);
 		from_position += unit_direction * from_radius;
 		to_position -= unit_direction * to_radius;
@@ -111,6 +112,12 @@ void fragment() {
 			half_width = 0.5;
 			opacity = (mod(path_pixels, 6.0) < 2.0 ? 0.5 : 0.0);
 		}
+		// Ship design spec styles. 4 = a passive's thin ring. 5 = a rail: 1 px, dash 2 on / 5 off
+		// at 28 % (§4.2, §9.9). Neither carries a running light - a 13 % arc of a 184 px ring would be
+		// a 150 px HDR-bright streak.
+		bool plain = light_data.w > 3.5;
+		if (plain) half_width = 0.5;
+		if (light_data.w > 4.5) opacity = (mod(path_pixels, 7.0) < 2.0 ? 0.28 : 0.0);
 		float outline_alpha = (1.0 - smoothstep(half_width - 0.45, half_width + 0.45, across)) * opacity;
 		float perimeter = max(perimeter_pixels, 0.001);
 				float cycles = (visual_time + light_data.y) / light_data.x;
@@ -122,7 +129,7 @@ void fragment() {
 		float centered = mod(path_pixels - phase - half_segment + perimeter * 0.5, perimeter) - perimeter * 0.5;
 		float outside_segment = max(abs(centered) - half_segment, 0.0);
 		float capsule_distance = length(vec2(outside_segment, across));
-		float light_alpha = 1.0 - smoothstep(0.85, 1.75, capsule_distance);
+		float light_alpha = plain ? 0.0 : 1.0 - smoothstep(0.85, 1.75, capsule_distance);
 		float alpha = max(outline_alpha, light_alpha);
 		vec3 rgb = mix(base_color.rgb * 0.96, running_color, light_alpha);
 		// P8 target feedback (spec §19): "flare the target circle's own rim" -

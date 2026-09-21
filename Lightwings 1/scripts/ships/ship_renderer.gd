@@ -174,7 +174,11 @@ func _build_mesh() -> void:
 	_mesh_material.set_shader_parameter("part_centers", _mesh_builder.centers)
 	_mesh_material.set_shader_parameter("part_geometry", _mesh_builder.geometries)
 	_mesh_material.set_shader_parameter("motion_signature", ["smooth", "flicker", "snap", "counter_rotate"].find(definition.motion_signature))
-	_mesh_material.set_shader_parameter("core_color", Color.WHITE if definition.is_player else ShipCatalog.get_color(definition.element))
+	var dot: Color = Color.WHITE if definition.is_player else ShipCatalog.get_color(definition.element)
+	# Rail hull (spec §4.1): the enemy's dot is its accent, or its chassis when it has none.
+	if definition.is_rail_hull() and not definition.is_player:
+		dot = ShipCatalog.get_color(definition.accent_color if definition.accent_color != "" else definition.chassis_color)
+	_mesh_material.set_shader_parameter("core_color", dot)
 	_mesh_material.set_shader_parameter("core_radius", definition.core_radius)
 	_mesh_material.set_shader_parameter("show_core", show_core)
 	_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)

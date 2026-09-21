@@ -1,0 +1,26 @@
+{
+  "schema_version": 4,
+  "id": "fixture_irregular",
+  "name": "Irregular elite fixture",
+  "faction": "elite",
+  "archetype": "irregular_elite",
+  "tier": 3,
+  "chassis_color": "red",
+  "accent_color": "yellow",
+  "core_depth": 3,
+  "core_weapon": "vent_fan",
+  "rails": [
+    { "radius": 52, "order": 5, "speed": -0.95, "phase": 0.2, "pump_phase": 0.0, "offset": [6, -4],
+      "slots": ["node", "stub", { "type": "node", "radius": 7 }, "node", "stub"] },
+    { "radius": 96, "order": 4, "speed": 0.42, "phase": 0.5, "pump_phase": 0.9,
+      "slots": [
+        { "type": "hub", "pods": 3, "set_piece": "v_rack" }, { "type": "hub", "pods": 1, "set_piece": "burst_ring" },
+        "stub", { "type": "hub", "pods": 2, "set_piece": "v_rack" }
+      ] },
+    { "radius": 140, "order": 3, "speed": -0.26, "phase": 0.1, "pump_phase": 1.8, "offset": [-8, 5],
+      "slots": [
+        { "type": "hub", "pods": 4, "set_piece": "drop_cradle" }, { "type": "hub", "pods": 2, "set_piece": "v_rack" },
+        { "type": "hub", "pods": 1, "set_piece": "burst_ring" }
+      ] }
+  ]
+}

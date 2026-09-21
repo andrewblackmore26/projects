@@ -61,9 +61,27 @@ static func _template(id: String) -> ShipDefinition:
 	if not ResourceLoader.exists(path): return null
 	var resource: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 	if not resource is ShipDefinition or not validate(resource).is_empty(): return null
-	recalculate(resource)
+	refresh(resource)
 	_templates[path] = {"modified": modified, "checked": now, "ship": resource}
 	return resource
+
+## The ONE thing to call after loading or changing a hull. A rail hull (schema 4) stores only its
+## grammar, so its parts are compiled here; its movement stats are authored fields, not derived
+## from body circles. A v0.3 hull keeps `recalculate`.
+static func refresh(ship: ShipDefinition) -> void:
+	if ship.is_rail_hull(): ShipCompiler.compile(ship)
+	else: recalculate(ship)
+
+## The ONE way to write a hull. A rail hull is saved as its grammar alone: the compiled parts are
+## derived ("positions are derived, never authored"), so a copy is stripped of them first.
+static func save_ship(ship: ShipDefinition, path: String) -> Error:
+	var stored: ShipDefinition = ship.duplicate(true)
+	if stored.is_rail_hull():
+		stored.parts = []
+		stored.groups = []
+	var result: Error = ResourceSaver.save(stored, path)
+	invalidate(ship.id)
+	return result
 
 static func get_ship(id: String) -> ShipDefinition:
 	var template: ShipDefinition = _template(id)
@@ -204,6 +222,9 @@ static func recalculate(ship: ShipDefinition) -> void:
 static func validate(ship: ShipDefinition) -> PackedStringArray:
 	var errors: PackedStringArray = []
 	if ship == null: return PackedStringArray(["No ship definition."])
+	# Rail hulls (ship design spec) have their own coded rules; the v0.3 rules below go with the
+	# v0.3 roster at the cutover.
+	if ship.is_rail_hull(): return ShipGrammar.validate(ship)
 	if ship.id.strip_edges().is_empty() or not ship.id.is_valid_filename() or ship.id.contains("."): errors.append("Ship needs a valid filename-safe ID without dots.")
 	if ship.schema_version != 3: errors.append("Unsupported ship schema version.")
 	if not ship.element in ELEMENTS and not (ship.tier == 1 and ship.element == "neutral" and ship.is_player): errors.append("Unknown element.")
@@ -354,6 +375,7 @@ static func validate(ship: ShipDefinition) -> PackedStringArray:
 
 static func warnings(ship: ShipDefinition) -> PackedStringArray:
 	var result: PackedStringArray = []
+	if ship != null and ship.is_rail_hull(): return ShipGrammar.warnings(ship)
 	# Widened for P2b-1's six-tier growth. Lightning's long straight spokes
 	# (spec §17: "few circles on long straight spokes") are the true worst
 	# case, not the compact/dense elements this band was tuned against in

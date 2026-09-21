@@ -40,6 +40,24 @@ extends Resource
 @export var tp_used: float = 0.0
 @export var tp_max: float = 6.0
 
+## --- Ship design spec (schema_version 4). These ARE the ship: `parts` is derived from them by
+## `ShipCompiler` on load and is never saved (ShipCatalog.save_ship strips it). A schema-3 hull
+## leaves them at their defaults and keeps authoring `parts` and `groups` directly.
+@export var chassis_color: String = ""    # blue | red | yellow | green | violet | silver
+@export var accent_color: String = ""     # one of the six, or "" for a mono-colour ship
+## Depth of the core stack, counting the dot: 2 = [34, dot], 3 = [34, 22, dot], 4 = [34, 22, 13, dot].
+@export var core_depth: int = 2
+@export var core_weapon: String = ""      # enemies: a set piece mounted on the core
+@export var archetype: String = ""        # "" (player) | drone | sentry | radial_elite | heavy_elite | irregular_elite | chain | boss
+@export var rails: Array[RailDefinition] = []
+@export var chain_links: Array[SlotDefinition] = [] # chain archetype only, head outward
+@export var chain_mode: String = "sway"   # rigid | sway | whip (§9.6)
+## Set by ShipCompiler: id + a hash of the grammar. The rig and mesh caches key on it.
+var compile_key: String = ""
+
+func is_rail_hull() -> bool:
+	return schema_version >= 4
+
 func mounted_components() -> Array[String]:
 	var result: Array[String] = [primary]
 	result.append_array(secondaries)

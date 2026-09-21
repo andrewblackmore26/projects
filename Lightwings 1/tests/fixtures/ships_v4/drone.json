@@ -1,0 +1,14 @@
+{
+  "schema_version": 4,
+  "id": "fixture_drone",
+  "name": "Drone fixture",
+  "faction": "enemy",
+  "archetype": "drone",
+  "tier": 2,
+  "chassis_color": "red",
+  "core_depth": 2,
+  "core_weapon": "vent_fan",
+  "rails": [
+    { "radius": 52, "order": 3, "speed": -0.95, "phase": 0.0, "pump_phase": 0.0, "slots": ["node", "node", "node"] }
+  ]
+}

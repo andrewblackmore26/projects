@@ -1,0 +1,26 @@
+{
+  "schema_version": 4,
+  "id": "fixture_player_t3",
+  "name": "Player T3 fixture",
+  "faction": "player",
+  "tier": 3,
+  "role": "standard",
+  "chassis_color": "blue",
+  "accent_color": "yellow",
+  "core_depth": 3,
+  "rails": [
+    { "radius": 52, "order": 4, "speed": 0.0, "phase": 0.0, "pump_phase": 0.0,
+      "slots": [
+        { "type": "hub", "pods": 2, "set_piece": "twin_barrel", "mount": "primary" },
+        { "type": "node", "radius": 4 },
+        { "type": "node", "radius": 7 },
+        { "type": "node", "radius": 4 }
+      ] },
+    { "radius": 96, "order": 3, "speed": 0.42, "phase": 0.0, "pump_phase": 0.9,
+      "slots": [
+        "stub",
+        { "type": "hub", "pods": 2, "set_piece": "shell_pair", "mount": "secondary_0" },
+        { "type": "hub", "pods": 2, "set_piece": "shell_pair", "mount": "secondary_0" }
+      ] }
+  ]
+}

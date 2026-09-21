@@ -1,0 +1,22 @@
+{
+  "schema_version": 4,
+  "id": "fixture_radial_elite",
+  "name": "Triskel (the reference image)",
+  "faction": "elite",
+  "archetype": "radial_elite",
+  "tier": 2,
+  "chassis_color": "yellow",
+  "accent_color": "red",
+  "core_depth": 3,
+  "core_weapon": "coil_pair",
+  "rails": [
+    { "radius": 52, "order": 4, "speed": -0.95, "phase": 0.9146, "pump_phase": 0.0,
+      "slots": [ { "type": "node", "radius": 7 }, { "type": "node", "radius": 7 }, { "type": "node", "radius": 7 }, { "type": "node", "radius": 7 } ] },
+    { "radius": 96, "order": 3, "speed": 0.42, "phase": 0.0314, "pump_phase": 0.9,
+      "slots": [
+        { "type": "hub", "pods": 3, "set_piece": "v_rack", "hp": 60 },
+        { "type": "hub", "pods": 3, "set_piece": "v_rack", "hp": 60 },
+        { "type": "hub", "pods": 3, "set_piece": "v_rack", "hp": 60 }
+      ] }
+  ]
+}

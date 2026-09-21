@@ -44,9 +44,13 @@ static func geometry_key(ship: ShipDefinition) -> PackedByteArray:
 	# Exact serialized values avoid hash-collision reuse and stale edited drafts.
 	# Gameplay-only stats and hull occlusion radius are not baked into this mesh.
 	var signature: Array = [ship.is_player, ship.element, ship.core_radius]
+	var rail_hull: bool = ship.is_rail_hull()
+	if rail_hull: signature.append(["rail_hull", ship.schema_version])
 	for part: PartDefinition in ship.parts:
 		# parent_id affects only the authoring graph, never geometry; excluded deliberately.
 		signature.append([part.id, part.shape, part.position, part.radius, part.filled, part.color_role, part.layer, part.light_period, part.light_phase, part.from_id, part.to_id, part.dashed])
+		# Appended only for rail hulls, so a v0.3 hull's key is byte-identical to before.
+		if rail_hull: signature.append(part.style)
 	# A reach ring is synthesized from the group, not authored; its geometry
 	# must be re-baked whenever a group's radius or reach flag changes, and an
 	# edited group must never reuse a stale mesh keyed only on `parts`.
@@ -134,38 +138,16 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 		parameters[synthetic_index] = Vector4(2.0, 0.0, distances[-1], 1.0)
 		_append_outline(points, distances, stroke, light, synthetic_index, -1.0)
 		synthetic_index += 1
-	for i: int in range(circles.size()):
-		var part: PartDefinition = circles[i]
-		var points: PackedVector2Array = []
-		for point: Vector2 in ShipGeometry.outline(part.shape, part.radius):
-			points.append(point + part.position)
-		if points.size() < 2: continue
-		var distances: PackedFloat32Array = ShipGeometry.lengths(points)
-		var role: String = part.color_role
-		if role == "chassis": role = "player" if ship.is_player else ship.element
-		var stroke: Color = ShipCatalog.get_color(role)
-		var fill: Color = ShipCatalog.FILLS.get(role, Color("062a12"))
-		if ship.element == "void": fill = Color.BLACK
-		var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
-		# Custom attributes do not receive Godot's automatic sRGB conversion.
-		light = light.srgb_to_linear() * 1.8
-		var style: float = 1.0 if part.dashed or part.layer == 0 else 3.0 if not part.filled else 0.0
-		parameters[i] = Vector4(maxf(0.05, part.light_period), part.light_phase, distances[-1], style)
-		if part.layer != 0 and part.shape == "circle" and part.filled:
-			_append_fill(points, fill, i)
-		_append_outline(points, distances, stroke, light, i, -1.0)
-	for part: PartDefinition in lines:
-		if not part_indices.has(part.from_id) or not part_indices.has(part.to_id): continue
-		var from_index: int = part_indices[part.from_id]
-		var to_index: int = part_indices[part.to_id]
-		var points: PackedVector2Array = PackedVector2Array([centers[from_index], centers[to_index]])
-		var distances: PackedFloat32Array = ShipGeometry.lengths(points)
-		if distances[-1] <= 0.0001: continue
-		var role: String = part.color_role
-		if role == "chassis": role = "player" if ship.is_player else ship.element
-		var stroke: Color = ShipCatalog.get_color(role)
-		var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE).srgb_to_linear() * 1.8
-		_append_line(points, distances, stroke, light, from_index, to_index, maxf(0.05, part.light_period), part.light_phase)
+	if ship.is_rail_hull():
+		# A rail hull bakes in PART order: ShipCompiler emits paint order (rings, lines, core,
+		# clusters, set pieces), so counter-rotating spokes pass under the clusters they cross and a
+		# set piece's lines draw over its hub's fill. A v0.3 hull keeps circles-then-lines below.
+		for part: PartDefinition in ship.parts:
+			if part.shape == "line": _bake_line(ship, part)
+			else: _bake_circle(ship, part, int(part_indices[part.id]))
+	else:
+		for i: int in range(circles.size()): _bake_circle(ship, circles[i], i)
+		for part: PartDefinition in lines: _bake_line(ship, part)
 	_append_core(ship.core_radius)
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -182,6 +164,47 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 	# original authored AABB when a satellite or selection preview moves outside it.
 	mesh.custom_aabb = AABB(Vector3(-2048, -2048, -1), Vector3(4096, 4096, 2))
 	return mesh
+
+## A part's palette key. v0.3 hulls say "chassis" and mean the player's blue or their element; a
+## rail hull's parts already carry an absolute key (blue, red, yellow, green, violet, silver).
+func _role(ship: ShipDefinition, part: PartDefinition) -> String:
+	if part.color_role == "chassis": return "player" if ship.is_player else ship.element
+	return part.color_role
+
+func _bake_circle(ship: ShipDefinition, part: PartDefinition, i: int) -> void:
+	var points: PackedVector2Array = []
+	for point: Vector2 in ShipGeometry.outline(part.shape, part.radius):
+		points.append(point + part.position)
+	if points.size() < 2: return
+	var distances: PackedFloat32Array = ShipGeometry.lengths(points)
+	var role: String = _role(ship, part)
+	var stroke: Color = ShipCatalog.get_color(role)
+	var fill: Color = ShipCatalog.FILLS.get(role, Color("062a12"))
+	if ship.element == "void" and not ship.is_rail_hull(): fill = Color.BLACK
+	var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
+	# Custom attributes do not receive Godot's automatic sRGB conversion.
+	light = light.srgb_to_linear() * 1.8
+	var style: float = 1.0 if part.dashed or part.layer == 0 else 3.0 if not part.filled else 0.0
+	# Rail hulls: 4 = thin passive ring, 5 = rail dash (2 on / 5 off at 28 %); neither carries a shine.
+	if part.style >= 0: style = float(part.style)
+	parameters[i] = Vector4(maxf(0.05, part.light_period), part.light_phase, distances[-1], style)
+	if part.layer != 0 and part.shape == "circle" and part.filled and part.style < 4:
+		_append_fill(points, fill, i)
+	_append_outline(points, distances, stroke, light, i, -1.0)
+
+func _bake_line(ship: ShipDefinition, part: PartDefinition) -> void:
+	if not part_indices.has(part.from_id) or not part_indices.has(part.to_id): return
+	var from_index: int = part_indices[part.from_id]
+	var to_index: int = part_indices[part.to_id]
+	var points: PackedVector2Array = PackedVector2Array([centers[from_index], centers[to_index]])
+	var distances: PackedFloat32Array = ShipGeometry.lengths(points)
+	# A set-piece line may run from a hub's centre to a circle sitting ON that centre's rim or
+	# nearer; only an exactly degenerate line is dropped.
+	if distances[-1] <= 0.0001: return
+	var role: String = _role(ship, part)
+	var stroke: Color = ShipCatalog.get_color(role)
+	var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE).srgb_to_linear() * 1.8
+	_append_line(points, distances, stroke, light, from_index, to_index, maxf(0.05, part.light_period), part.light_phase, part.style == 6)
 
 func _vertex(point: Vector2, color: Color, uv: Vector2, normal: Vector2, part: int, kind: float, light: Color = Color.WHITE, endpoints: float = -1.0) -> void:
 	vertices.append(point)
@@ -229,7 +252,10 @@ func _append_outline(points: PackedVector2Array, distances: PackedFloat32Array, 
 ## (CUSTOM0.xyz), leaving those arrays for circles only. `from_index`/
 ## `to_index` (packed into CUSTOM1.w) address the two endpoint circles that
 ## the shader moves the line between every frame.
-func _append_line(points: PackedVector2Array, distances: PackedFloat32Array, color: Color, light: Color, from_index: int, to_index: int, period: float, phase: float) -> void:
+func _append_line(points: PackedVector2Array, distances: PackedFloat32Array, color: Color, light: Color, from_index: int, to_index: int, period: float, phase: float, from_centre: bool = false) -> void:
+	# CUSTOM0.w is the primitive kind: 1 = a line clipped at both rims, 2 = a set-piece line that
+	# starts at its `from` circle's CENTRE (spec reference: the V is visible inside the hub).
+	var kind: float = 2.0 if from_centre else 1.0
 	var base: int = vertices.size()
 	var perimeter: float = distances[-1]
 	var endpoints: float = float(from_index + to_index * MAX_PARTS)
@@ -239,7 +265,7 @@ func _append_line(points: PackedVector2Array, distances: PackedFloat32Array, col
 			vertices.append(points[i])
 			colors.append(color)
 			uvs.append(Vector2(distances[i], side))
-			custom0.append_array(PackedFloat32Array([period, phase, perimeter, 1.0]))
+			custom0.append_array(PackedFloat32Array([period, phase, perimeter, kind]))
 			custom1.append_array(PackedFloat32Array([light.r, light.g, light.b, endpoints]))
 	for i: int in range(last):
 		var start: int = base + i * 2

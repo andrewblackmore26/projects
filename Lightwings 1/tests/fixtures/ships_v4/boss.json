@@ -1,0 +1,32 @@
+{
+  "schema_version": 4,
+  "id": "fixture_boss",
+  "name": "Boss fixture",
+  "faction": "boss",
+  "archetype": "boss",
+  "tier": 3,
+  "chassis_color": "yellow",
+  "accent_color": "red",
+  "core_depth": 4,
+  "core_weapon": "coil_pair",
+  "rails": [
+    { "radius": 52, "order": 8, "speed": -0.95, "phase": 0.0, "pump_phase": 0.0,
+      "slots": ["node", "node", "node", "node", "node", "node", "node", "node"] },
+    { "radius": 96, "order": 6, "speed": 0.42, "phase": 0.0, "pump_phase": 0.9,
+      "slots": [
+        { "type": "hub", "pods": 2, "set_piece": "v_rack" }, { "type": "hub", "pods": 2, "set_piece": "v_rack" },
+        { "type": "hub", "pods": 2, "set_piece": "v_rack" }, { "type": "hub", "pods": 2, "set_piece": "v_rack" },
+        { "type": "hub", "pods": 2, "set_piece": "v_rack" }, { "type": "hub", "pods": 2, "set_piece": "v_rack" }
+      ] },
+    { "radius": 140, "order": 4, "speed": -0.26, "phase": 0.3, "pump_phase": 1.8,
+      "slots": [
+        { "type": "hub", "pods": 2, "set_piece": "burst_ring" }, { "type": "hub", "pods": 2, "set_piece": "burst_ring" },
+        { "type": "hub", "pods": 2, "set_piece": "burst_ring" }, { "type": "hub", "pods": 2, "set_piece": "burst_ring" }
+      ] },
+    { "radius": 184, "order": 3, "speed": 0.18, "phase": 0.6, "pump_phase": 2.7,
+      "slots": [
+        { "type": "hub", "pods": 2, "set_piece": "drop_cradle" }, { "type": "hub", "pods": 2, "set_piece": "drop_cradle" },
+        { "type": "hub", "pods": 2, "set_piece": "drop_cradle" }
+      ] }
+  ]
+}
