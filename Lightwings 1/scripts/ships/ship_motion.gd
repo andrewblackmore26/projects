@@ -63,6 +63,9 @@ class ShipRig extends RefCounted:
 	var pump_freq: PackedFloat32Array = PackedFloat32Array()
 	var pump_phase: PackedFloat32Array = PackedFloat32Array()
 	var aim_joint: PackedByteArray = PackedByteArray()
+	var rest_heading: PackedFloat32Array = PackedFloat32Array()
+	## Rig indices of the aim joints (set-piece roots), so the sim slews only those.
+	var aim_indices: PackedInt32Array = PackedInt32Array()
 	## 1 = has HP, a collider and a reward share. Every circle of a legacy hull is solid.
 	var solid: PackedByteArray = PackedByteArray()
 	## Rig indices of the solid circles other than the core, ascending: what the broadphase walks.
@@ -117,7 +120,7 @@ static func rig_key(ship: ShipDefinition) -> PackedByteArray:
 		if part.shape == "circle":
 			signature.append([part.id, part.position, part.radius, part.filled, part.parent_id])
 			# Appended only for rail-grammar hulls, so a legacy hull's key is byte-identical to v0.3's.
-			if fk: signature.append([part.spin_speed, part.bob_amp, part.bob_freq, part.bob_phase, part.pump_amp, part.pump_freq, part.pump_phase, part.aim_joint, part.solid])
+			if fk: signature.append([part.spin_speed, part.bob_amp, part.bob_freq, part.bob_phase, part.pump_amp, part.pump_freq, part.pump_phase, part.aim_joint, part.rest_heading, part.solid])
 		elif part.shape == "line": signature.append(["line", part.id, part.from_id, part.to_id])
 	for group: GroupDefinition in ship.groups:
 		signature.append(["group", group.root_id, group.orbit_radius, group.orbit_speed, group.drift_amp, group.drift_freq, group.breathe_amp, group.chain_mode, group.reach_ring])
@@ -193,8 +196,11 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 		rig.pump_freq.resize(order.size())
 		rig.pump_phase.resize(order.size())
 		rig.aim_joint.resize(order.size())
+		rig.rest_heading.resize(order.size())
 		for i: int in range(order.size()):
 			var joint: PartDefinition = by_id[order[i]]
+			rig.rest_heading[i] = joint.rest_heading
+			if joint.aim_joint: rig.aim_indices.append(i)
 			rig.spin_speed[i] = joint.spin_speed
 			rig.bob_amp[i] = joint.bob_amp
 			rig.bob_freq[i] = joint.bob_freq
@@ -292,8 +298,10 @@ static func _step_fk(rig: ShipRig, pose: ShipPose, tick: int) -> void:
 		if rig.bob_amp[i] != 0.0: turn += rig.bob_amp[i] * sin(rig.bob_freq[i] * t + rig.bob_phase[i])
 		if rig.aim_joint[i] == 1:
 			# Outward is the parent's own angle: the rest offset already points outward.
+			# An aim is a HEADING (clockwise from the hull's forward). The piece's rest offsets already
+			# point along its slot's outward heading, so it turns by the difference.
 			var aim: float = pose.aim_angle[i]
-			turn = pose.angle[parent] if is_nan(aim) else aim
+			turn = pose.angle[parent] if is_nan(aim) else aim - rig.rest_heading[i]
 		var offset: Vector2 = rig.rest[i] - rig.rest[parent]
 		if rig.pump_amp[i] != 0.0: offset *= 1.0 + rig.pump_amp[i] * sin(rig.pump_freq[i] * t + rig.pump_phase[i])
 		pose.local[i] = pose.local[parent] + (offset.rotated(turn) if turn != 0.0 else offset)

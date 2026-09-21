@@ -148,7 +148,9 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 	else:
 		for i: int in range(circles.size()): _bake_circle(ship, circles[i], i)
 		for part: PartDefinition in lines: _bake_line(ship, part)
-	_append_core(ship.core_radius)
+	# A rail hull's dot pulses to 1.22x (spec §9.5); its quad is baked to hold the peak, and the
+	# renderer tells the shader that extent (`core_quad`).
+	_append_core(core_quad_radius(ship))
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -164,6 +166,10 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 	# original authored AABB when a satellite or selection preview moves outside it.
 	mesh.custom_aabb = AABB(Vector3(-2048, -2048, -1), Vector3(4096, 4096, 2))
 	return mesh
+
+## The radius the core quad is baked for: the dot's peak on a rail hull, its plain radius on a v0.3 one.
+static func core_quad_radius(ship: ShipDefinition) -> float:
+	return ship.core_radius * (1.0 + float(ShipGrammar.MOTION.core_pulse_amp)) if ship.is_rail_hull() else ship.core_radius
 
 ## A part's palette key. v0.3 hulls say "chassis" and mean the player's blue or their element; a
 ## rail hull's parts already carry an absolute key (blue, red, yellow, green, violet, silver).

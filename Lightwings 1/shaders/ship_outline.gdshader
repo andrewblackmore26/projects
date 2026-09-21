@@ -11,6 +11,11 @@ uniform int motion_signature = 0;
 uniform vec4 part_offsets[128]; // xy translation, z radius scale (0 = hidden), w rim flare (reserved, P8)
 uniform vec4 core_color : source_color = vec4(1.0);
 uniform float core_radius = 3.0;
+// Ship design spec 9.5: radius = 5 * (1 + sin(t * 4.0) * 0.22), the fleet's one steady heartbeat.
+// core_quad is the baked quad's half-extent; 0 means the v0.3 value, core_radius + 0.75.
+uniform float core_pulse = 0.0;
+uniform float core_pulse_freq = 4.0;
+uniform float core_quad = 0.0;
 uniform bool show_core = true;
 uniform bool evolution_ready = false;
 
@@ -97,8 +102,10 @@ void fragment() {
 		// just the rim-quad branch below - `flare_amount` was already computed
 		// in vertex() from the same `part_offsets[part].w` (the core's own
 		// mesh entry is `part` 0, same as every other circle).
-		float radius = length(UV) * (core_radius + 0.75 + flare_amount * 1.5);
-		float alpha = 1.0 - smoothstep(core_radius - 0.5, core_radius + 0.5 + flare_amount * 1.5, radius);
+		float extent = core_quad > 0.0 ? core_quad : core_radius + 0.75;
+		float pulsed = core_radius * (1.0 + core_pulse * sin(visual_time * core_pulse_freq));
+		float radius = length(UV) * (extent + flare_amount * 1.5);
+		float alpha = 1.0 - smoothstep(pulsed - 0.5, pulsed + 0.5 + flare_amount * 1.5, radius);
 		float ready_pulse = evolution_ready ? 1.0 + 0.10 * (0.5 - 0.5 * cos(visual_time * 3.141592)) : 1.0;
 		vec3 core_rgb = core_color.rgb * 1.8 * ready_pulse + flare_amount * vec3(1.6, 1.55, 1.5);
 		COLOR = vec4(core_rgb, alpha * part_visible);

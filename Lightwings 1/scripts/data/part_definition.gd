@@ -40,6 +40,9 @@ extends Resource
 ## A set piece's root: it ignores its parent's angle and takes the aim it is given (spec §9.7),
 ## or points outward when it is given none.
 @export var aim_joint: bool = false
+## Aim joints only: the heading (rad clockwise from the hull's forward) the piece has at rest, i.e.
+## its slot's outward direction. An aim is a HEADING, so the joint turns by `aim - rest_heading`.
+@export var rest_heading: float = 0.0
 ## False for rail rings, inner core rings, passive rings and set-piece circles: drawn, but no HP,
 ## no collider, no reward share and no TP.
 @export var solid: bool = true

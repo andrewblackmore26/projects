@@ -245,6 +245,7 @@ static func _piece(build: Build, piece_id: String, host: String, prefix: String,
 		var id: String = "%sw%d" % [prefix, n]
 		var circle: PartDefinition = _circle(id, host if n == 0 else ids[0], at + Vector2(float(spec[0]), float(spec[1])).rotated(outward), float(spec[2]), str(colours[int(spec[4])]), bool(spec[3]), false)
 		circle.aim_joint = aims and n == 0
+		circle.rest_heading = outward
 		_shine(circle, n + 5, build.cluster - 1)
 		ids.append(id)
 		build.piece_circles.append(circle)
@@ -265,7 +266,20 @@ static func _chain(ship: ShipDefinition, build: Build, chassis: String) -> void:
 		if not link.is_occupied(): continue
 		at += Vector2(0, rest + (float(ShipGrammar.CORE_RADII[0]) if i == 0 else 0.0))
 		var id: String = "c%d" % i
-		_cluster(build, link, id, parent, at, PI, chassis, i)
+		var root: PartDefinition = _cluster(build, link, id, parent, at, PI, chassis, i)
+		# §9.6's travelling wave, as a pure function of the tick: each link swings about the one
+		# before it, 0.85 rad behind it. The swings ACCUMULATE down the chain, so the sideways
+		# amplitude grows from nothing at the head to the mode's full value at the tip.
+		# Link k's swing carries every link after it, 0.85 rad out of step with its neighbours, so the
+		# tip's sideways amplitude is rest * swing * |sum over k of (N - k) e^(-i 0.85 k)|. Dividing by
+		# that makes the TIP swing the mode's amplitude (6 px sway, 14 px whip). The first version
+		# divided by rest * N and measured 10.7 and 24.9 px.
+		var links: int = maxi(1, ship.chain_links.size())
+		var sum: Vector2 = Vector2.ZERO
+		for k: int in range(links): sum += Vector2.from_angle(-float(k) * float(ShipGrammar.MOTION.chain_phase_step)) * float(links - k)
+		root.bob_amp = float((ShipGrammar.MOTION.chain_amplitude as Dictionary).get(ship.chain_mode, 0.0)) / (rest * maxf(0.001, sum.length()))
+		root.bob_freq = float(ShipGrammar.MOTION.chain_wave_freq)
+		root.bob_phase = -float(i) * float(ShipGrammar.MOTION.chain_phase_step)
 		build.lines.append(_line(id + "_spoke", parent, id, chassis))
 		parent = id
 

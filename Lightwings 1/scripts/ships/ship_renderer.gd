@@ -66,6 +66,11 @@ func set_ship(ship: ShipDefinition, animate: bool = false) -> void:
 	_old_hull = definition.hull_radius if definition != null else 0.0
 	definition = ship
 	reshape_remaining = GameTuning.RESHAPE_SECONDS if animate and _source != null else 0.0
+	# A rail hull never takes the CPU tween: that path draws one polyline PER DASH, and a 184 px
+	# rail has ~190 of them, every frame for 0.8 s. It swaps meshes at once; the evolution is
+	# announced by the warp and the flare, not by a morph the new grammar cannot express (a radius
+	# between two ladder values is off-ladder by definition).
+	if ship != null and ship.is_rail_hull(): reshape_remaining = 0.0
 	_contours.clear()
 	_draw_cache.clear()
 	_display_parts.clear()
@@ -116,7 +121,10 @@ func _process(delta: float) -> void:
 	if _mesh_instance != null:
 		_mesh_instance.visible = not hull_only and reshape_remaining <= 0
 		if _mesh_instance.visible:
-			_mesh_material.set_shader_parameter("visual_time", animation_time)
+			# A rail hull's shine and core pulse run from the SIM tick when there is one: they freeze
+			# when the sim does, and a pixel test can pin them. v0.3 hulls keep the wall clock.
+			var shine_time: float = float(motion_tick) / 60.0 if _tick_driven and definition.is_rail_hull() else animation_time
+			_mesh_material.set_shader_parameter("visual_time", shine_time)
 			if _last_show_core != show_core:
 				_mesh_material.set_shader_parameter("show_core", show_core)
 				_last_show_core = show_core
@@ -179,6 +187,10 @@ func _build_mesh() -> void:
 	if definition.is_rail_hull() and not definition.is_player:
 		dot = ShipCatalog.get_color(definition.accent_color if definition.accent_color != "" else definition.chassis_color)
 	_mesh_material.set_shader_parameter("core_color", dot)
+	var rail_hull: bool = definition.is_rail_hull()
+	_mesh_material.set_shader_parameter("core_pulse", float(ShipGrammar.MOTION.core_pulse_amp) if rail_hull else 0.0)
+	_mesh_material.set_shader_parameter("core_pulse_freq", float(ShipGrammar.MOTION.core_pulse_freq))
+	_mesh_material.set_shader_parameter("core_quad", ShipMesh.core_quad_radius(definition) + 0.75 if rail_hull else 0.0)
 	_mesh_material.set_shader_parameter("core_radius", definition.core_radius)
 	_mesh_material.set_shader_parameter("show_core", show_core)
 	_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)

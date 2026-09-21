@@ -324,6 +324,7 @@ func _spawn_named_enemy(hull_id: String, element: String, tier: int, position: V
  var actor: Dictionary=_make_actor(next_actor_id,template.element,tier,arena.clamp_point(position,30.0),ELEMENTS.find(template.element)+1,rival)
  next_actor_id+=1
  actor.hull_id=hull_id
+ actor.archetype=template.archetype # "" on a v0.3 hull: CombatAI then falls back to the id prefix
  actor.elite=elite
  if elite:
   actor.max_hp=180.0+110.0*tier
@@ -417,6 +418,7 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  part_attached.resize(n)
  part_flare.resize(n)
  var mount_index: Dictionary={}
+ var mount_twins: Dictionary={} # mount id -> rig indices of every hub carrying it (mirror twins share one)
  var gun_indices: PackedInt32Array=PackedInt32Array()
  # id -> authored PartDefinition.stat_id (P4b: sub_core / shield_generator are
  # not carried by ShipRig, which only knows geometry/motion, so this is read
@@ -443,7 +445,11 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
   part_egg[i]=float(old_egg[pid]) if old_egg.has(pid) else 0.0
   part_aim[i]=old_aim[pid] if old_aim.has(pid) else Vector2.DOWN
   part_aim_error[i]=CombatAI.sample_aim_error(_rng)
-  if not rig.mount_id[i].is_empty(): mount_index[rig.mount_id[i]]=i
+  if not rig.mount_id[i].is_empty():
+   mount_index[rig.mount_id[i]]=i
+   var twins: PackedInt32Array=mount_twins.get(rig.mount_id[i],PackedInt32Array())
+   twins.append(i)
+   mount_twins[rig.mount_id[i]]=twins
   if i>0 and rig.solid[i]==1 and not rig.ability_id[i].is_empty(): gun_indices.append(i)
   match str(stat_by_id.get(pid,"")):
    "sub_core": sub_core_indices.append(i)
@@ -460,6 +466,7 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  actor.part_aim_error=part_aim_error
  actor.part_attached=part_attached
  actor.mount_index=mount_index
+ actor.mount_twins=mount_twins
  actor.gun_indices=gun_indices
  actor.sub_core_indices=sub_core_indices
  actor.shield_generator_indices=shield_generator_indices
@@ -493,9 +500,31 @@ func _reward_multiplier(actor: Dictionary) -> float: return pow(1.5,maxi(0,int(a
 ## Single choke point for "what is currently visible on this hull" -
 ## rebuilt from the packed per-circle arrays instead of scanned every tick
 ## (see `_sync_visuals`, which previously rebuilt this every physics frame).
+## Spec §4.2 / §9.8: "a rail is deleted, dashed ring and all, when its last cluster dies". One
+## recorded deviation: rails 3 and 4 spoke from the ring INSIDE them, and the shader hides a line
+## whose endpoint is hidden, so a ring stays while the rail just outside it still has a cluster -
+## otherwise that rail's spokes would vanish and leave its clusters floating. Rings are scenery
+## (not solid, no HP), so "deleted" is `part_attached = 0`, which is what hides a circle.
+func _retire_dead_rails(actor: Dictionary, rig: ShipMotion.ShipRig) -> void:
+ var rings: Array[int]=[]
+ for i: int in range(1,rig.ids.size()):
+  var id: String=rig.ids[i]
+  if rig.parent_index[i]==0 and rig.solid[i]==0 and id.length()==2 and id.begins_with("r") and id.substr(1).is_valid_int(): rings.append(i)
+ var alive: Array[bool]=[]
+ for ring: int in rings:
+  var any: bool=false
+  for c: int in range(ring+1,ring+rig.subtree_size[ring]):
+   if rig.parent_index[c]==ring and bool(actor.part_attached[c]) and float(actor.part_hp[c])>0.0: any=true
+  alive.append(any)
+ for k: int in range(rings.size()):
+  # rings[k] is rail k+1. Rail k+2 spokes from it only when that rail is the third or fourth.
+  var anchors_outer: bool=k+1<rings.size() and k+1>=ShipCompiler.SPOKES_TO_CORE_THROUGH_RAIL and alive[k+1]
+  actor.part_attached[rings[k]]=1 if alive[k] or anchors_outer else 0
+
 func _rebuild_part_views(actor: Dictionary) -> void:
  var rig: ShipMotion.ShipRig=actor.get("rig")
  if rig==null: return
+ if not rig.legacy: _retire_dead_rails(actor,rig)
  var guns: Array=[]
  for i: int in actor.gun_indices:
   guns.append({"index":i,"id":rig.ids[i],"mount":rig.mount_id[i],"ability":rig.ability_id[i],"hp":actor.part_hp[i],"max_hp":actor.part_max_hp[i],"cd":actor.part_cd[i],"aim":actor.part_aim[i],"egg_cd":actor.part_egg_cd[i],"offset":rig.rest[i],"radius":rig.radius[i]})
@@ -1143,6 +1172,7 @@ func _narrow_to_circle(actor: Dictionary, from: Vector2, to: Vector2, bullet_rad
 func _step_motion(actor: Dictionary) -> void:
  var rig: ShipMotion.ShipRig=actor.get("rig")
  var pose: ShipMotion.ShipPose=actor.get("pose")
+ if rig!=null and pose!=null and not rig.legacy: _slew_set_pieces(actor,rig,pose)
  if rig!=null and pose!=null: ShipMotion.step(rig,pose,tick)
  # Target feedback (P8): `ShipMotion.step` always zeroes `pose.flare` (it is
  # a reserved slot with no sim-side owner of its own), so this actor's own
@@ -1169,6 +1199,26 @@ func _step_motion(actor: Dictionary) -> void:
    # rig. Shared on purpose and safe: the renderer only reads it (the aliasing lesson is about a
    # second WRITER).
    renderer.external_pose=pose
+## Spec §9.7: a set piece does not spin with its rail; it swings to track the aim at no more than
+## 3.0 rad/s, and with nothing to aim at it returns to pointing outward. The heading is state, so
+## it lives here, stepped once per sim tick, and the pose only reads it. WHAT a gun aims at is
+## unchanged (its hub's `part_aim`, or the hull's aim for the player and regulars): the marking
+## slews toward it, the shot still leaves along the sim's aim.
+func _slew_set_pieces(actor: Dictionary, rig: ShipMotion.ShipRig, pose: ShipMotion.ShipPose) -> void:
+ var hull: float=Vector2(actor.aim).angle()
+ var limit: float=float(ShipGrammar.MOTION.aim_slew)*_last_dt
+ var guns: PackedInt32Array=actor.get("gun_indices",PackedInt32Array())
+ for joint: int in rig.aim_indices:
+  var hub: int=rig.parent_index[joint]
+  var outward: float=(pose.angle[hub] if hub<pose.angle.size() else 0.0)+rig.rest_heading[joint]
+  var wants: Vector2=Vector2(actor.aim)
+  if int(actor.id)!=0 and guns.has(hub): wants=Vector2(actor.part_aim[hub])
+  # Headings are clockwise from the hull's forward; the hull itself is drawn turned to `actor.aim`.
+  var target: float=outward if wants==Vector2.ZERO else wrapf(wants.angle()-hull,-PI,PI)
+  var current: float=pose.aim_angle[joint]
+  if is_nan(current): current=outward
+  pose.aim_angle[joint]=rotate_toward(current,target,limit)
+
 func _local_position(actor: Dictionary, id: String, fallback: Vector2) -> Vector2:
  # Fire from where the circle actually is: an orbiting group moves a mount
  # or gun exactly as far as the renderer moves it, both driven by the same
@@ -1268,6 +1318,12 @@ func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
    var from_pos: Vector2=_part_position(actor,lf)
    var to_pos: Vector2=_part_position(actor,lt)
    fx.emit("line_snap",from_pos,_actor_color(actor),_fx_rng,{"to":to_pos})
+ if not rig.legacy:
+  # A rail goes with its last cluster (spec §9.8). This function keeps its own hidden list, so the
+  # rule has to run HERE as well as in _rebuild_part_views, or the ring outlives its rail on screen.
+  _retire_dead_rails(actor,rig)
+  for i: int in range(1,rig.ids.size()):
+   if rig.solid[i]==0 and not bool(actor.part_attached[i]) and not hidden.has(rig.ids[i]): hidden.append(rig.ids[i])
  actor.hidden_ids=hidden
  if offsets.is_empty(): return
  actor.reward_unpaid_limb=maxf(0.0,float(actor.get("reward_unpaid_limb",0.0))-light)
@@ -1276,15 +1332,35 @@ func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
  # was paid out early (debris) or folded into the core-kill pool (spec item
  # 5/conservation). `reward_unpaid_limb` above stays in unmultiplied terms.
  var paid_light: float=light*_reward_multiplier(actor)
- debris.append({"offsets":offsets,"radii":radii,"color":_actor_color(actor),"element":str(actor.element),"position":Vector2(actor.pos),"velocity":Vector2(actor.vel),"angle":Vector2(actor.aim).angle()+PI/2.0,"spin":_rng.randf_range(-1.2,1.2),"age":0.0,"life":1.0,"light":paid_light})
+ var piece: Dictionary={"offsets":offsets,"radii":radii,"color":_actor_color(actor),"element":str(actor.element),"position":Vector2(actor.pos),"velocity":Vector2(actor.vel),"angle":Vector2(actor.aim).angle()+PI/2.0,"spin":0.0,"age":0.0,"life":1.0,"light":paid_light}
+ var rail_rig: ShipMotion.ShipRig=actor.get("rig")
+ if rail_rig!=null and not rail_rig.legacy:
+  # Spec §9.8: the detached subtree keeps its rail's velocity, gets a random spread, drifts
+  # outward, spins at 0.5-1.5 rad/s and drops its light HALFWAY through its 1.0 s fade.
+  var motion: Dictionary=ShipGrammar.MOTION
+  var basis: float=Vector2(actor.aim).angle()+PI/2.0
+  var arm: Vector2=(actor.pose as ShipMotion.ShipPose).local[index].rotated(basis)
+  piece.velocity=Vector2(actor.vel)+arm.orthogonal()*-rail_rig.spin_speed[index]+Vector2.from_angle(_rng.randf()*TAU)*float(motion.debris_spread)*_rng.randf()
+  piece.spin=_rng.randf_range(float(motion.debris_spin_min),float(motion.debris_spin_max))*(1.0 if _rng.randf()<0.5 else -1.0)
+  piece.outward=arm.normalized()*float(motion.debris_outward_accel)
+  piece.life=float(motion.debris_fade_seconds)
+  piece.light_at=float(motion.debris_light_drop_seconds)
+ else:
+  piece.spin=_rng.randf_range(-1.2,1.2)
+ debris.append(piece)
 func _update_debris(dt: float) -> void:
  for i: int in range(debris.size()-1,-1,-1):
   var d: Dictionary=debris[i]
   d.age=float(d.age)+dt
+  if d.has("outward"): d.velocity=Vector2(d.velocity)+Vector2(d.outward)*dt
   d.position=Vector2(d.position)+Vector2(d.velocity)*dt
   d.angle=float(d.angle)+float(d.spin)*dt
-  if float(d.age)>=float(d.life):
+  # A rail hull's debris drops its light at 0.5 s and goes on fading to 1.0 s (spec §9.8); v0.3
+  # debris pays at the end of its life. Either way it pays exactly once: `light` is zeroed.
+  if float(d.age)>=float(d.get("light_at",d.life)) and float(d.light)>0.0:
    for size: int in _pickup_sizes(maxi(0,roundi(float(d.light)))): _drop_pickup(d.position,str(d.element),size,true)
+   d.light=0.0
+  if float(d.age)>=float(d.life):
    debris.remove_at(i)
 ## Debris must not silently lose light on a node exit mid-fade: whatever has
 ## not finished its 1s fade yet pays out immediately as a pickup. Called
@@ -2077,6 +2153,20 @@ func _configure_arena_exits() -> void:
   elif direction is Array and direction.size()==2: arena.exits.append(Vector2i(int(direction[0]),int(direction[1])))
 
 func _muzzle(actor: Dictionary, mount: String) -> Vector2:
+ # Rail hull: a mount is a HUB whose id is positional ("r2s1"), so it is found through the mount
+ # table, never by treating the mount's name as a circle id. Mirror twins share one mount and
+ # take turns (the muzzle alternates; damage does not double), skipping a twin that has died.
+ var rig: ShipMotion.ShipRig=actor.get("rig")
+ if rig!=null and not rig.legacy:
+  var twins: PackedInt32Array=actor.get("mount_twins",{}).get(mount,PackedInt32Array())
+  if not twins.is_empty():
+   var turn: int=int(actor.get("twin_turn",0))
+   actor.twin_turn=turn+1
+   for step: int in range(twins.size()):
+    var index: int=twins[(turn+step)%twins.size()]
+    if index==0 or (bool(actor.part_attached[index]) and float(actor.part_hp[index])>0.0) or int(actor.id)==0:
+     return _part_position(actor,index)
+  return Vector2(actor.pos)
  var fallback: Vector2=Vector2(actor.get("mounts",{}).get(mount,Vector2.ZERO))
  return Vector2(actor.pos)+_local_position(actor,mount,fallback).rotated(Vector2(actor.aim).angle()+PI/2.0)
 

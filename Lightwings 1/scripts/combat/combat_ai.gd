@@ -40,6 +40,16 @@ static func is_decision_driven(actor: Dictionary) -> bool:
 
 static func archetype_of(actor: Dictionary) -> String:
 	if bool(actor.get("rival", false)): return "boss"
+	# A rail hull DECLARES its archetype (ship design spec §8). Only a v0.3 hull, which declares
+	# nothing, is still read off its id prefix below.
+	match str(actor.get("archetype", "")):
+		"radial_elite": return "radial"
+		"heavy_elite": return "heavy"
+		"irregular_elite": return "irregular"
+		"sentry": return "sentry"
+		"chain": return "chain"
+		"drone": return "drone"
+		"boss": return "boss"
 	var id: String = str(actor.get("hull_id", ""))
 	if id.begins_with("elite_radial"): return "radial"
 	if id.begins_with("elite_irregular"): return "irregular"
@@ -62,7 +72,7 @@ static func update(world, actor: Dictionary, dt: float) -> void:
 	match archetype_of(actor):
 		"sentry": _update_sentry(world, actor, dt)
 		"chain": _update_regular(world, actor, dt)
-		"radial", "irregular": _update_decision_driven(world, actor, dt)
+		"radial", "irregular", "heavy": _update_decision_driven(world, actor, dt)
 		"boss": _update_decision_driven(world, actor, dt)
 		_: _update_regular(world, actor, dt)
 
@@ -115,6 +125,10 @@ static func _update_decision_driven(world, actor: Dictionary, dt: float) -> void
 	_steer(world, actor, dt, 0.45 if bool(actor.get("elite", false)) else 0.85)
 	if actor.get("gun_indices", PackedInt32Array()).size() > 0:
 		world._update_guns(actor, dt, new_decision)
+		# A rail hull's MAIN weapon is in its core (spec §4.1), which is rig index 0 and so never a
+		# "gun". Without this an elite's core weapon would never fire at all. v0.3 hulls carry no
+		# core weapon (their `archetype` is empty), so their behaviour is unchanged.
+		if str(actor.get("archetype", "")) != "": world._fire_primary(actor, dt)
 	else:
 		world._fire_primary(actor, dt)
 		for i: int in range(actor.secondaries.size()): world._use_secondary(actor, i)

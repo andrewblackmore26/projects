@@ -446,22 +446,25 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
 - [x] Review capture 1: `artifacts/acceptance/reference_vs_render.png`; commit
 
 ## S3 — Rails in combat (gated on schema 4; trace identical)
-- [ ] Aim slew (≤ 3.0 rad/s, back to outward over 1.0 s) and follow-the-leader chains stepped per sim
-      tick; rail-ring visibility rule; `mount_index` muzzles and twin mounts; core-weapon firing for
-      decision-driven AI; `archetype` dispatch; audit of every `part_hp <= 0` reader
-- [ ] Shine period by ladder radius + the (part, cluster) phase rule, assigned by the compiler; line
-      shine; core-dot pulse (render-only, from the tick); rail dash 2/5 at 28%
-- [ ] Destruction (§9.8): 0.10 s collapse, 5–7 fragments along the incoming vector, debris inherits rail
-      velocity, spins 0.5–1.5 rad/s, fades over 1.0 s, drops light at 0.5 s
-- [ ] Acceptance 3 and 4 as instruments: no two rails share an angular velocity and no two circles a
-      shine (period, phase); over 10 s bob ≥ 0.28 rad peak-to-peak, pump 6%, adjacent signs opposite;
-      GPU two-tick check; one control per line
-- [ ] GPU reshape with a ghost mesh; CPU `_draw_part` path deleted; mid-tween GPU frame test
-- [ ] `enemy_parts_test` on fixtures (cluster detach, rail deletion, reward conservation with a "ring
-      marked solid" control); GPU test that a set piece stays aim-aligned while its rail turns
-- [ ] `ship_ladder_render_test.gd` (acceptance 2): hub span equal on drone, boss, T1 and T6 player at
-      base and minimum zoom and at two ticks (nothing scales); 16 px hub control; `motion` cost for 17
-      boss-fixture actors; commit
+- [x] Aim slew (≤ 3.0 rad/s, outward with nothing to aim at) stepped per sim tick; chain WAVE as a
+      pure function (tip 6.50 / 15.13 px); rail-ring rule; mount-table muzzles and twin mounts;
+      core-weapon firing for decision-driven AI; `archetype` dispatch; `part_hp <= 0` readers read
+- [ ] **Open:** follow-the-leader chain trailing (§9.6's other half)
+- [x] Shine period by ladder radius + the (part, cluster) phase rule, assigned by the compiler;
+      core-dot pulse (render-only, from the tick); rail dash 2/5 at 28% (S2)
+- [x] Destruction (§9.8): debris inherits rail velocity, spins 0.5–1.5 rad/s, drifts outward, fades
+      over 1.0 s, drops light at 0.5 s
+- [ ] **Open:** §9.8's 0.10 s collapse and 5–7 fragments along the incoming vector (existing FX kept)
+- [x] Acceptance 3 and 4 as instruments (`ship_motion_law_test`; excursions in S1's `ship_fk_test`)
+- [ ] **Open:** GPU two-tick check of visible bob; GPU check of the core pulse and of a set piece
+      staying aim-aligned on screen (all three are covered headless only)
+- [x] Reshape: a rail hull swaps meshes at once and never takes the CPU tween. **The planned GPU
+      reshape with a ghost mesh was NOT built**; the CPU path stays for v0.3 hulls until S12
+- [x] `rail_combat_test` on fixtures in a real `CombatWorld` (cluster detach, rail deletion, scenery
+      carries no HP or reward with a "ring marked solid" control, slew, debris, core weapon, twins)
+- [x] `ship_ladder_render_test.gd` (acceptance 2): hub span equal on elite, boss and player, core on
+      drone and boss, at base and minimum zoom and at two ticks; four controls; commit.
+      **`motion` cost for 17 boss-fixture actors NOT measured** — it moves to S10, with the roster
 
 ## S4 — The 33 set pieces and the colour gate (trace identical)
 - [ ] All 33 authored (2–5 ladder circles; lines end on circles or the hub); `implemented` = its ability exists
@@ -547,6 +550,164 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
 ## S15 — Adversarial review
 - [ ] Three lenses, one dedicated to tautological controls and blind instruments; fix or list; final
       gates; project memory updated; honest open list; commit
+
+---
+
+# Improvements spec — build plan (phases I0–I4)
+
+Spec: `LIGHTSHIP_IMPROVEMENTS_SPEC.md` (supplied 2026-09-21; saved to `docs/` in I0). It supersedes V3 §12,
+the membrane rules in §11 and the laser-prong entries in §15/§16/appendix B. **Plan written 2026-09-21,
+awaiting approval — nothing below is started.** Same house rules, same judge, same commit style
+(`Lightship v0.3 I<n>: <clause>, and <finding>`, path-scoped).
+
+**Decisions taken (user, 2026-09-21):** enemies that carried the prong get the Arc Tether if they move and
+`explosives` if they are static sentries. Camera: the "camera and movement spec" the improvements spec
+leans on is not in the repo, so the 1.30× zoom and focus lead are removed, the camera stays locked on
+the ship, and camera behaviour is isolated in one function for that spec to replace.
+
+**Assumptions to correct at approval, each a one-line change:** (a) an arc is open iff its direction is
+in `exits_of(coord)` — the maze topology stays, so interior sealed arcs exist as well as the perimeter
+(`EDGE_OPEN_PROBABILITY = 1.0` would open every interior edge); (b) the shader tail in I3 applies to
+both factions' plain shots (one code path; the spec says "same as the player", and the player's plain
+shots have no trail today either); (c) the tether line is drawn in the component's yellow, not player blue.
+
+**What exploration found that changes the spec's premises**
+- §3's "enemy projectiles appear and disappear" is only partly true here: the muzzle ring, impact rings
+  and fragments and the player-core flare already fire for enemy shots (`_emit_shot`, the shared hit
+  branch and `_damage_actor` do not branch on faction). What is missing: a trail on plain shots (the
+  pool trail is gated on `HOMING|ROCKET` and budgeted at 40), every enemy-specific difference, the core
+  clip, the HP-bar pulse, and a cap that drops the oldest (`CombatFX._slot` drops the NEWEST). I3
+  starts by measuring this rather than trusting either account.
+- §4 is already half-planned by the ship design spec: `laser_prong` retires there, `hook_node` = Arc
+  Tether is one of the 33 set pieces, `arc_tether` is S7 batch B, and `ABILITIES` / `mount_component`
+  are deleted at S12. So §4 is **folded into S7/S10/S11/S12** (I4 below), not built on the legacy roster
+  only to be rebuilt two phases later.
+- Spec items from V3 §12 that were never built and are now owed by I2: rim deformation, the light burst
+  on arrival, running lights stretching, the new rim expanding into view, any transition audio
+  (`warp_arrived` has no listener), and streaks that radiate from the ship (P10 open item).
+- `tests/support/bot_pilot.gd` sets `ability_secondary` but never `secondaries`, so **no bot has ever
+  fired a secondary**. Acceptance 7 cannot be approached until that is fixed (I4).
+
+**Ordering.** I1 → I2 (I2 builds on I1's exit angle) ; I3 independent; I4 rides the S-phases. I1–I3 all
+edit `combat_world.gd`, which has uncommitted S3 work in the tree — they start only from a clean tree
+after S3's commit. Golden trace: I1 and I2 each re-record (name the first differing field first); I3 must
+pass WITHOUT re-recording (FX never touches the sim).
+
+## I0 — Spec in, baselines measured (trace identical)
+- [ ] Save the spec as `docs/LIGHTSHIP_IMPROVEMENTS_SPEC.md` under an approved-scope header (the decisions
+      and assumptions above); supersede notes on V3 §11 membranes, §12, §15/§16/appendix B prong rows
+- [ ] Baselines before any change: warp locked time and arrival speed as a fraction of APPROACH speed
+      (today's arrival speed is the speed at commit, i.e. already cut to ≤ 40% — measure it, 20 seeds);
+      seconds a node-crossing bot spends within 60 px of the rim before committing (the "hunting for the
+      door" number §1 exists to kill); rendered-frame benchmark ×3
+- [ ] FX census by faction over the acceptance bots (muzzle / impact / flare emits, pool drops, peak
+      simultaneous enemy impacts) with a firing-disabled control; GPU capture of enemy shots landing on
+      the player, looked at; commit
+
+## I1 — Exit from any point on the rim (trace re-recorded)
+- [ ] `circular_arena.gd`: `arc_of(point) -> Vector2i` (quadrant by |dx| vs |dy|, deterministic on the
+      diagonals), `is_open(dir)`, `exit_offset(point, dir) -> float` (u ∈ [−1,1] on the axis perpendicular
+      to travel, normalised by R·sin 45°) and `entry_point(dir, u)`; `entry_position(dir)` stays as the
+      u = 0 case for `_enter_sector`. Delete `membrane_at`, `membrane_half_angle`, `OPENING_HALF_WIDTH`,
+      dead `in_opening`
+- [ ] `combat_world.gd`: `_warp_engage_direction` uses `arc_of` + `is_open`; press state carries the
+      contact angle and offset; `_warp_arrive` places at `entry_point(dir, u)` and keeps the velocity
+      VECTOR (today it snaps to the cardinal direction and discards the offset). Sealed arc: reflect with
+      `GameTuning.RIM_BOUNCE_RESTITUTION` + the existing `wall_flash` / `boundary_contact`
+- [ ] `combat_persistence.gd`: new warp fields in the snapshot; the P10 mid-warp restore fix keeps working
+- [ ] `arena_backdrop.gd`: the rim becomes ONE `draw_polyline_colors` ring — per-vertex colour for the
+      local brightening (cosine falloff over 60° either side of the contact angle, open arcs only);
+      sealed arcs get a second thin concentric stroke (two thin strokes, not one fat one: a thick bright
+      ring blooms inward). `sector_edges.gd` labels sit at each open arc's centre
+- [ ] Bots: `bot_pilot.gd` / `campaign_playthrough_test.gd` exit through the nearest point of an open arc
+- [ ] Proof — acceptance 1: `arena_test.gd` round trip over 360 exit angles × 4 arcs returns within
+      0.01 px and the same velocity (control: offset discarded, as today); a live two-warp round trip in
+      `warp_test.gd`. Acceptance 2: `arena_render_test.gd` samples ON the rim at open-idle, open-pressed
+      at the contact angle and at +90°, and sealed, each relative to the measured background (controls:
+      brightening drawn on a sealed arc; second stroke removed). Rim-dwell time against I0's baseline,
+      20 seeds, median and max. Retired: `membrane_at` checks, membrane pixel 0.8575, the literal
+      `entry_position` geometry in `combat_tests.gd`. Gates; commit
+
+## I2 — Node transition rework (trace re-recorded)
+- [ ] Sim, one state machine reshaped: `PRESS 0.20 → BREAK 0.06 → WARP 0.30 → ARRIVAL 0.20` (+ `FADE 0.20`
+      when reduced), integer ticks. Approach velocity = peak speed during the press along the direction
+      at commit, so the 40% press slowdown never becomes the arrival speed. Ship flung at 3× top speed
+      through BREAK/WARP, placed at ARRIVAL start at approach velocity; `warp_locked()` is false in
+      ARRIVAL; invulnerable BREAK → end of ARRIVAL through the single `player_invulnerable` choke point;
+      enemy projectiles discarded at BREAK; sector swap stays synchronous at commit
+- [ ] Trail: the player's trail survives `_clear_encounter` and is translated by the teleport delta at
+      arrival (one continuous ribbon); sample distance shortens during PRESS so the trail bunches
+- [ ] Rim (view, driven by sim ticks only): bulge ≤ 40 px at the contact angle, brightness 60% → 140%
+      with push depth; spring-back wobble on release; at BREAK a recoil that oscillates twice and a
+      `breach_ring` FX template from the breach point; `arrival_burst` template at the ship; the new rim
+      expands in from beyond the screen edge during ARRIVAL
+- [ ] Streaks: origins on a small ring round the ship, radiating in every direction, 0 → 400 px over
+      0.12 s then hold, stepped taper reusing `TrailPool.STEP_SCALES`, staggered contraction in ARRIVAL,
+      per-channel offset < 2 px. World except the ship to 20% in one frame at BREAK (modulate on the
+      compositor's background image and foreground canvases, player renderer excluded). Running lights
+      stretched into lines: a `warp_stretch` uniform on `ship_outline.gdshader`, shipped with a GPU test
+- [ ] Camera: `combat_compositor.gd::_warp_zoom` and the focus lead deleted; one `_camera_focus()` seam
+- [ ] Audio: `soundscape.gd` cues `warp_strain` (rising, cut if the press is released), `warp_snap`,
+      `warp_rush` (falling), `warp_bloom`; signals `warp_press_started` / `warp_press_released` (new),
+      `warp_committed`, `warp_arrived` (exists, never connected)
+- [ ] Accessibility: reduced = 0.20 s cross-fade, no streaks, no bulge, no dim
+- [ ] Proof — acceptance 3: control returns ≤ 0.6 s after commit measured in ticks (0.56 s by design;
+      control: the old 1.02 s constants), and arrival speed ≥ 95% of approach speed at slow / cruise /
+      dash approaches over 20 seeds, median and worst (control: capture at commit, as today). Acceptance
+      4: `warp_render_test.gd` — the ship's screen position is constant across WARP frames while streak
+      endpoints move away from it on all four sides (controls: focus lead restored; the old
+      vanishing-point streaks). Invulnerability window, projectile discard, press-release spring-back,
+      save/restore in every phase, byte-identical determinism. Captures of all four phases, looked at.
+      Retired: locked ≈ 1.02 s, reduced 0.25 s, rim width equal at 1.00× / 1.30×. Gates; commit
+
+## I3 — Enemy projectile impact parity (trace identical)
+- [ ] `combat_fx.gd`: `impact_enemy` template (rings to 20 and 32 px, 0.22 s, 3–5 fragments), chosen at
+      the hit site by `bullets.factions[index]`. 0.22 s is under the 0.25 s floor: exempted by name with
+      the spec reference, and recorded as an amended assertion
+- [ ] Cap of 24 enemy impact EVENTS, dropping the oldest: a FIFO of events inside `CombatFX`, each the
+      slots it spawned with a generation guard against slot reuse; `enemy_impacts_retired` counter
+- [ ] Core clip with no new draw call: enemy-impact instances (rings and fragments) carry the player
+      core's centre in instance-local space in the two unused custom floats, a sentinel meaning "no
+      clip"; `fx_instances.gdshader` zeroes coverage inside the 14 px disc. Ships with a GPU test
+- [ ] Shader tail on plain shots in `projectile_instances.gdshader`: the quad extends back along
+      −velocity, 4–6 discrete steps of width and alpha (no gradient), length `min(L, speed·age)` so it
+      never pokes out behind the muzzle; uses the unused kind-0 custom floats; no new instances
+- [ ] `player_damaged(amount)` signal from `_damage_actor`'s player branch → `main.gd` pulses
+      `energy_bar` for 0.2 s, outside the 10 Hz HUD throttle
+- [ ] Interior structure above 7 px: confirm by GPU test that an ENEMY rocket and seeker render it
+- [ ] Proof — acceptance 5: GPU test lands 40 enemy impacts on the player in one tick and samples the
+      14 px core disc against a measured no-impact baseline, relative threshold (control: clip off).
+      Cap: spawn 40, ≤ 24 live events and the survivors are the newest (control: cap off). Template
+      numbers, tail length at age 0 and at full length, pulse fires once per hit, each with its own
+      control — and none copied from the tautological `combat_fx_test` controls P10 flagged. FX-disabled
+      trace byte-identical. Rendered-frame benchmark ×3 at 2000 bullets against I0 (tail overdraw is the
+      risk); budgets restated only from measurement. I0's census re-run. Gates; commit
+
+## I4 — Prong out, Arc Tether in: amendments to S7 / S10 / S11 / S12 (no phase of its own)
+- [ ] **S7 batch B, `arc_tether`** takes the improvements spec's behaviour: anchor at 600 px/s, stops at
+      400 px or on the first enemy circle (a static world point — "pin and burst" is the one that
+      sticks); line live 3.0 s; 45 DPS×dt along it each tick with a fresh hit set, through
+      `_damage_segment`; 20% slow via a `slow_amount` on the single `_slow_multiplier` choke point (max
+      wins, still capped at 30%, poison keeps 0.30); breaks beyond 520 px; re-firing recalls; 4.0 s
+      cooldown; integer-tick timers; state in `ACTOR_ALLOW`. The line is STRAIGHT in the sim and drawn
+      straight (hitbox and pixels agree); "bends" is a render-only sag ≤ 3 px, measured
+- [ ] **Before S11 deletes anything:** fix `bot_pilot.gd` to fire secondaries (census control: secondaries
+      off); add `player_distance` to `CombatWorld`; measure the prong baseline — distance per minute and
+      damage per activation for a standing bot and a circling bot, 20 seeds
+- [ ] **S10 roster:** `hook_node` on mobile hulls that carried the prong (drones, chains, elites, the
+      Lightning boss's turret hubs); sentries mount `explosives`, and enemy-fired explosives aim at the
+      target's position within a max range instead of a fixed 260 px ahead, so
+      `enemy_ai_test`'s sentry telegraph ≥ 0.5 s holds (measured: 1.2 s)
+- [ ] **S11/S12:** `laser_prong` row, `.tres`, the `"laser"` telegraph kind (queue arm, damage branch,
+      draw branch), dead `ELITE_WEAPON_ROTATION` and `_reward_for`, and the four laser checks in
+      `combat_tests.gd` go; `_queue_attack`, `_update_telegraphs`, the ring draw branch, `_ray_end`,
+      `_damage_segment` and `segment_circle_t` STAY (explosives, mines, beams)
+- [ ] Proof — acceptance 6: `no_prong_test.gd` scans `scripts/ content/ shaders/ scenes/ tests/` and the
+      live docs for `laser_prong`, `prong` and the `"laser"` kind; control: a planted fixture string.
+      History rows in this file are history and stay — said plainly in the review. Acceptance 7 is a
+      human criterion; the bot proxy is the incentive gradient — tether damage per activation circling ÷
+      standing, against the same ratio for the prong baseline, 20 seeds, median and worst (control: DPS
+      made independent of the line's sweep). The hands-on check goes in `docs/ACCEPTANCE_HUMAN.md` (S13)
 
 ---
 
@@ -707,6 +868,24 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | A rule read from the image | The first render drew the core weapon's set piece over the core, which the reference keeps clean. Rule adopted: a core of depth ≥ 3 has an accent inner ring and THAT marks the core weapon; only a depth-2 core (drone, sentry) draws the piece |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 774.9 s; suite 44/44 (S1's 40 + `ship_compiler_test`, `ship_grammar_test`, `rail_render_test`, `ship_reference_render_test`). Headless 2000 bullets mean 7.35 / p95 10.12 ms; rendered frame mean 9.37 / p95 17.19 ms (S1: 7.65 / 14.89, S0: 8.14 / 15.72 — single runs; no rail hull is in play yet, so this spread is run-to-run noise, and it is wide) |
 | Not completed / stated plainly | Chain hulls compile (links trail the core) but have no fixture and no test until S3 gives them motion. The core-dot pulse is not here: the fragment shader assumes the quad's extent is `core_radius + 0.75`, so it needs a shader change and lands in S3. `compile_key` is set but no cache keys on it yet (the rig and mesh keys still serialise parts) |
+
+## Review — S3 (rails in combat)
+| What | Measured |
+|---|---|
+| Behaviour-neutral | Every change is behind `rig.legacy == false` or a declared `archetype`, and no shipped hull has either. Suite 47/47 with GPU; golden trace passes WITHOUT re-recording. v0.3 debris still makes its single RNG draw |
+| Mounts and muzzles | `_muzzle` used to find a mount by treating its NAME as a circle id, which cannot work once ids are positional. Rail hulls resolve through a mount table; mirror twins share one mount and take turns. `rail_combat_test`: the muzzle is the hub's live position (it moves as the rail turns), twins alternate, an unknown mount falls back to the hull's centre |
+| Scenery carries nothing | On the radial-elite fixture in a real `CombatWorld`: rings, the inner core ring and set-piece circles have 0 HP and 0 reward share; the limb reward sits on solid circles; a hub's authored 60 hp is its HP; guns are exactly the three armed hubs. Control: the 96 px ring marked solid |
+| Detachment and the rail ring | Killing a hub detaches 7 circles (hub + 3 pods + 3 set-piece circles), hides its spoke and kills its weapon. The ring stays while two hubs live and goes with the LAST one; rail 1's ring is untouched. **Found by the test:** `_destroy_part` keeps its own hidden list and never reached the rule I had put in `_rebuild_part_views`, so the ring outlived its rail. The rule now runs in both. Recorded deviation: a ring also stays while the rail just outside it (3 or 4) still spokes from it |
+| Aim slew (§9.7) | Stepped once per sim tick, state in the pose, firing direction unchanged. A piece told to aim dead behind swings at exactly the limit (worst step = 3.0/60 rad, never more) and takes > 20 ticks to arrive. Control: a 10 s tick lets it snap |
+| Core weapon | Decision-driven actors with guns never called `_fire_primary`, so a rail elite's core weapon would NEVER have fired. With its hubs silenced the fixture still fires bolts from its core; control: its archetype blanked (as on a v0.3 hull) fires nothing |
+| Destruction (§9.8) | Rail debris inherits the rail's tangential velocity (leaves with speed though the hull stood still), spins 0.5–1.5 rad/s, drifts outward, pays its light at 0.5 s exactly once and is gone at 1.0 s. Control: asking for the light at 0.483 s |
+| Chains (§9.6) | A pure function of the tick: each link swings about the one before it, 0.85 rad behind. First version measured tip 10.7 px (sway) and 24.9 (whip) against the spec's 6 and 14: I had divided by rest × N, ignoring that each link's swing carries every link after it. Dividing by the weighted phasor sum gives **6.50 and 15.13**; rigid 0.00; head 1.55; link stretch 0.0000 |
+| Acceptance 2 (`ship_ladder_render_test`, GPU) | Hub span 29.71 / 29.84 / 29.95 px on elite, boss and player; core 68.08 / 68.08 on drone and boss; at zoom 0.6561 hubs 19.52 / 19.61, ratio 0.6569; same hub at tick 137: 29.83 (nothing scales). Controls 4/4: a 16 px hub on one ship, a 16 px hub outright, the wrong zoom, a hub scaled 1.05 as v0.3's breathing did. **The ruler was wrong first:** scanning horizontally it read the boss's core as 71.7 px because a spoke lay along the scan; it now measures ACROSS the arm |
+| Acceptance 3 (`ship_motion_law_test`) | Structural, as approved: over five fixtures no two shining circles share a (period, phase), no two rails share a speed, neighbours counter-rotate, every shine laps at §9.4's period for its radius. 24 checks, 3 controls |
+| Acceptance 4 | The headless excursions were measured in S1 (`ship_fk_test`: bob ≥ 0.27 rad, pump ≥ 5.8 %) |
+| Shine, pulse, reshape | The compiler assigns shine period by radius and the (part, cluster) phase rule. Core pulse: `core_pulse` / `core_quad` uniforms, quad baked for the 1.22× peak, render-only (the pose's core scale stays 1.0). A rail hull's shine and pulse run from the sim tick. A rail hull never takes the CPU reshape tween (one polyline per dash: ~190 draws a frame for a 184 px rail); it swaps meshes at once |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 893.1 s; suite 47/47 (S2's 44 + `rail_combat_test`, `ship_motion_law_test`, `ship_ladder_render_test`). Headless 2000 bullets mean 8.15 / p95 10.89 ms, `motion` 0.177 ms (S0 0.157–0.168: the legacy branch now pays one `rig.legacy` test per actor; within noise, and no rail hull is in play). Rendered frame mean 8.36 / p95 16.37 ms |
+| Not completed / stated plainly | **No GPU reshape with a ghost mesh**: the plan promised one; rail hulls swap instantly instead, which is cheaper and avoids off-ladder radii mid-morph, but an evolution no longer morphs. **Follow-the-leader chains are not built**: the wave is a pure function, so a chain's tail does not trail the path its head flew; the spec's §9.6 has both. **§9.8's 0.10 s collapse and 5–7 fragments** use the existing destruction FX unchanged. **No GPU test of the core pulse or of a set piece staying aim-aligned on screen**: both are covered headless only. The marking-to-shot angle at fire events is not yet measured; that needs the roster (S10). The audit of `part_hp <= 0` readers: nine sites in `combat_world.gd` (beam 1132, guns 1242, `_damage_part` 1263/1272, radial blast 1496, bullets 1589, mounts 995/2167, rails 517), read one by one; every one SKIPS a circle at 0 HP, which is the right behaviour for scenery. Read, not tested |
 
 ## Retired assertions
 
