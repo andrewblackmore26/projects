@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_xspai"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_nj46l"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_21ah5"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_3twgr"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_vvdes"]
+
+[sub_resource type="Resource" id="Resource_rqoxb"]
+script = ExtResource("1_xspai")
+type = "hub"
+pods = 2
+set_piece = "lens_stack"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_qfexv"]
+script = ExtResource("1_xspai")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_0ky3j"]
+script = ExtResource("1_xspai")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_hmpxh"]
+script = ExtResource("1_xspai")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_2io4f"]
+script = ExtResource("1_xspai")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_wjk0x"]
+script = ExtResource("4_3twgr")
+order = 5
+slots = Array[ExtResource("1_xspai")]([SubResource("Resource_rqoxb"), SubResource("Resource_qfexv"), SubResource("Resource_0ky3j"), SubResource("Resource_hmpxh"), SubResource("Resource_2io4f")])
+
+[resource]
+script = ExtResource("5_vvdes")
+id = "player_void_t2_standard_b"
+display_name = "Void T2 Standard B"
+element = "void"
+tier = 2
+description = "seed 571642"
+schema_version = 4
+family = "standard_b"
+speed = 240.0
+chassis_color = "blue"
+accent_color = "silver"
+rails = Array[ExtResource("4_3twgr")]([SubResource("Resource_wjk0x")])

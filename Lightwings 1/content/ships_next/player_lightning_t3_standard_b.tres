@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_qx2x8"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_aos4d"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_5w5pu"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_84nve"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_a5ojd"]
+
+[sub_resource type="Resource" id="Resource_xqdnj"]
+script = ExtResource("1_qx2x8")
+type = "hub"
+pods = 2
+set_piece = "rift_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_8xcux"]
+script = ExtResource("1_qx2x8")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_onttq"]
+script = ExtResource("1_qx2x8")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_amipu"]
+script = ExtResource("4_84nve")
+slots = Array[ExtResource("1_qx2x8")]([SubResource("Resource_xqdnj"), SubResource("Resource_8xcux"), SubResource("Resource_onttq")])
+
+[sub_resource type="Resource" id="Resource_q6beo"]
+script = ExtResource("1_qx2x8")
+type = "hub"
+pods = 2
+set_piece = "shell_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_iere2"]
+script = ExtResource("1_qx2x8")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_k58f8"]
+script = ExtResource("1_qx2x8")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_o3cro"]
+script = ExtResource("1_qx2x8")
+type = "hub"
+pods = 2
+set_piece = "shell_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_y3bnm"]
+script = ExtResource("4_84nve")
+radius = 96
+order = 4
+speed = 0.431
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_qx2x8")]([SubResource("Resource_q6beo"), SubResource("Resource_iere2"), SubResource("Resource_k58f8"), SubResource("Resource_o3cro")])
+
+[resource]
+script = ExtResource("5_a5ojd")
+id = "player_lightning_t3_standard_b"
+display_name = "Lightning T3 Standard B"
+element = "lightning"
+tier = 3
+description = "seed 940301"
+schema_version = 4
+family = "standard_b"
+speed = 240.0
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 3
+rails = Array[ExtResource("4_84nve")]([SubResource("Resource_amipu"), SubResource("Resource_y3bnm")])

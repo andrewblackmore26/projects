@@ -1,0 +1,91 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_jnvdh"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_2lq8b"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_180mh"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_fg3sy"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_i4c8j"]
+
+[sub_resource type="Resource" id="Resource_v26hm"]
+script = ExtResource("1_jnvdh")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_sflpo"]
+script = ExtResource("1_jnvdh")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_veeiy"]
+script = ExtResource("1_jnvdh")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_axbxl"]
+script = ExtResource("1_jnvdh")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_2tgx7"]
+script = ExtResource("4_fg3sy")
+order = 4
+speed = -0.9386
+phase = 0.7854
+slots = Array[ExtResource("1_jnvdh")]([SubResource("Resource_v26hm"), SubResource("Resource_sflpo"), SubResource("Resource_veeiy"), SubResource("Resource_axbxl")])
+
+[sub_resource type="Resource" id="Resource_gum7r"]
+script = ExtResource("1_jnvdh")
+type = "hub"
+pods = 2
+set_piece = "spin_ring"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_2fx35"]
+script = ExtResource("1_jnvdh")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_7sci2"]
+script = ExtResource("1_jnvdh")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_65y66"]
+script = ExtResource("1_jnvdh")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_pioru"]
+script = ExtResource("1_jnvdh")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_00qx4"]
+script = ExtResource("4_fg3sy")
+radius = 96
+order = 5
+pump_phase = 0.9
+slots = Array[ExtResource("1_jnvdh")]([SubResource("Resource_gum7r"), SubResource("Resource_2fx35"), SubResource("Resource_7sci2"), SubResource("Resource_65y66"), SubResource("Resource_pioru")])
+
+[resource]
+script = ExtResource("5_i4c8j")
+id = "player_plasma_t4_standard_a"
+display_name = "Plasma T4 Standard A"
+element = "plasma"
+tier = 4
+description = "seed 739559"
+schema_version = 4
+speed = 240.0
+passives = Array[String](["forcefield"])
+chassis_color = "blue"
+accent_color = "violet"
+core_depth = 3
+rails = Array[ExtResource("4_fg3sy")]([SubResource("Resource_2tgx7"), SubResource("Resource_00qx4")])

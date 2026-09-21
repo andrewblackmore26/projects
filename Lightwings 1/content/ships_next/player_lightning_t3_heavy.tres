@@ -1,0 +1,82 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_48jil"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_6qejy"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_7hm81"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_2xo2e"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_x156x"]
+
+[sub_resource type="Resource" id="Resource_kbevi"]
+script = ExtResource("1_48jil")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_qnq1i"]
+script = ExtResource("1_48jil")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_f2vca"]
+script = ExtResource("1_48jil")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_t7qv0"]
+script = ExtResource("1_48jil")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_3q7g8"]
+script = ExtResource("4_2xo2e")
+order = 4
+speed = -0.8889
+phase = 0.7854
+slots = Array[ExtResource("1_48jil")]([SubResource("Resource_kbevi"), SubResource("Resource_qnq1i"), SubResource("Resource_f2vca"), SubResource("Resource_t7qv0")])
+
+[sub_resource type="Resource" id="Resource_x2qig"]
+script = ExtResource("1_48jil")
+type = "hub"
+pods = 4
+set_piece = "lens_stack"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_knug4"]
+script = ExtResource("1_48jil")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_arrve"]
+script = ExtResource("1_48jil")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_kch2r"]
+script = ExtResource("4_2xo2e")
+radius = 96
+pump_phase = 0.9
+slots = Array[ExtResource("1_48jil")]([SubResource("Resource_x2qig"), SubResource("Resource_knug4"), SubResource("Resource_arrve")])
+
+[resource]
+script = ExtResource("5_x156x")
+id = "player_lightning_t3_heavy"
+display_name = "Lightning T3 Heavy"
+element = "lightning"
+tier = 3
+description = "seed 360024"
+schema_version = 4
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 3
+rails = Array[ExtResource("4_2xo2e")]([SubResource("Resource_3q7g8"), SubResource("Resource_kch2r")])

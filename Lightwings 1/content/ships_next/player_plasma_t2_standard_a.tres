@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_inwsc"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_p4br8"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ogq2l"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ujlmk"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_byu4j"]
+
+[sub_resource type="Resource" id="Resource_b1rsg"]
+script = ExtResource("1_inwsc")
+type = "hub"
+pods = 2
+set_piece = "spin_ring"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_6pflc"]
+script = ExtResource("1_inwsc")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_qj8ox"]
+script = ExtResource("1_inwsc")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_ylo3b"]
+script = ExtResource("1_inwsc")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_5uvo3"]
+script = ExtResource("4_ujlmk")
+order = 4
+slots = Array[ExtResource("1_inwsc")]([SubResource("Resource_b1rsg"), SubResource("Resource_6pflc"), SubResource("Resource_qj8ox"), SubResource("Resource_ylo3b")])
+
+[resource]
+script = ExtResource("5_byu4j")
+id = "player_plasma_t2_standard_a"
+display_name = "Plasma T2 Standard A"
+element = "plasma"
+tier = 2
+description = "seed 228517"
+schema_version = 4
+speed = 240.0
+chassis_color = "blue"
+accent_color = "violet"
+rails = Array[ExtResource("4_ujlmk")]([SubResource("Resource_5uvo3")])

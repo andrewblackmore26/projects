@@ -155,7 +155,9 @@ static func _enemy(params: Dictionary, rng: RandomNumberGenerator) -> Dictionary
 		var order: int = int(orders[r])
 		# §13.7: inner rails carry node clusters, outer rails carry weapons. One-rail hulls arm what
 		# their archetype needs on that one rail.
-		var armed: bool = r > 0 or (archetype == "sentry" and tier >= 2)
+		# A sentry is a turret: it arms its one rail at EVERY tier. (Arming it only from tier 2 made the
+		# tier-1 sentry a 9-circle hull against a 19-circle target - the roster build caught it.)
+		var armed: bool = r > 0 or archetype == "sentry"
 		var piece: String = _pick(pool.hub, rng) if armed else ""
 		# Two pods straddle the outward axis, so a forward-pointing piece is not drawn over one (S4).
 		var pods: int = 2
@@ -164,8 +166,8 @@ static func _enemy(params: Dictionary, rng: RandomNumberGenerator) -> Dictionary
 			if not armed: slots.append({"type": "node", "radius": 7 if orders.size() > 1 else 4})
 			elif archetype == "sentry": slots.append({"type": "hub", "pods": pods, "set_piece": piece} if j % 2 == 0 else {"type": "node", "radius": 4})
 			else: slots.append({"type": "hub", "pods": pods, "set_piece": piece, "hp": hub_hp})
-		rails.append({"radius": ShipGrammar.RAIL_RADII[r], "order": order, "speed": snappedf(ShipGrammar.rail_speed(r) * (1.0 + rng.randf_range(-jitter, jitter)), 0.0001),
-			"phase": snappedf(rng.randf() * TAU / float(order), 0.0001), "pump_phase": snappedf(float(r) * float(ShipGrammar.MOTION.pump_phase_step), 0.0001), "slots": slots})
+		rails.append({"radius": ShipGrammar.RAIL_RADII[r], "order": order, "speed": _q(ShipGrammar.rail_speed(r) * (1.0 + rng.randf_range(-jitter, jitter))),
+			"phase": _q(rng.randf() * TAU / float(order)), "pump_phase": _q(float(r) * float(ShipGrammar.MOTION.pump_phase_step)), "slots": slots})
 	if archetype == "boss":
 		# The second core stack: the shield generator that must fall before the core can (user decision).
 		(rails[1].slots as Array)[0] = {"type": "hub", "pods": 2, "set_piece": str(((rails[1].slots as Array)[0] as Dictionary).set_piece), "hp": hub_hp, "feature": "shield_generator"}
@@ -198,7 +200,7 @@ static func _irregular_pass(rails: Array, pool: Dictionary, rng: RandomNumberGen
 				(slot as Dictionary).set_piece = _pick(pool.hub, rng)
 	var moved: Dictionary = rails[rng.randi_range(0, rails.size() - 1)]
 	var offset: Vector2 = Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(5.0, ShipGrammar.MAX_RAIL_OFFSET)
-	moved.offset = [snappedf(offset.x, 0.01), snappedf(offset.y, 0.01)]
+	moved.offset = [_q(offset.x, 2), _q(offset.y, 2)]
 
 ## The colour-legal, implemented pieces, split by where they may go. A core weapon is a primary
 ## when the colours have one (green has none, so its core takes a secondary).
@@ -221,6 +223,13 @@ static func _pool(chassis: String, accent: String, theme: String) -> Dictionary:
 	if core.is_empty(): core = hub.duplicate()
 	if hub.is_empty(): hub = core.duplicate()
 	return {"core": core, "hub": hub}
+
+## Quantises a number to `decimals` places THROUGH ITS DECIMAL STRING, so the value a hull is built
+## with is the value its saved file reads back. `snappedf(x, 0.0001)` gives 0.46840000000000004, the
+## .tres text says 0.4684, and the two differ in their last bits - which made every freshly saved
+## hull look stale to the library test.
+static func _q(value: float, decimals: int = 4) -> float:
+	return String.num(value, decimals).to_float()
 
 static func _pick(from: Array, rng: RandomNumberGenerator) -> String:
 	return str(from[rng.randi_range(0, from.size() - 1)]) if not from.is_empty() else ""
@@ -284,9 +293,9 @@ static func _player(params: Dictionary, rng: RandomNumberGenerator) -> Dictionar
 				hubs += 1 if a == b else 2
 			slot_list[a] = entry
 			slot_list[b] = (entry as Dictionary).duplicate() if entry is Dictionary else entry
-		var speed: float = 0.0 if r == primary_rail else snappedf(ShipGrammar.rail_speed(r) * (1.0 + rng.randf_range(-jitter, jitter)), 0.0001)
-		filled[r] = {"radius": ShipGrammar.RAIL_RADII[r], "order": order, "speed": speed, "phase": 0.0 if on_axis else snappedf(PI / float(order), 0.0001),
-			"pump_phase": snappedf(float(r) * float(ShipGrammar.MOTION.pump_phase_step), 0.0001), "slots": slot_list}
+		var speed: float = 0.0 if r == primary_rail else _q(ShipGrammar.rail_speed(r) * (1.0 + rng.randf_range(-jitter, jitter)))
+		filled[r] = {"radius": ShipGrammar.RAIL_RADII[r], "order": order, "speed": speed, "phase": 0.0 if on_axis else _q(PI / float(order)),
+			"pump_phase": _q(float(r) * float(ShipGrammar.MOTION.pump_phase_step)), "slots": slot_list}
 	for r: int in range(orders.size()): rails.append(filled[r])
 	var passives: Array = []
 	var start: int = Elements.INDEX_ORDER.find(element) + ShipCatalog.FAMILIES.find(family)

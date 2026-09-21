@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_lim4f"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_2kn03"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_avex8"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_gmwy0"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_e4hke"]
+
+[sub_resource type="Resource" id="Resource_874me"]
+script = ExtResource("1_lim4f")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_3gnvs"]
+script = ExtResource("1_lim4f")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_l7416"]
+script = ExtResource("1_lim4f")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_0ewyx"]
+script = ExtResource("4_gmwy0")
+speed = -0.8653
+phase = 0.3967
+slots = Array[ExtResource("1_lim4f")]([SubResource("Resource_874me"), SubResource("Resource_3gnvs"), SubResource("Resource_l7416")])
+
+[resource]
+script = ExtResource("5_e4hke")
+id = "enemy_drone_fire_t3"
+display_name = "Fire Drone T3"
+element = "fire"
+tier = 3
+description = "seed 628966"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "red"
+core_weapon = "vent_fan"
+archetype = "drone"
+rails = Array[ExtResource("4_gmwy0")]([SubResource("Resource_0ewyx")])

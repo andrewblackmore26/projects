@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_l1gi4"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_3btsl"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_6riv0"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_vb6t2"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_mv2it"]
+
+[sub_resource type="Resource" id="Resource_ljw5t"]
+script = ExtResource("1_l1gi4")
+type = "hub"
+pods = 4
+set_piece = "well_cup"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_7svrm"]
+script = ExtResource("1_l1gi4")
+type = "hub"
+pods = 4
+set_piece = "shell_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_bcyqe"]
+script = ExtResource("1_l1gi4")
+type = "hub"
+pods = 4
+set_piece = "pull_cage"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_ynypg"]
+script = ExtResource("1_l1gi4")
+type = "hub"
+pods = 4
+set_piece = "shell_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_5dwhb"]
+script = ExtResource("4_vb6t2")
+order = 4
+slots = Array[ExtResource("1_l1gi4")]([SubResource("Resource_ljw5t"), SubResource("Resource_7svrm"), SubResource("Resource_bcyqe"), SubResource("Resource_ynypg")])
+
+[resource]
+script = ExtResource("5_mv2it")
+id = "player_void_t2_heavy"
+display_name = "Void T2 Heavy"
+element = "void"
+tier = 2
+description = "seed 654565"
+schema_version = 4
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+chassis_color = "blue"
+accent_color = "silver"
+rails = Array[ExtResource("4_vb6t2")]([SubResource("Resource_5dwhb")])

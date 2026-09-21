@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_o7hau"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_6xf6n"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_jnmpe"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_1vi35"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_4njsh"]
+
+[sub_resource type="Resource" id="Resource_vrgxq"]
+script = ExtResource("1_o7hau")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_3f52w"]
+script = ExtResource("1_o7hau")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_6ayw7"]
+script = ExtResource("1_o7hau")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_amtas"]
+script = ExtResource("1_o7hau")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_e1m1u"]
+script = ExtResource("4_1vi35")
+order = 4
+speed = -0.9204
+phase = 0.7854
+slots = Array[ExtResource("1_o7hau")]([SubResource("Resource_vrgxq"), SubResource("Resource_3f52w"), SubResource("Resource_6ayw7"), SubResource("Resource_amtas")])
+
+[sub_resource type="Resource" id="Resource_1reuh"]
+script = ExtResource("1_o7hau")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_ll80q"]
+script = ExtResource("1_o7hau")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_jbel2"]
+script = ExtResource("1_o7hau")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_4p11d"]
+script = ExtResource("4_1vi35")
+radius = 96
+pump_phase = 0.9
+slots = Array[ExtResource("1_o7hau")]([SubResource("Resource_1reuh"), SubResource("Resource_ll80q"), SubResource("Resource_jbel2")])
+
+[resource]
+script = ExtResource("5_4njsh")
+id = "player_corruption_t3_standard_a"
+display_name = "Corruption T3 Standard A"
+tier = 3
+description = "seed 651069"
+schema_version = 4
+speed = 240.0
+chassis_color = "blue"
+accent_color = "green"
+core_depth = 3
+rails = Array[ExtResource("4_1vi35")]([SubResource("Resource_e1m1u"), SubResource("Resource_4p11d")])

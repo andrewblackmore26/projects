@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_6icgw"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_mijh2"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_xm8h8"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_bedxb"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_c8led"]
+
+[sub_resource type="Resource" id="Resource_ufadg"]
+script = ExtResource("1_6icgw")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+
+[sub_resource type="Resource" id="Resource_pv04y"]
+script = ExtResource("1_6icgw")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_5qd8a"]
+script = ExtResource("1_6icgw")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+
+[sub_resource type="Resource" id="Resource_6ljtn"]
+script = ExtResource("1_6icgw")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_kauij"]
+script = ExtResource("1_6icgw")
+type = "node"
+
+[resource]
+script = ExtResource("5_c8led")
+id = "enemy_chain_corruption_t4"
+display_name = "Corruption Chain T4"
+tier = 4
+description = "seed 815329"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "green"
+archetype = "chain"
+chain_links = Array[ExtResource("1_6icgw")]([SubResource("Resource_ufadg"), SubResource("Resource_pv04y"), SubResource("Resource_5qd8a"), SubResource("Resource_6ljtn"), SubResource("Resource_kauij")])

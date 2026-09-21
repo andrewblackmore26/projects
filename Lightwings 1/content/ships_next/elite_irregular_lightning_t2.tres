@@ -1,0 +1,146 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_taekw"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_53i1i"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_moyma"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_vcc68"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_dxjvu"]
+
+[sub_resource type="Resource" id="Resource_h3xon"]
+script = ExtResource("1_taekw")
+
+[sub_resource type="Resource" id="Resource_17vdt"]
+script = ExtResource("1_taekw")
+
+[sub_resource type="Resource" id="Resource_k5o07"]
+script = ExtResource("1_taekw")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_tk3vi"]
+script = ExtResource("1_taekw")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_jkumq"]
+script = ExtResource("4_vcc68")
+order = 4
+speed = -1.0918
+phase = 0.1642
+slots = Array[ExtResource("1_taekw")]([SubResource("Resource_h3xon"), SubResource("Resource_17vdt"), SubResource("Resource_k5o07"), SubResource("Resource_tk3vi")])
+
+[sub_resource type="Resource" id="Resource_ui8i6"]
+script = ExtResource("1_taekw")
+
+[sub_resource type="Resource" id="Resource_jo1oh"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_ii6ot"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 1
+set_piece = "fin_trio"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_0fnhk"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 4
+set_piece = "fin_trio"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_k3b5k"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_s1efi"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_1yoyt"]
+script = ExtResource("4_vcc68")
+radius = 96
+order = 6
+speed = 0.4552
+phase = 0.2666
+pump_phase = 0.9
+slots = Array[ExtResource("1_taekw")]([SubResource("Resource_ui8i6"), SubResource("Resource_jo1oh"), SubResource("Resource_ii6ot"), SubResource("Resource_0fnhk"), SubResource("Resource_k3b5k"), SubResource("Resource_s1efi")])
+
+[sub_resource type="Resource" id="Resource_sqpuy"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 4
+set_piece = "fin_trio"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_a8t2w"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 3
+set_piece = "hook_node"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_0baxb"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_dut1r"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 1
+set_piece = "fin_trio"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_7ypvl"]
+script = ExtResource("1_taekw")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+hp = 60.0
+
+[sub_resource type="Resource" id="Resource_h11hk"]
+script = ExtResource("4_vcc68")
+radius = 140
+order = 5
+speed = -0.2223
+phase = 0.9698
+pump_phase = 1.8
+offset = Vector2(-5.01, -6.57)
+slots = Array[ExtResource("1_taekw")]([SubResource("Resource_sqpuy"), SubResource("Resource_a8t2w"), SubResource("Resource_0baxb"), SubResource("Resource_dut1r"), SubResource("Resource_7ypvl")])
+
+[resource]
+script = ExtResource("5_dxjvu")
+id = "elite_irregular_lightning_t2"
+display_name = "Lightning Irregular Elite T2"
+element = "lightning"
+tier = 2
+description = "seed 529389"
+schema_version = 4
+faction = "elite"
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+chassis_color = "yellow"
+accent_color = "violet"
+core_depth = 3
+core_weapon = "wedge_pair"
+archetype = "irregular_elite"
+rails = Array[ExtResource("4_vcc68")]([SubResource("Resource_jkumq"), SubResource("Resource_1yoyt"), SubResource("Resource_h11hk")])

@@ -1,0 +1,79 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_ki80o"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_tfnpw"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_a8yol"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_28o2e"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_sujsb"]
+
+[sub_resource type="Resource" id="Resource_8q7kt"]
+script = ExtResource("1_ki80o")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_klo66"]
+script = ExtResource("1_ki80o")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_amos2"]
+script = ExtResource("1_ki80o")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_aqlxj"]
+script = ExtResource("4_28o2e")
+slots = Array[ExtResource("1_ki80o")]([SubResource("Resource_8q7kt"), SubResource("Resource_klo66"), SubResource("Resource_amos2")])
+
+[sub_resource type="Resource" id="Resource_qloww"]
+script = ExtResource("1_ki80o")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_q716j"]
+script = ExtResource("1_ki80o")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_3l32x"]
+script = ExtResource("1_ki80o")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_da0c2"]
+script = ExtResource("1_ki80o")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_7bq4a"]
+script = ExtResource("4_28o2e")
+radius = 96
+order = 4
+speed = 0.3884
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_ki80o")]([SubResource("Resource_qloww"), SubResource("Resource_q716j"), SubResource("Resource_3l32x"), SubResource("Resource_da0c2")])
+
+[resource]
+script = ExtResource("5_sujsb")
+id = "player_corruption_t4_compact"
+display_name = "Corruption T4 Compact"
+tier = 4
+description = "seed 258132"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+passives = Array[String](["health_readout"])
+chassis_color = "blue"
+accent_color = "green"
+core_depth = 3
+rails = Array[ExtResource("4_28o2e")]([SubResource("Resource_aqlxj"), SubResource("Resource_7bq4a")])

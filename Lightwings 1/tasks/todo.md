@@ -551,15 +551,20 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       unedited; same seed byte-identical; different seeds differ; a control per style rule; stub band 10–25%; commit
 
 ## S10 — The roster, in staging
-- [ ] Roster manifest as pinned recipe inputs: 101 player hulls (four shapes and four loadouts per
+- [x] Roster manifest as recipe inputs: 101 player hulls (four shapes and four loadouts per
       element/tier), 25 mono regulars, 15 elites (radial = next element on the reveal ring,
-      irregular = previous, heavy = two ahead), 5 bosses
-- [ ] `ship_library_test.gd` (our own gate: zero errors, zero warnings, manifest = disk, max circles ≤ 128);
-      `colour_language_test.gd` (acceptance 5 proxies); distinct-shape roster test; slot chord ≥ measured cluster width
-- [ ] Bots and both benchmarks on `--catalog-root=content/ships_next`, 20 seeds, per-ability event
-      census and the marking-to-shot angle at fire events; far-end benchmark (boss + 2 heavy elites at 2000 bullets)
-- [ ] Review capture 3: gallery contact sheets of the staging roster at uniform and true scale;
-      acceptance 8 line-up sheet (generated among pinned, with an answer key); commit
+      irregular = previous, heavy = two ahead), 5 bosses (two back)
+- [x] `ship_library_test.gd` (our own gate: zero errors, zero warnings, manifest = disk, max circles ≤ 128),
+      with the colour-language proxies (acceptance 5) folded into it; the distinct-shape check is in `ship_recipe_test`
+- [ ] **Open:** slot chord ≥ measured cluster width (do neighbouring clusters on a crowded rail overlap?)
+- [x] Bots and the headless benchmark on `--catalog-root=res://content/ships_next`, 20 seeds, once
+- [ ] **Open:** per-ability event census from bot play; marking-to-shot angle at fire events; far-end
+      benchmark (boss + 2 heavy elites at 2000 bullets); benchmark ×3 before/after in one session;
+      the rendered-frame benchmark on staging
+- [ ] **Open, blocks S11's gates:** Finding 1 (camper still declines under instant refill) and
+      Finding 2 (perfect bot's worst seed 170 s) — see Review — S10
+- [x] Review capture 3: `artifacts/acceptance/gallery_staging.png` (uniform scale; the true-scale sheet
+      was not exported); acceptance 8 line-up `artifacts/acceptance/lineup.png` with its answer key; commit
 
 ## S11 — Cutover, one commit (trace re-recorded: name the first differing field first)
 - [ ] `export_catalog.gd --rebuild` from staging; ability table remap with the `.tres` rebuild and a `.tres`-equals-table test
@@ -979,6 +984,23 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | Editor | Generate is wired to the recipe: the text resolves, the ship is built, and pressing Generate again draws the next seed |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 906.7 s; suite 52/52 (+ `ship_recipe_test`); golden trace not re-recorded; `content/` untouched |
 | Not completed / stated plainly | **Acceptance 8's human half** (a designer cannot pick generated ships out of a line-up) needs the roster and the gallery's contact sheet; it is S10's capture. The gallery's coverage cells pre-seed the editor with element / tier / archetype, but do not yet call the recipe to fill the hull. Enemy hubs always carry 2 pods except on irregular elites: §13.9's "1–4 per hub" is narrowed on purpose (S4: a lone pod sits in a forward piece's way). Chains and sentries have fixed layouts; only their pieces, speeds and phases vary with the seed |
+
+## Review — S10 (the roster, in staging)
+| What | Measured |
+|---|---|
+| The roster | `RailRoster.manifest()`: 101 player + 25 regular + 15 elite + 5 boss = 146 recipe inputs, v0.3's hull ids kept plus `elite_heavy_<element>_t<hi>`. Each hull's seed is a function of its id, so a rebuild never reshuffles. `export_rail_roster.gd` writes it; `content/ships_next/` holds 146 part-free `.tres` and is excluded from all four export presets. The live game still runs the v0.3 roster: golden trace identical |
+| The pairing rule | Read off the reveal ring lightning → fire → corruption → void → plasma: regulars mono; radial elite = next element; irregular = previous; heavy = two ahead; boss = two back. All ten blue-free hybrids land on some hull, and the lightning radial elite is the spec's own yellow + red |
+| `ship_library_test` | 10 checks, 4 controls. Disk = manifest both ways; every hull validates with NO warnings, stores no parts, and equals a fresh build; every enemy's colours tell the truth (regulars mono, elites and bosses paired by the rule, a weapon in each colour shown, no blue); all 33 set pieces are mounted by some hull; the largest hull is `boss_void` at 105 of 128 circles. Controls: a deleted hull (MISSING), a planted one (ORPHAN), a nudged phase (STALE), a recoloured elite |
+| Bug: every saved hull looked stale | `snappedf(x, 0.0001)` returns 0.46840000000000004; the `.tres` text reads back 0.4684. Equal to four places, different bytes — so a library written a moment earlier failed its own freshness check. The recipe now quantises through the decimal string (`String.num(x, 4).to_float()`), so a hull is built with the value its file will read back |
+| Bug: the tier-1 sentry came out unarmed | The recipe armed a sentry's rail only from tier 2, so `enemy_sentry_lightning_t1` was 9 circles against a 19-circle target. The roster BUILD caught it (145 of 146). A sentry arms at every tier now |
+| Review capture 3 (looked at) | `artifacts/acceptance/gallery_staging.png`, 1280 × 17896 from 27 pages. **The first version showed only cores**: a rail hull's file has no parts, so its stored `footprint` is the resource default (48), and the gallery sized tiles from the stored field. It reads the compiled hull's now (boss 438 px, heavy elite 350, drone 112); `gallery_model_test` pins it with a control (56 checks, 18 controls) |
+| The game runs on rail hulls | First time. `combat_benchmark --catalog-root=res://content/ships_next`: no script errors; 2000 bullets mean 6.33 / p95 7.30 ms; `motion` **0.325 ms** against 0.16–0.19 on the v0.3 roster (every hull animates now); `ai` 0.58 against 1.3–1.6. `cap_to_tier` had to learn that a rail hull has nothing to trim (it edited `parts`) |
+| Bots on staging, 20 seeds (one run, 510 s) | Every POSITIVE gate passes. Novice first evolution 20/20, median **14.05 s** (v0.3: 20.7), max 49.9 s (47.7), deaths median 0 / max 1. Pusher **105.6** light/min (60.05); camper 6.4 (6.4); camper worse in its second half 20/20. Death-to-flying 558 / 683 ms (unchanged). Light chasing passes |
+| **Finding 1, must be resolved before the cutover's gates can pass** | The negative control `camper_pool_instant_refill` is NOT caught on the rail roster: with the node's pool refilling instantly, the camper STILL declines in more than half its seeds. On v0.3 that decline was pool depletion and instant refill removed it; on rail hulls something else makes a camper's second half worse, so the positive gate "camper declines within a visit" may now be passing for the wrong reason. Not yet investigated |
+| **Finding 2** | The PERFECT bot's worst first-evolution seed took **170.0 s** (v0.3: 10.8 s; median 7.75 s against 5.2). One seed in twenty, but a 16× worst case: some spawn is very hard for even a perfect pilot to convert into light. Not yet investigated |
+| Acceptance 8, the human half | `artifacts/acceptance/lineup.png` + `artifacts/lineup/ANSWER_KEY.txt`: 12 roster elites and 12 freshly generated ones under neutral names, shuffled with a fixed seed; all 24 pass the style check. Waiting for a human to try |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 867.6 s on the LIVE (v0.3) roster; suite 53/53 (+ `ship_library_test`); golden trace not re-recorded; both exports verify 2/2 with `content/ships_next/*` excluded |
+| Not completed / stated plainly | **Not done:** the per-ability event census from bot play (the bots do not yet report `ability_events`), the marking-to-shot angle at fire events, the far-end benchmark (boss + 2 heavy elites at 2000 bullets), the `motion` cost for 17 boss actors, the slot-chord-versus-cluster-width check, and a same-session before/after for the benchmark (the staging run above was one run, not three). The bots ran ONCE on staging. No human has played a rail hull. Player movement stats come from `ShipGenerator._base_stats` by role, in the 220-based unit the P11 session asked rail hulls to keep |
 
 ## Retired assertions
 

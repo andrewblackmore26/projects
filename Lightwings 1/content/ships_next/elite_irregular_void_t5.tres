@@ -1,0 +1,150 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_j7ysf"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_5u1ji"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_j7hgb"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_h2unm"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_7pfy1"]
+
+[sub_resource type="Resource" id="Resource_118ef"]
+script = ExtResource("1_j7ysf")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_ninb8"]
+script = ExtResource("1_j7ysf")
+
+[sub_resource type="Resource" id="Resource_sm2sx"]
+script = ExtResource("1_j7ysf")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_jbv4s"]
+script = ExtResource("1_j7ysf")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_xbyey"]
+script = ExtResource("1_j7ysf")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_aknga"]
+script = ExtResource("1_j7ysf")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_sxm3k"]
+script = ExtResource("4_h2unm")
+order = 6
+speed = -0.9063
+phase = 0.817
+slots = Array[ExtResource("1_j7ysf")]([SubResource("Resource_118ef"), SubResource("Resource_ninb8"), SubResource("Resource_sm2sx"), SubResource("Resource_jbv4s"), SubResource("Resource_xbyey"), SubResource("Resource_aknga")])
+
+[sub_resource type="Resource" id="Resource_a2ggx"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 1
+set_piece = "leech_arm"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_xiles"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 4
+set_piece = "sac_cluster"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_vooui"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 4
+set_piece = "spore_rack"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_q3xn7"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 4
+set_piece = "pull_cage"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_ult1a"]
+script = ExtResource("1_j7ysf")
+
+[sub_resource type="Resource" id="Resource_eotfk"]
+script = ExtResource("4_h2unm")
+radius = 96
+order = 5
+speed = 0.4476
+phase = 0.4938
+pump_phase = 0.9
+offset = Vector2(5.03, -3.09)
+slots = Array[ExtResource("1_j7ysf")]([SubResource("Resource_a2ggx"), SubResource("Resource_xiles"), SubResource("Resource_vooui"), SubResource("Resource_q3xn7"), SubResource("Resource_ult1a")])
+
+[sub_resource type="Resource" id="Resource_nptuy"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 4
+set_piece = "leech_arm"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_wenxm"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 4
+set_piece = "pull_cage"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_jykca"]
+script = ExtResource("1_j7ysf")
+
+[sub_resource type="Resource" id="Resource_kq8m6"]
+script = ExtResource("1_j7ysf")
+
+[sub_resource type="Resource" id="Resource_w6kd6"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 3
+set_piece = "sac_cluster"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_5lvtu"]
+script = ExtResource("1_j7ysf")
+type = "hub"
+pods = 1
+set_piece = "bloom_pod"
+hp = 90.0
+
+[sub_resource type="Resource" id="Resource_l672s"]
+script = ExtResource("4_h2unm")
+radius = 140
+order = 6
+speed = -0.2399
+phase = 0.4414
+pump_phase = 1.8
+slots = Array[ExtResource("1_j7ysf")]([SubResource("Resource_nptuy"), SubResource("Resource_wenxm"), SubResource("Resource_jykca"), SubResource("Resource_kq8m6"), SubResource("Resource_w6kd6"), SubResource("Resource_5lvtu")])
+
+[resource]
+script = ExtResource("5_7pfy1")
+id = "elite_irregular_void_t5"
+display_name = "Void Irregular Elite T5"
+element = "void"
+tier = 5
+description = "seed 552702"
+schema_version = 4
+faction = "elite"
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+chassis_color = "silver"
+accent_color = "green"
+core_depth = 3
+core_weapon = "well_cup"
+archetype = "irregular_elite"
+rails = Array[ExtResource("4_h2unm")]([SubResource("Resource_sxm3k"), SubResource("Resource_eotfk"), SubResource("Resource_l672s")])

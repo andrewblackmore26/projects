@@ -1,0 +1,140 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_n5aii"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_v4y0w"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_v5tfb"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_cb4cr"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_636kn"]
+
+[sub_resource type="Resource" id="Resource_1pgec"]
+script = ExtResource("1_n5aii")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_hssfy"]
+script = ExtResource("1_n5aii")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_o3fld"]
+script = ExtResource("1_n5aii")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_yml1o"]
+script = ExtResource("1_n5aii")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_sml2h"]
+script = ExtResource("1_n5aii")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_nwmb4"]
+script = ExtResource("1_n5aii")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_i26tk"]
+script = ExtResource("4_cb4cr")
+order = 6
+speed = -0.8902
+phase = 0.5236
+slots = Array[ExtResource("1_n5aii")]([SubResource("Resource_1pgec"), SubResource("Resource_hssfy"), SubResource("Resource_o3fld"), SubResource("Resource_yml1o"), SubResource("Resource_sml2h"), SubResource("Resource_nwmb4")])
+
+[sub_resource type="Resource" id="Resource_bupm4"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "lens_stack"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_rdsjm"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "sac_cluster"
+mount = "secondary_2"
+
+[sub_resource type="Resource" id="Resource_t774n"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+
+[sub_resource type="Resource" id="Resource_t0eh4"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+
+[sub_resource type="Resource" id="Resource_vllg6"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "sac_cluster"
+mount = "secondary_2"
+
+[sub_resource type="Resource" id="Resource_a21mt"]
+script = ExtResource("4_cb4cr")
+radius = 96
+order = 5
+pump_phase = 0.9
+slots = Array[ExtResource("1_n5aii")]([SubResource("Resource_bupm4"), SubResource("Resource_rdsjm"), SubResource("Resource_t774n"), SubResource("Resource_t0eh4"), SubResource("Resource_vllg6")])
+
+[sub_resource type="Resource" id="Resource_v86je"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "spore_rack"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_ltjh8"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "bloom_pod"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_4yfwq"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "bloom_pod"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_y0j5y"]
+script = ExtResource("1_n5aii")
+type = "hub"
+pods = 4
+set_piece = "spore_rack"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_1x1qo"]
+script = ExtResource("4_cb4cr")
+radius = 140
+order = 4
+speed = -0.2711
+phase = 0.7854
+pump_phase = 1.8
+slots = Array[ExtResource("1_n5aii")]([SubResource("Resource_v86je"), SubResource("Resource_ltjh8"), SubResource("Resource_4yfwq"), SubResource("Resource_y0j5y")])
+
+[resource]
+script = ExtResource("5_636kn")
+id = "player_corruption_t6_heavy"
+display_name = "Corruption T6 Heavy"
+tier = 6
+description = "seed 278828"
+schema_version = 4
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+passives = Array[String](["orbital_seekers", "thrusters"])
+chassis_color = "blue"
+accent_color = "green"
+core_depth = 4
+rails = Array[ExtResource("4_cb4cr")]([SubResource("Resource_i26tk"), SubResource("Resource_a21mt"), SubResource("Resource_1x1qo")])

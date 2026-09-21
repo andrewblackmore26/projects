@@ -1,0 +1,80 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_cubne"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_1rg1r"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ow83q"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ibchq"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_rg3ne"]
+
+[sub_resource type="Resource" id="Resource_jr0lb"]
+script = ExtResource("1_cubne")
+type = "hub"
+pods = 2
+set_piece = "node_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_8l8s1"]
+script = ExtResource("1_cubne")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_po3l7"]
+script = ExtResource("1_cubne")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_wygfc"]
+script = ExtResource("4_ibchq")
+slots = Array[ExtResource("1_cubne")]([SubResource("Resource_jr0lb"), SubResource("Resource_8l8s1"), SubResource("Resource_po3l7")])
+
+[sub_resource type="Resource" id="Resource_eqhlk"]
+script = ExtResource("1_cubne")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_m1i0q"]
+script = ExtResource("1_cubne")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_cfess"]
+script = ExtResource("1_cubne")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_163ba"]
+script = ExtResource("1_cubne")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_6byp8"]
+script = ExtResource("4_ibchq")
+radius = 96
+order = 4
+speed = 0.4378
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_cubne")]([SubResource("Resource_eqhlk"), SubResource("Resource_m1i0q"), SubResource("Resource_cfess"), SubResource("Resource_163ba")])
+
+[resource]
+script = ExtResource("5_rg3ne")
+id = "player_plasma_t4_compact"
+display_name = "Plasma T4 Compact"
+element = "plasma"
+tier = 4
+description = "seed 204797"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+passives = Array[String](["siphon"])
+chassis_color = "blue"
+accent_color = "violet"
+core_depth = 3
+rails = Array[ExtResource("4_ibchq")]([SubResource("Resource_wygfc"), SubResource("Resource_6byp8")])

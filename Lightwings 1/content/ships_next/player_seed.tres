@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_rcb3h"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_gkuo7"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_jyb2a"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ws1qn"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_8g6kk"]
+
+[sub_resource type="Resource" id="Resource_4j4l1"]
+script = ExtResource("1_rcb3h")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_bxno4"]
+script = ExtResource("1_rcb3h")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_3r643"]
+script = ExtResource("1_rcb3h")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_bdyof"]
+script = ExtResource("4_ws1qn")
+slots = Array[ExtResource("1_rcb3h")]([SubResource("Resource_4j4l1"), SubResource("Resource_bxno4"), SubResource("Resource_3r643")])
+
+[resource]
+script = ExtResource("5_8g6kk")
+id = "player_seed"
+display_name = "Lumen"
+element = "neutral"
+description = "seed 257683"
+schema_version = 4
+speed = 240.0
+chassis_color = "blue"
+rails = Array[ExtResource("4_ws1qn")]([SubResource("Resource_bdyof")])

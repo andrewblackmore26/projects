@@ -1,0 +1,91 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_7t7g6"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_3c650"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_0i3mm"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_luts1"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_q4bto"]
+
+[sub_resource type="Resource" id="Resource_r1kgg"]
+script = ExtResource("1_7t7g6")
+type = "hub"
+pods = 2
+set_piece = "lens_stack"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_gqbeg"]
+script = ExtResource("1_7t7g6")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_f2blw"]
+script = ExtResource("1_7t7g6")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_ga22u"]
+script = ExtResource("1_7t7g6")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_am1vr"]
+script = ExtResource("1_7t7g6")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_ten0s"]
+script = ExtResource("4_luts1")
+order = 5
+slots = Array[ExtResource("1_7t7g6")]([SubResource("Resource_r1kgg"), SubResource("Resource_gqbeg"), SubResource("Resource_f2blw"), SubResource("Resource_ga22u"), SubResource("Resource_am1vr")])
+
+[sub_resource type="Resource" id="Resource_fe427"]
+script = ExtResource("1_7t7g6")
+type = "hub"
+pods = 2
+set_piece = "web_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_io63s"]
+script = ExtResource("1_7t7g6")
+type = "hub"
+pods = 2
+set_piece = "spore_rack"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_pjyms"]
+script = ExtResource("1_7t7g6")
+type = "hub"
+pods = 2
+set_piece = "spore_rack"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_lrbmm"]
+script = ExtResource("1_7t7g6")
+type = "hub"
+pods = 2
+set_piece = "web_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_hxxkr"]
+script = ExtResource("4_luts1")
+radius = 96
+order = 4
+speed = 0.3935
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_7t7g6")]([SubResource("Resource_fe427"), SubResource("Resource_io63s"), SubResource("Resource_pjyms"), SubResource("Resource_lrbmm")])
+
+[resource]
+script = ExtResource("5_q4bto")
+id = "player_corruption_t4_standard_b"
+display_name = "Corruption T4 Standard B"
+tier = 4
+description = "seed 906591"
+schema_version = 4
+family = "standard_b"
+speed = 240.0
+passives = Array[String](["forcefield"])
+chassis_color = "blue"
+accent_color = "green"
+core_depth = 3
+rails = Array[ExtResource("4_luts1")]([SubResource("Resource_ten0s"), SubResource("Resource_hxxkr")])

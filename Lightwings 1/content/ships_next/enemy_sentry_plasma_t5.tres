@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_nt6j5"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_2w53c"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_754i7"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_q3l6p"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_aida3"]
+
+[sub_resource type="Resource" id="Resource_5a28k"]
+script = ExtResource("1_nt6j5")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+
+[sub_resource type="Resource" id="Resource_ngeoh"]
+script = ExtResource("1_nt6j5")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_uls7n"]
+script = ExtResource("1_nt6j5")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+
+[sub_resource type="Resource" id="Resource_v54xg"]
+script = ExtResource("1_nt6j5")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_o0k24"]
+script = ExtResource("4_q3l6p")
+order = 4
+speed = -0.9112
+phase = 0.634
+slots = Array[ExtResource("1_nt6j5")]([SubResource("Resource_5a28k"), SubResource("Resource_ngeoh"), SubResource("Resource_uls7n"), SubResource("Resource_v54xg")])
+
+[resource]
+script = ExtResource("5_aida3")
+id = "enemy_sentry_plasma_t5"
+display_name = "Plasma Sentry T5"
+element = "plasma"
+tier = 5
+description = "seed 83821"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "violet"
+core_weapon = "spin_ring"
+archetype = "sentry"
+rails = Array[ExtResource("4_q3l6p")]([SubResource("Resource_o0k24")])

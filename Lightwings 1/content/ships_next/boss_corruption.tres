@@ -1,0 +1,195 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_cky0l"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ppnw7"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_526q4"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_lc5a1"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_mjaxq"]
+
+[sub_resource type="Resource" id="Resource_870ts"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_exte6"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_wtqcn"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_su55r"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_wnrq7"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_t7qmb"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_5nqx1"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_6ne0n"]
+script = ExtResource("1_cky0l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_lcgpe"]
+script = ExtResource("4_lc5a1")
+order = 8
+speed = -0.9075
+phase = 0.2559
+slots = Array[ExtResource("1_cky0l")]([SubResource("Resource_870ts"), SubResource("Resource_exte6"), SubResource("Resource_wtqcn"), SubResource("Resource_su55r"), SubResource("Resource_wnrq7"), SubResource("Resource_t7qmb"), SubResource("Resource_5nqx1"), SubResource("Resource_6ne0n")])
+
+[sub_resource type="Resource" id="Resource_r8v5i"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
+feature = "shield_generator"
+
+[sub_resource type="Resource" id="Resource_qsx4r"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_734dl"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_1af7h"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_fsyub"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_rrafx"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_u8s3r"]
+script = ExtResource("4_lc5a1")
+radius = 96
+order = 6
+speed = 0.3811
+phase = 0.3045
+pump_phase = 0.9
+slots = Array[ExtResource("1_cky0l")]([SubResource("Resource_r8v5i"), SubResource("Resource_qsx4r"), SubResource("Resource_734dl"), SubResource("Resource_1af7h"), SubResource("Resource_fsyub"), SubResource("Resource_rrafx")])
+
+[sub_resource type="Resource" id="Resource_73qke"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_cy76v"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_7hjq6"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_hhb83"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "bloom_pod"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_v738f"]
+script = ExtResource("4_lc5a1")
+radius = 140
+order = 4
+speed = -0.2889
+phase = 0.0294
+pump_phase = 1.8
+slots = Array[ExtResource("1_cky0l")]([SubResource("Resource_73qke"), SubResource("Resource_cy76v"), SubResource("Resource_7hjq6"), SubResource("Resource_hhb83")])
+
+[sub_resource type="Resource" id="Resource_kplr4"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_p5mh8"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_v6exo"]
+script = ExtResource("1_cky0l")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+hp = 80.0
+
+[sub_resource type="Resource" id="Resource_0qyhj"]
+script = ExtResource("4_lc5a1")
+radius = 184
+speed = 0.1719
+phase = 1.8267
+pump_phase = 2.7
+slots = Array[ExtResource("1_cky0l")]([SubResource("Resource_kplr4"), SubResource("Resource_p5mh8"), SubResource("Resource_v6exo")])
+
+[resource]
+script = ExtResource("5_mjaxq")
+id = "boss_corruption"
+display_name = "Corruption Boss T4"
+tier = 4
+description = "seed 576241"
+schema_version = 4
+faction = "boss"
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+chassis_color = "green"
+accent_color = "yellow"
+core_depth = 4
+core_weapon = "wedge_pair"
+archetype = "boss"
+rails = Array[ExtResource("4_lc5a1")]([SubResource("Resource_lcgpe"), SubResource("Resource_u8s3r"), SubResource("Resource_v738f"), SubResource("Resource_0qyhj")])

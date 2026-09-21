@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_b48fv"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_cmbwu"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_pduga"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_syi5q"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_037l5"]
+
+[sub_resource type="Resource" id="Resource_oggcb"]
+script = ExtResource("1_b48fv")
+type = "hub"
+pods = 2
+set_piece = "lens_stack"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_ueqeo"]
+script = ExtResource("1_b48fv")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_wv412"]
+script = ExtResource("1_b48fv")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_6lprf"]
+script = ExtResource("4_syi5q")
+slots = Array[ExtResource("1_b48fv")]([SubResource("Resource_oggcb"), SubResource("Resource_ueqeo"), SubResource("Resource_wv412")])
+
+[sub_resource type="Resource" id="Resource_8yyq4"]
+script = ExtResource("1_b48fv")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_b6oxo"]
+script = ExtResource("1_b48fv")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_6orfs"]
+script = ExtResource("1_b48fv")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_kdq8l"]
+script = ExtResource("1_b48fv")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_6laoj"]
+script = ExtResource("4_syi5q")
+radius = 96
+order = 4
+speed = 0.3724
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_b48fv")]([SubResource("Resource_8yyq4"), SubResource("Resource_b6oxo"), SubResource("Resource_6orfs"), SubResource("Resource_kdq8l")])
+
+[resource]
+script = ExtResource("5_037l5")
+id = "player_void_t3_standard_b"
+display_name = "Void T3 Standard B"
+element = "void"
+tier = 3
+description = "seed 827163"
+schema_version = 4
+family = "standard_b"
+speed = 240.0
+chassis_color = "blue"
+accent_color = "silver"
+core_depth = 3
+rails = Array[ExtResource("4_syi5q")]([SubResource("Resource_6lprf"), SubResource("Resource_6laoj")])

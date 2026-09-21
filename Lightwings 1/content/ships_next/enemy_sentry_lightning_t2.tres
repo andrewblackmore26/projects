@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_2dst2"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_yoivw"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_qtof5"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_1wamv"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_jegr5"]
+
+[sub_resource type="Resource" id="Resource_gkhpa"]
+script = ExtResource("1_2dst2")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+
+[sub_resource type="Resource" id="Resource_8ylwl"]
+script = ExtResource("1_2dst2")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_jlys1"]
+script = ExtResource("1_2dst2")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+
+[sub_resource type="Resource" id="Resource_ykuej"]
+script = ExtResource("1_2dst2")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_vy1oc"]
+script = ExtResource("4_1wamv")
+order = 4
+speed = -0.8505
+phase = 1.4498
+slots = Array[ExtResource("1_2dst2")]([SubResource("Resource_gkhpa"), SubResource("Resource_8ylwl"), SubResource("Resource_jlys1"), SubResource("Resource_ykuej")])
+
+[resource]
+script = ExtResource("5_jegr5")
+id = "enemy_sentry_lightning_t2"
+display_name = "Lightning Sentry T2"
+element = "lightning"
+tier = 2
+description = "seed 54608"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "yellow"
+core_weapon = "wedge_pair"
+archetype = "sentry"
+rails = Array[ExtResource("4_1wamv")]([SubResource("Resource_vy1oc")])

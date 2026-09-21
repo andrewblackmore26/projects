@@ -1,0 +1,119 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_4sxvp"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_7hy65"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_2ri8l"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ubrhy"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_w20bi"]
+
+[sub_resource type="Resource" id="Resource_sonxp"]
+script = ExtResource("1_4sxvp")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_uh3jh"]
+script = ExtResource("1_4sxvp")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_3ouoc"]
+script = ExtResource("1_4sxvp")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_46ie2"]
+script = ExtResource("1_4sxvp")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_1ry4c"]
+script = ExtResource("1_4sxvp")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_6x86m"]
+script = ExtResource("1_4sxvp")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_00i27"]
+script = ExtResource("4_ubrhy")
+order = 6
+speed = -0.9638
+phase = 0.5236
+slots = Array[ExtResource("1_4sxvp")]([SubResource("Resource_sonxp"), SubResource("Resource_uh3jh"), SubResource("Resource_3ouoc"), SubResource("Resource_46ie2"), SubResource("Resource_1ry4c"), SubResource("Resource_6x86m")])
+
+[sub_resource type="Resource" id="Resource_pmfgf"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_ughqa"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+set_piece = "shell_pair"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_y7faa"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+set_piece = "shell_pair"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_x6tiy"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_6yttb"]
+script = ExtResource("4_ubrhy")
+radius = 96
+order = 4
+speed = 0.4199
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_4sxvp")]([SubResource("Resource_pmfgf"), SubResource("Resource_ughqa"), SubResource("Resource_y7faa"), SubResource("Resource_x6tiy")])
+
+[sub_resource type="Resource" id="Resource_dy5l4"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+set_piece = "coil_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_5170f"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_73wo0"]
+script = ExtResource("1_4sxvp")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_l3wv4"]
+script = ExtResource("4_ubrhy")
+radius = 140
+pump_phase = 1.8
+slots = Array[ExtResource("1_4sxvp")]([SubResource("Resource_dy5l4"), SubResource("Resource_5170f"), SubResource("Resource_73wo0")])
+
+[resource]
+script = ExtResource("5_w20bi")
+id = "player_lightning_t5_standard_a"
+display_name = "Lightning T5 Standard A"
+element = "lightning"
+tier = 5
+description = "seed 451342"
+schema_version = 4
+speed = 240.0
+passives = Array[String](["thrusters"])
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 4
+rails = Array[ExtResource("4_ubrhy")]([SubResource("Resource_00i27"), SubResource("Resource_6yttb"), SubResource("Resource_l3wv4")])

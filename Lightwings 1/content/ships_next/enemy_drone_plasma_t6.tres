@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_w8b3c"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_b48ag"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_hpc14"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_mrp6e"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_utrdu"]
+
+[sub_resource type="Resource" id="Resource_gnfxy"]
+script = ExtResource("1_w8b3c")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_6qtc1"]
+script = ExtResource("1_w8b3c")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_iak34"]
+script = ExtResource("1_w8b3c")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_s7dx6"]
+script = ExtResource("4_mrp6e")
+speed = -0.8332
+phase = 2.0883
+slots = Array[ExtResource("1_w8b3c")]([SubResource("Resource_gnfxy"), SubResource("Resource_6qtc1"), SubResource("Resource_iak34")])
+
+[resource]
+script = ExtResource("5_utrdu")
+id = "enemy_drone_plasma_t6"
+display_name = "Plasma Drone T6"
+element = "plasma"
+tier = 6
+description = "seed 465345"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "violet"
+core_weapon = "spin_ring"
+archetype = "drone"
+rails = Array[ExtResource("4_mrp6e")]([SubResource("Resource_s7dx6")])

@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_2km0k"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_nn1qm"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_unrvw"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_4lcps"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_dwq5f"]
+
+[sub_resource type="Resource" id="Resource_jsrry"]
+script = ExtResource("1_2km0k")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_cfgyn"]
+script = ExtResource("1_2km0k")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_r4e80"]
+script = ExtResource("1_2km0k")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_jtq1e"]
+script = ExtResource("4_4lcps")
+speed = -0.8127
+phase = 1.3819
+slots = Array[ExtResource("1_2km0k")]([SubResource("Resource_jsrry"), SubResource("Resource_cfgyn"), SubResource("Resource_r4e80")])
+
+[resource]
+script = ExtResource("5_dwq5f")
+id = "enemy_drone_void_t4"
+display_name = "Void Drone T4"
+element = "void"
+tier = 4
+description = "seed 383123"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "silver"
+core_weapon = "well_cup"
+archetype = "drone"
+rails = Array[ExtResource("4_4lcps")]([SubResource("Resource_jtq1e")])

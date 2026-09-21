@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_yvjww"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_pkpk7"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_78hub"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_u83br"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_fnfwx"]
+
+[sub_resource type="Resource" id="Resource_pe5k0"]
+script = ExtResource("1_yvjww")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_a4deu"]
+script = ExtResource("1_yvjww")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_aouxn"]
+script = ExtResource("1_yvjww")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_mwva7"]
+script = ExtResource("1_yvjww")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_q0tqj"]
+script = ExtResource("1_yvjww")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_ixnin"]
+script = ExtResource("4_u83br")
+order = 5
+slots = Array[ExtResource("1_yvjww")]([SubResource("Resource_pe5k0"), SubResource("Resource_a4deu"), SubResource("Resource_aouxn"), SubResource("Resource_mwva7"), SubResource("Resource_q0tqj")])
+
+[resource]
+script = ExtResource("5_fnfwx")
+id = "player_corruption_t3_compact"
+display_name = "Corruption T3 Compact"
+tier = 3
+description = "seed 945683"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+chassis_color = "blue"
+accent_color = "green"
+core_depth = 3
+rails = Array[ExtResource("4_u83br")]([SubResource("Resource_ixnin")])

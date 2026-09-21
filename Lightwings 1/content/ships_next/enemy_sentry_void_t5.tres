@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_w5bpj"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_f6svj"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_b048y"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_khdu7"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_klgps"]
+
+[sub_resource type="Resource" id="Resource_axo2g"]
+script = ExtResource("1_w5bpj")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+
+[sub_resource type="Resource" id="Resource_ttuiq"]
+script = ExtResource("1_w5bpj")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_81376"]
+script = ExtResource("1_w5bpj")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+
+[sub_resource type="Resource" id="Resource_4r08b"]
+script = ExtResource("1_w5bpj")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_r5nuo"]
+script = ExtResource("4_khdu7")
+order = 4
+speed = -1.0847
+phase = 0.2502
+slots = Array[ExtResource("1_w5bpj")]([SubResource("Resource_axo2g"), SubResource("Resource_ttuiq"), SubResource("Resource_81376"), SubResource("Resource_4r08b")])
+
+[resource]
+script = ExtResource("5_klgps")
+id = "enemy_sentry_void_t5"
+display_name = "Void Sentry T5"
+element = "void"
+tier = 5
+description = "seed 557441"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "silver"
+core_weapon = "well_cup"
+archetype = "sentry"
+rails = Array[ExtResource("4_khdu7")]([SubResource("Resource_r5nuo")])

@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_lqash"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_kr2qa"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_dm1by"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_x6h20"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_0oyrn"]
+
+[sub_resource type="Resource" id="Resource_7pmrq"]
+script = ExtResource("1_lqash")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
+
+[sub_resource type="Resource" id="Resource_7belb"]
+script = ExtResource("1_lqash")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_3ndw0"]
+script = ExtResource("1_lqash")
+type = "hub"
+pods = 2
+set_piece = "halo_node"
+
+[sub_resource type="Resource" id="Resource_7rfw3"]
+script = ExtResource("1_lqash")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_1j1lg"]
+script = ExtResource("4_x6h20")
+order = 4
+speed = -1.0559
+phase = 0.6365
+slots = Array[ExtResource("1_lqash")]([SubResource("Resource_7pmrq"), SubResource("Resource_7belb"), SubResource("Resource_3ndw0"), SubResource("Resource_7rfw3")])
+
+[resource]
+script = ExtResource("5_0oyrn")
+id = "enemy_sentry_plasma_t6"
+display_name = "Plasma Sentry T6"
+element = "plasma"
+tier = 6
+description = "seed 83822"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "violet"
+core_weapon = "spin_ring"
+archetype = "sentry"
+rails = Array[ExtResource("4_x6h20")]([SubResource("Resource_1j1lg")])

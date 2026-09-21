@@ -1,0 +1,98 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_arbhv"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_k7ixl"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_nhry6"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ynecl"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_nomw1"]
+
+[sub_resource type="Resource" id="Resource_ytqrr"]
+script = ExtResource("1_arbhv")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_ggpbc"]
+script = ExtResource("1_arbhv")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_w2gxl"]
+script = ExtResource("1_arbhv")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_yvqwa"]
+script = ExtResource("1_arbhv")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_itys2"]
+script = ExtResource("4_ynecl")
+order = 4
+speed = -0.8889
+phase = 0.7854
+slots = Array[ExtResource("1_arbhv")]([SubResource("Resource_ytqrr"), SubResource("Resource_ggpbc"), SubResource("Resource_w2gxl"), SubResource("Resource_yvqwa")])
+
+[sub_resource type="Resource" id="Resource_8sdyp"]
+script = ExtResource("1_arbhv")
+type = "hub"
+pods = 4
+set_piece = "lens_stack"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_fj0uy"]
+script = ExtResource("1_arbhv")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_uagwp"]
+script = ExtResource("1_arbhv")
+type = "hub"
+pods = 4
+set_piece = "shell_pair"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_eui1j"]
+script = ExtResource("1_arbhv")
+type = "hub"
+pods = 4
+set_piece = "shell_pair"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_gsmpw"]
+script = ExtResource("1_arbhv")
+type = "hub"
+pods = 4
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_ict26"]
+script = ExtResource("4_ynecl")
+radius = 96
+order = 5
+pump_phase = 0.9
+slots = Array[ExtResource("1_arbhv")]([SubResource("Resource_8sdyp"), SubResource("Resource_fj0uy"), SubResource("Resource_uagwp"), SubResource("Resource_eui1j"), SubResource("Resource_gsmpw")])
+
+[resource]
+script = ExtResource("5_nomw1")
+id = "player_lightning_t4_heavy"
+display_name = "Lightning T4 Heavy"
+element = "lightning"
+tier = 4
+description = "seed 827993"
+schema_version = 4
+role = "heavy"
+family = "heavy"
+speed = 200.0
+turn_rate = 8.0
+accel = 700.0
+drag = 3.5
+hp_buffer = 1.3
+damage_multiplier = 1.15
+passives = Array[String](["siphon"])
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 3
+rails = Array[ExtResource("4_ynecl")]([SubResource("Resource_itys2"), SubResource("Resource_ict26")])

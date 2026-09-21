@@ -40,6 +40,7 @@ func _extra_sections() -> Array[String]:
 	return extra
 
 func _run() -> void:
+	print("benchmark roster: ", ShipCatalog.use_cmdline_root())
 	var reports: Array = []
 	var asserting: bool = "--assert" in OS.get_cmdline_user_args()
 	var scale: float = _scale_argument("--budget-scale=")

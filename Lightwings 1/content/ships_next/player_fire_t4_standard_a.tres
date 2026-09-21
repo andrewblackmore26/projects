@@ -1,0 +1,91 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_kvd7l"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_herq0"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_4kteh"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_rsa8r"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_tcem8"]
+
+[sub_resource type="Resource" id="Resource_150eu"]
+script = ExtResource("1_kvd7l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_2754s"]
+script = ExtResource("1_kvd7l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_qx1nm"]
+script = ExtResource("1_kvd7l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_1mxek"]
+script = ExtResource("1_kvd7l")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_dmarr"]
+script = ExtResource("4_rsa8r")
+order = 4
+speed = -1.0887
+phase = 0.7854
+slots = Array[ExtResource("1_kvd7l")]([SubResource("Resource_150eu"), SubResource("Resource_2754s"), SubResource("Resource_qx1nm"), SubResource("Resource_1mxek")])
+
+[sub_resource type="Resource" id="Resource_xnqem"]
+script = ExtResource("1_kvd7l")
+type = "hub"
+pods = 2
+set_piece = "split_lance"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_i6egj"]
+script = ExtResource("1_kvd7l")
+type = "hub"
+pods = 2
+set_piece = "burst_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_xiprm"]
+script = ExtResource("1_kvd7l")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_kdqpr"]
+script = ExtResource("1_kvd7l")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_x76ov"]
+script = ExtResource("1_kvd7l")
+type = "hub"
+pods = 2
+set_piece = "burst_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_rej8b"]
+script = ExtResource("4_rsa8r")
+radius = 96
+order = 5
+pump_phase = 0.9
+slots = Array[ExtResource("1_kvd7l")]([SubResource("Resource_xnqem"), SubResource("Resource_i6egj"), SubResource("Resource_xiprm"), SubResource("Resource_kdqpr"), SubResource("Resource_x76ov")])
+
+[resource]
+script = ExtResource("5_tcem8")
+id = "player_fire_t4_standard_a"
+display_name = "Fire T4 Standard A"
+element = "fire"
+tier = 4
+description = "seed 818127"
+schema_version = 4
+speed = 240.0
+passives = Array[String](["magnet"])
+chassis_color = "blue"
+accent_color = "red"
+core_depth = 3
+rails = Array[ExtResource("4_rsa8r")]([SubResource("Resource_dmarr"), SubResource("Resource_rej8b")])

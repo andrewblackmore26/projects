@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_mj5dn"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_6d40b"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_csqvt"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_btc28"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_stqqk"]
+
+[sub_resource type="Resource" id="Resource_xjohj"]
+script = ExtResource("1_mj5dn")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+
+[sub_resource type="Resource" id="Resource_nwo2e"]
+script = ExtResource("1_mj5dn")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_oqqfo"]
+script = ExtResource("1_mj5dn")
+type = "hub"
+pods = 2
+set_piece = "iris_ring"
+
+[sub_resource type="Resource" id="Resource_jjles"]
+script = ExtResource("1_mj5dn")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_jah00"]
+script = ExtResource("4_btc28")
+order = 4
+speed = -0.9518
+phase = 0.9095
+slots = Array[ExtResource("1_mj5dn")]([SubResource("Resource_xjohj"), SubResource("Resource_nwo2e"), SubResource("Resource_oqqfo"), SubResource("Resource_jjles")])
+
+[resource]
+script = ExtResource("5_stqqk")
+id = "enemy_sentry_void_t4"
+display_name = "Void Sentry T4"
+element = "void"
+tier = 4
+description = "seed 557440"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "silver"
+core_weapon = "well_cup"
+archetype = "sentry"
+rails = Array[ExtResource("4_btc28")]([SubResource("Resource_jah00")])

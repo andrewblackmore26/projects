@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_5mf52"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_7owjp"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_jx8hf"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_uk647"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_vl4q1"]
+
+[sub_resource type="Resource" id="Resource_3y3m8"]
+script = ExtResource("1_5mf52")
+type = "hub"
+pods = 2
+set_piece = "spore_rack"
+
+[sub_resource type="Resource" id="Resource_vwtau"]
+script = ExtResource("1_5mf52")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_fihvn"]
+script = ExtResource("1_5mf52")
+type = "hub"
+pods = 2
+set_piece = "spore_rack"
+
+[sub_resource type="Resource" id="Resource_rpmsg"]
+script = ExtResource("1_5mf52")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_mxj5v"]
+script = ExtResource("4_uk647")
+order = 4
+speed = -0.9234
+phase = 1.284
+slots = Array[ExtResource("1_5mf52")]([SubResource("Resource_3y3m8"), SubResource("Resource_vwtau"), SubResource("Resource_fihvn"), SubResource("Resource_rpmsg")])
+
+[resource]
+script = ExtResource("5_vl4q1")
+id = "enemy_sentry_corruption_t3"
+display_name = "Corruption Sentry T3"
+tier = 3
+description = "seed 216322"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "green"
+core_weapon = "sac_cluster"
+archetype = "sentry"
+rails = Array[ExtResource("4_uk647")]([SubResource("Resource_mxj5v")])

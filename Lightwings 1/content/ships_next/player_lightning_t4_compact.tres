@@ -1,0 +1,80 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_34j1t"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_x346m"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_eru0g"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_nmehc"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_ubg5q"]
+
+[sub_resource type="Resource" id="Resource_wx5e0"]
+script = ExtResource("1_34j1t")
+type = "hub"
+pods = 2
+set_piece = "wedge_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_p3x1m"]
+script = ExtResource("1_34j1t")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_und7g"]
+script = ExtResource("1_34j1t")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_smxy0"]
+script = ExtResource("4_nmehc")
+slots = Array[ExtResource("1_34j1t")]([SubResource("Resource_wx5e0"), SubResource("Resource_p3x1m"), SubResource("Resource_und7g")])
+
+[sub_resource type="Resource" id="Resource_ky5ki"]
+script = ExtResource("1_34j1t")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_py86n"]
+script = ExtResource("1_34j1t")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_5l81s"]
+script = ExtResource("1_34j1t")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_ik5tr"]
+script = ExtResource("1_34j1t")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_p7dmf"]
+script = ExtResource("4_nmehc")
+radius = 96
+order = 4
+speed = 0.3893
+phase = 0.7854
+pump_phase = 0.9
+slots = Array[ExtResource("1_34j1t")]([SubResource("Resource_ky5ki"), SubResource("Resource_py86n"), SubResource("Resource_5l81s"), SubResource("Resource_ik5tr")])
+
+[resource]
+script = ExtResource("5_ubg5q")
+id = "player_lightning_t4_compact"
+display_name = "Lightning T4 Compact"
+element = "lightning"
+tier = 4
+description = "seed 732547"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+passives = Array[String](["magnet"])
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 3
+rails = Array[ExtResource("4_nmehc")]([SubResource("Resource_smxy0"), SubResource("Resource_p7dmf")])

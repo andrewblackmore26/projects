@@ -1,0 +1,89 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_80058"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_gj5v2"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_3o250"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_rspje"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_1ljd2"]
+
+[sub_resource type="Resource" id="Resource_d1jwt"]
+script = ExtResource("1_80058")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_4otdt"]
+script = ExtResource("1_80058")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_g5qjf"]
+script = ExtResource("1_80058")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_7x3dj"]
+script = ExtResource("1_80058")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_ysc2f"]
+script = ExtResource("4_rspje")
+order = 4
+speed = -0.8365
+phase = 0.7854
+slots = Array[ExtResource("1_80058")]([SubResource("Resource_d1jwt"), SubResource("Resource_4otdt"), SubResource("Resource_g5qjf"), SubResource("Resource_7x3dj")])
+
+[sub_resource type="Resource" id="Resource_ktf77"]
+script = ExtResource("1_80058")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_weg2s"]
+script = ExtResource("1_80058")
+type = "hub"
+pods = 2
+set_piece = "shell_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_i7iar"]
+script = ExtResource("1_80058")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_7ju01"]
+script = ExtResource("1_80058")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_x0how"]
+script = ExtResource("1_80058")
+type = "hub"
+pods = 2
+set_piece = "shell_ring"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_lr6lp"]
+script = ExtResource("4_rspje")
+radius = 96
+order = 5
+pump_phase = 0.9
+slots = Array[ExtResource("1_80058")]([SubResource("Resource_ktf77"), SubResource("Resource_weg2s"), SubResource("Resource_i7iar"), SubResource("Resource_7ju01"), SubResource("Resource_x0how")])
+
+[resource]
+script = ExtResource("5_1ljd2")
+id = "player_void_t5_compact"
+display_name = "Void T5 Compact"
+element = "void"
+tier = 5
+description = "seed 124050"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+passives = Array[String](["thrusters"])
+chassis_color = "blue"
+accent_color = "silver"
+core_depth = 4
+rails = Array[ExtResource("4_rspje")]([SubResource("Resource_ysc2f"), SubResource("Resource_lr6lp")])

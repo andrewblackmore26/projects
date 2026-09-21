@@ -485,6 +485,7 @@ func _chase_score(a_runs: Array, b_runs: Array) -> Dictionary:
 
 func _run() -> void:
 	t = Harness.new("ACCEPTANCE V0.3")
+	print("acceptance roster: ", ShipCatalog.use_cmdline_root())
 	var results: Dictionary = {}
 	results["first_evolution"] = _measure_first_evolution()
 	results["camper_vs_pusher"] = _measure_camper_vs_pusher()

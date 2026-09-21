@@ -1,0 +1,89 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_dw7wr"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_saw0u"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_a6hia"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_v3teh"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_j3yf0"]
+
+[sub_resource type="Resource" id="Resource_dcrsg"]
+script = ExtResource("1_dw7wr")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_6kras"]
+script = ExtResource("1_dw7wr")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_o8u33"]
+script = ExtResource("1_dw7wr")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_ufs4o"]
+script = ExtResource("1_dw7wr")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_ulfkx"]
+script = ExtResource("4_v3teh")
+order = 4
+speed = -0.871
+phase = 0.7854
+slots = Array[ExtResource("1_dw7wr")]([SubResource("Resource_dcrsg"), SubResource("Resource_6kras"), SubResource("Resource_o8u33"), SubResource("Resource_ufs4o")])
+
+[sub_resource type="Resource" id="Resource_f5ph2"]
+script = ExtResource("1_dw7wr")
+type = "hub"
+pods = 2
+set_piece = "wedge_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_5w6lt"]
+script = ExtResource("1_dw7wr")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_635sw"]
+script = ExtResource("1_dw7wr")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_ytmj7"]
+script = ExtResource("1_dw7wr")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_vbsxi"]
+script = ExtResource("1_dw7wr")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_c65wv"]
+script = ExtResource("4_v3teh")
+radius = 96
+order = 5
+pump_phase = 0.9
+slots = Array[ExtResource("1_dw7wr")]([SubResource("Resource_f5ph2"), SubResource("Resource_5w6lt"), SubResource("Resource_635sw"), SubResource("Resource_ytmj7"), SubResource("Resource_vbsxi")])
+
+[resource]
+script = ExtResource("5_j3yf0")
+id = "player_lightning_t5_compact"
+display_name = "Lightning T5 Compact"
+element = "lightning"
+tier = 5
+description = "seed 44996"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+passives = Array[String](["magnet"])
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 4
+rails = Array[ExtResource("4_v3teh")]([SubResource("Resource_ulfkx"), SubResource("Resource_c65wv")])

@@ -65,6 +65,16 @@ static func _template(id: String) -> ShipDefinition:
 	_templates[path] = {"modified": modified, "checked": now, "ship": resource}
 	return resource
 
+## `-- --catalog-root=res://content/ships_next` points the whole game at another roster: how the
+## rail roster is played, measured and looked at in staging before the cutover swaps it in.
+## Returns the root now in use.
+static func use_cmdline_root() -> String:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with("--catalog-root="):
+			catalog_root = argument.trim_prefix("--catalog-root=")
+			invalidate()
+	return catalog_root
+
 ## The ONE thing to call after loading or changing a hull. A rail hull (schema 4) stores only its
 ## grammar, so its parts are compiled here; its movement stats are authored fields, not derived
 ## from body circles. A v0.3 hull keeps `recalculate`.
@@ -119,6 +129,10 @@ static func make_ship(element: String, tier: int, is_player: bool = false, _lega
 ## visible circle must always be an ability or a stat (spec §17).
 static func cap_to_tier(ship: ShipDefinition, tier: int) -> ShipDefinition:
 	if ship == null or ship.tier <= tier: return ship
+	# A rail hull is authored for its tier and the colour gate decides what it carries; enemies
+	# mount guns, not secondary slots. There is nothing here to trim, and the v0.3 trimming below
+	# edits `parts`, which a rail hull derives.
+	if ship.is_rail_hull(): return ship
 	var limits: Dictionary = GameTuning.slots(tier, ship.role)
 	if ship.secondaries.size() <= int(limits.secondary) and ship.passives.size() <= int(limits.passive): return ship
 	var dropped: Dictionary = {}

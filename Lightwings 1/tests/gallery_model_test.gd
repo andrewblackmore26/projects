@@ -164,6 +164,11 @@ func _run() -> void:
 		if entry.id == "radial_elite": radial = entry
 	var expected_budget: Dictionary = ShipCompiler.budget(radial.ship)
 	h.check(int(radial.circles) == int(expected_budget.circles) and int(radial.lines) == int(expected_budget.lines), "Rail hull counts equal ShipCompiler.budget")
+	# A rail hull's FILE stores no parts, so its stored footprint is the resource default (48). The
+	# entry must carry the compiled hull's, or tiles size themselves for a 48 px ship (S10 found it).
+	var stored: ShipDefinition = ResourceLoader.load(str(radial.path), "", ResourceLoader.CACHE_MODE_IGNORE)
+	h.check(is_equal_approx(float(radial.footprint), 2.0 * (96.0 + 30.0 + 7.0)), "A rail hull's footprint is its compiled reach (%.1f)" % float(radial.footprint))
+	h.control("the footprint read from the stored file (%.1f)" % stored.footprint, not is_equal_approx(stored.footprint, float(radial.footprint)))
 
 	# --- coverage ----------------------------------------------------------------------------
 	var manifest: Array[Dictionary] = ShipGenerator.roster_manifest()

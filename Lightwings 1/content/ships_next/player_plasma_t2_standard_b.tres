@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_n4bbs"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_kdmqk"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_iklne"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ocn6e"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_1tflp"]
+
+[sub_resource type="Resource" id="Resource_cwime"]
+script = ExtResource("1_n4bbs")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_okmv4"]
+script = ExtResource("1_n4bbs")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_sm12o"]
+script = ExtResource("1_n4bbs")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_8u2a6"]
+script = ExtResource("1_n4bbs")
+type = "node"
+node_radius = 7
+
+[sub_resource type="Resource" id="Resource_g3w1x"]
+script = ExtResource("1_n4bbs")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_e3gxr"]
+script = ExtResource("4_ocn6e")
+order = 5
+slots = Array[ExtResource("1_n4bbs")]([SubResource("Resource_cwime"), SubResource("Resource_okmv4"), SubResource("Resource_sm12o"), SubResource("Resource_8u2a6"), SubResource("Resource_g3w1x")])
+
+[resource]
+script = ExtResource("5_1tflp")
+id = "player_plasma_t2_standard_b"
+display_name = "Plasma T2 Standard B"
+element = "plasma"
+tier = 2
+description = "seed 228518"
+schema_version = 4
+family = "standard_b"
+speed = 240.0
+chassis_color = "blue"
+accent_color = "violet"
+rails = Array[ExtResource("4_ocn6e")]([SubResource("Resource_e3gxr")])

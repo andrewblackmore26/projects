@@ -68,7 +68,10 @@ static func _scan_one(root: String, id: String) -> Dictionary:
 	entry.circles = circles
 	entry.lines = lines
 	entry.rails = rails
-	entry.footprint = ship.footprint
+	# From the COMPILED copy: a rail hull is saved without parts, so the raw file's `footprint` is
+	# the resource default (48). Reading it made every rail hull say "48px" and draw far too large
+	# for its tile - seen in the first staging contact sheet, where only cores fitted.
+	entry.footprint = compiled.footprint if errors.is_empty() else ship.footprint
 	entry.set_pieces = set_pieces
 	entry.errors = errors
 	entry.warnings = warnings

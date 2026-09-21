@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_8d4uw"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_0id4t"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_a21lh"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_88slj"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_j72n8"]
+
+[sub_resource type="Resource" id="Resource_ma1an"]
+script = ExtResource("1_8d4uw")
+type = "hub"
+pods = 2
+set_piece = "node_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_8g8qe"]
+script = ExtResource("1_8d4uw")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_3l4hv"]
+script = ExtResource("1_8d4uw")
+type = "hub"
+pods = 2
+set_piece = "phase_pair"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_ci1ln"]
+script = ExtResource("4_88slj")
+slots = Array[ExtResource("1_8d4uw")]([SubResource("Resource_ma1an"), SubResource("Resource_8g8qe"), SubResource("Resource_3l4hv")])
+
+[resource]
+script = ExtResource("5_j72n8")
+id = "player_plasma_t2_compact"
+display_name = "Plasma T2 Compact"
+element = "plasma"
+tier = 2
+description = "seed 547195"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+chassis_color = "blue"
+accent_color = "violet"
+rails = Array[ExtResource("4_88slj")]([SubResource("Resource_ci1ln")])

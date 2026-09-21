@@ -1,0 +1,100 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_srflu"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ynw1j"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_nwtas"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_0lodu"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_7sy5n"]
+
+[sub_resource type="Resource" id="Resource_3cvly"]
+script = ExtResource("1_srflu")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_0l18d"]
+script = ExtResource("1_srflu")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_ne8if"]
+script = ExtResource("1_srflu")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_x7807"]
+script = ExtResource("1_srflu")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_h0vd3"]
+script = ExtResource("1_srflu")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_rej6y"]
+script = ExtResource("4_0lodu")
+order = 5
+speed = -1.0663
+slots = Array[ExtResource("1_srflu")]([SubResource("Resource_3cvly"), SubResource("Resource_0l18d"), SubResource("Resource_ne8if"), SubResource("Resource_x7807"), SubResource("Resource_h0vd3")])
+
+[sub_resource type="Resource" id="Resource_c1d2c"]
+script = ExtResource("1_srflu")
+type = "hub"
+pods = 2
+set_piece = "twin_barrel"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_idp0y"]
+script = ExtResource("1_srflu")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_1flwg"]
+script = ExtResource("1_srflu")
+type = "hub"
+pods = 2
+set_piece = "web_node"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_8fvf6"]
+script = ExtResource("1_srflu")
+type = "hub"
+pods = 2
+
+[sub_resource type="Resource" id="Resource_5u7te"]
+script = ExtResource("1_srflu")
+type = "hub"
+pods = 2
+set_piece = "web_node"
+mount = "secondary_1"
+
+[sub_resource type="Resource" id="Resource_aute3"]
+script = ExtResource("1_srflu")
+type = "hub"
+pods = 2
+set_piece = "sac_cluster"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_8a2ie"]
+script = ExtResource("4_0lodu")
+radius = 96
+order = 6
+pump_phase = 0.9
+slots = Array[ExtResource("1_srflu")]([SubResource("Resource_c1d2c"), SubResource("Resource_idp0y"), SubResource("Resource_1flwg"), SubResource("Resource_8fvf6"), SubResource("Resource_5u7te"), SubResource("Resource_aute3")])
+
+[resource]
+script = ExtResource("5_7sy5n")
+id = "player_corruption_t6_compact"
+display_name = "Corruption T6 Compact"
+tier = 6
+description = "seed 915734"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+passives = Array[String](["health_readout", "orbital_seekers"])
+chassis_color = "blue"
+accent_color = "green"
+core_depth = 4
+rails = Array[ExtResource("4_0lodu")]([SubResource("Resource_rej6y"), SubResource("Resource_8a2ie")])

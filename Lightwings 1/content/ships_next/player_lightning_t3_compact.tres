@@ -1,0 +1,61 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_r8hrq"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_qmnhj"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_va04l"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_3lnbj"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_rqrlk"]
+
+[sub_resource type="Resource" id="Resource_4bq10"]
+script = ExtResource("1_r8hrq")
+type = "hub"
+pods = 2
+set_piece = "wedge_pair"
+mount = "primary"
+
+[sub_resource type="Resource" id="Resource_65as6"]
+script = ExtResource("1_r8hrq")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_v0guw"]
+script = ExtResource("1_r8hrq")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_3tsb0"]
+script = ExtResource("1_r8hrq")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_2yh5v"]
+script = ExtResource("1_r8hrq")
+type = "hub"
+pods = 2
+set_piece = "hook_node"
+mount = "secondary_0"
+
+[sub_resource type="Resource" id="Resource_2fpty"]
+script = ExtResource("4_3lnbj")
+order = 5
+slots = Array[ExtResource("1_r8hrq")]([SubResource("Resource_4bq10"), SubResource("Resource_65as6"), SubResource("Resource_v0guw"), SubResource("Resource_3tsb0"), SubResource("Resource_2yh5v")])
+
+[resource]
+script = ExtResource("5_rqrlk")
+id = "player_lightning_t3_compact"
+display_name = "Lightning T3 Compact"
+element = "lightning"
+tier = 3
+description = "seed 387394"
+schema_version = 4
+role = "compact"
+family = "compact"
+speed = 300.0
+turn_rate = 12.5
+accel = 4800.0
+drag = 16.0
+hp_buffer = 0.8
+chassis_color = "blue"
+accent_color = "yellow"
+core_depth = 3
+rails = Array[ExtResource("4_3lnbj")]([SubResource("Resource_2fpty")])

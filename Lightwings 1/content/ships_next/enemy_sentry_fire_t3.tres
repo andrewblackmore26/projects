@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="ShipDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_qrjl5"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_6gsya"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_01ikl"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_nljxl"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_vclxk"]
+
+[sub_resource type="Resource" id="Resource_ipapk"]
+script = ExtResource("1_qrjl5")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
+
+[sub_resource type="Resource" id="Resource_rvpfe"]
+script = ExtResource("1_qrjl5")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_hdxlv"]
+script = ExtResource("1_qrjl5")
+type = "hub"
+pods = 2
+set_piece = "drop_cradle"
+
+[sub_resource type="Resource" id="Resource_g5he1"]
+script = ExtResource("1_qrjl5")
+type = "node"
+
+[sub_resource type="Resource" id="Resource_le3ve"]
+script = ExtResource("4_nljxl")
+order = 4
+speed = -0.8233
+phase = 1.3674
+slots = Array[ExtResource("1_qrjl5")]([SubResource("Resource_ipapk"), SubResource("Resource_rvpfe"), SubResource("Resource_hdxlv"), SubResource("Resource_g5he1")])
+
+[resource]
+script = ExtResource("5_vclxk")
+id = "enemy_sentry_fire_t3"
+display_name = "Fire Sentry T3"
+element = "fire"
+tier = 3
+description = "seed 803283"
+schema_version = 4
+faction = "enemy"
+speed = 240.0
+chassis_color = "red"
+core_weapon = "vent_fan"
+archetype = "sentry"
+rails = Array[ExtResource("4_nljxl")]([SubResource("Resource_le3ve")])
