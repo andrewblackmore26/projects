@@ -8,6 +8,8 @@ extends RefCounted
 ## honest (spec §18).
 
 const MAX_CACHE_ENTRIES: int = 96
+## Hulls at or above this schema are rail-grammar hulls: forward kinematics, no groups.
+const FK_SCHEMA: int = 4
 static var _cache: Dictionary = {}
 static var cache_hits: int = 0
 static var cache_misses: int = 0
@@ -50,6 +52,21 @@ class ShipRig extends RefCounted:
 	## bullets that reach it - with per-circle hitboxes the grid would otherwise carry 5-10x the
 	## colliders and every bullet would pay for it.
 	var bound_radius: float = 0.0
+	## Ship design spec (schema 4). `legacy` hulls use the v0.3 group evaluator and leave the joint
+	## arrays empty; rail-grammar hulls use forward kinematics (`_step_fk`) and have no groups.
+	var legacy: bool = true
+	var spin_speed: PackedFloat32Array = PackedFloat32Array()
+	var bob_amp: PackedFloat32Array = PackedFloat32Array()
+	var bob_freq: PackedFloat32Array = PackedFloat32Array()
+	var bob_phase: PackedFloat32Array = PackedFloat32Array()
+	var pump_amp: PackedFloat32Array = PackedFloat32Array()
+	var pump_freq: PackedFloat32Array = PackedFloat32Array()
+	var pump_phase: PackedFloat32Array = PackedFloat32Array()
+	var aim_joint: PackedByteArray = PackedByteArray()
+	## 1 = has HP, a collider and a reward share. Every circle of a legacy hull is solid.
+	var solid: PackedByteArray = PackedByteArray()
+	## Rig indices of the solid circles other than the core, ascending: what the broadphase walks.
+	var solid_indices: PackedInt32Array = PackedInt32Array()
 
 	func has(id: String) -> bool:
 		return id_index.has(id)
@@ -63,11 +80,23 @@ class ShipPose extends RefCounted:
 	var local: PackedVector2Array = PackedVector2Array()
 	var scale: PackedFloat32Array = PackedFloat32Array()
 	var flare: PackedFloat32Array = PackedFloat32Array() # reserved for P8 rim flare; always 0 today
+	## Forward kinematics only. `angle` is each circle's accumulated rotation, scratch for the pass.
+	## `aim_angle` is an INPUT: the hull-frame angle an aim joint should take, NAN for "none, point
+	## outward". The simulation owns it (S3 slews it toward the gun's aim); step() only reads it.
+	var angle: PackedFloat32Array = PackedFloat32Array()
+	var aim_angle: PackedFloat32Array = PackedFloat32Array()
 
 	func _init(rig: ShipRig = null) -> void:
 		if rig != null: reset(rig)
 
 	func reset(rig: ShipRig) -> void:
+		angle = PackedFloat32Array()
+		aim_angle = PackedFloat32Array()
+		if not rig.legacy:
+			angle.resize(rig.rest.size())
+			angle.fill(0.0)
+			aim_angle.resize(rig.rest.size())
+			aim_angle.fill(NAN)
 		local = rig.rest.duplicate()
 		scale = PackedFloat32Array()
 		scale.resize(rig.rest.size())
@@ -82,8 +111,13 @@ class ShipPose extends RefCounted:
 
 static func rig_key(ship: ShipDefinition) -> PackedByteArray:
 	var signature: Array = []
+	var fk: bool = ship.schema_version >= FK_SCHEMA
+	if fk: signature.append(["fk", ship.schema_version])
 	for part: PartDefinition in ship.parts:
-		if part.shape == "circle": signature.append([part.id, part.position, part.radius, part.filled, part.parent_id])
+		if part.shape == "circle":
+			signature.append([part.id, part.position, part.radius, part.filled, part.parent_id])
+			# Appended only for rail-grammar hulls, so a legacy hull's key is byte-identical to v0.3's.
+			if fk: signature.append([part.spin_speed, part.bob_amp, part.bob_freq, part.bob_phase, part.pump_amp, part.pump_freq, part.pump_phase, part.aim_joint, part.solid])
 		elif part.shape == "line": signature.append(["line", part.id, part.from_id, part.to_id])
 	for group: GroupDefinition in ship.groups:
 		signature.append(["group", group.root_id, group.orbit_radius, group.orbit_speed, group.drift_amp, group.drift_freq, group.breathe_amp, group.chain_mode, group.reach_ring])
@@ -146,6 +180,32 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 		rig.ability_id[i] = part.ability_id
 		rig.mount_id[i] = part.mount_id
 		rig.authored_hp[i] = part.hp
+	rig.legacy = ship.schema_version < FK_SCHEMA
+	rig.solid.resize(order.size())
+	rig.solid.fill(1)
+	if not rig.legacy:
+		# Resized one by one: a packed array put in a list is a copy, so a loop would resize nothing.
+		rig.spin_speed.resize(order.size())
+		rig.bob_amp.resize(order.size())
+		rig.bob_freq.resize(order.size())
+		rig.bob_phase.resize(order.size())
+		rig.pump_amp.resize(order.size())
+		rig.pump_freq.resize(order.size())
+		rig.pump_phase.resize(order.size())
+		rig.aim_joint.resize(order.size())
+		for i: int in range(order.size()):
+			var joint: PartDefinition = by_id[order[i]]
+			rig.spin_speed[i] = joint.spin_speed
+			rig.bob_amp[i] = joint.bob_amp
+			rig.bob_freq[i] = joint.bob_freq
+			rig.bob_phase[i] = joint.bob_phase
+			rig.pump_amp[i] = joint.pump_amp
+			rig.pump_freq[i] = joint.pump_freq
+			rig.pump_phase[i] = joint.pump_phase
+			rig.aim_joint[i] = 1 if joint.aim_joint else 0
+			rig.solid[i] = 1 if joint.solid else 0
+	for i: int in range(1, order.size()):
+		if rig.solid[i] == 1: rig.solid_indices.append(i)
 	for i: int in range(order.size()):
 		var mirror_id: String = str(by_id[order[i]].mirror_id)
 		if rig.id_index.has(mirror_id): rig.mirror_index[i] = int(rig.id_index[mirror_id])
@@ -210,6 +270,39 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 ## the paused-vs-running renderer cannot disagree with the sim.
 static func step(rig: ShipRig, pose: ShipPose, tick: int) -> void:
 	if pose.local.size() != rig.rest.size(): pose.reset(rig)
+	if rig.legacy: _step_legacy(rig, pose, tick)
+	else: _step_fk(rig, pose, tick)
+
+## Rail-grammar hulls (ship design spec §9). One pass down the DFS order, so a parent is always
+## posed before its children: a circle's angle is its parent's plus its own spin and bob, and it sits
+## at its parent's live position plus its rest offset, pumped and rotated by that angle. So a pod
+## bobs about its hub WHILE the hub rides its rail - which the v0.3 evaluator below cannot do,
+## because there a circle belongs to one group and is posed from rest positions.
+## Pure in (tick, pose.aim_angle), allocation-free, and it never touches `scale`: nothing in the
+## new grammar changes a circle's size.
+static func _step_fk(rig: ShipRig, pose: ShipPose, tick: int) -> void:
+	var t: float = float(tick) / 60.0
+	pose.local[0] = rig.rest[0]
+	pose.angle[0] = 0.0
+	pose.scale[0] = 1.0
+	pose.flare[0] = 0.0
+	for i: int in range(1, rig.rest.size()):
+		var parent: int = rig.parent_index[i]
+		var turn: float = pose.angle[parent] + rig.spin_speed[i] * t
+		if rig.bob_amp[i] != 0.0: turn += rig.bob_amp[i] * sin(rig.bob_freq[i] * t + rig.bob_phase[i])
+		if rig.aim_joint[i] == 1:
+			# Outward is the parent's own angle: the rest offset already points outward.
+			var aim: float = pose.aim_angle[i]
+			turn = pose.angle[parent] if is_nan(aim) else aim
+		var offset: Vector2 = rig.rest[i] - rig.rest[parent]
+		if rig.pump_amp[i] != 0.0: offset *= 1.0 + rig.pump_amp[i] * sin(rig.pump_freq[i] * t + rig.pump_phase[i])
+		pose.local[i] = pose.local[parent] + (offset.rotated(turn) if turn != 0.0 else offset)
+		pose.angle[i] = turn
+		pose.scale[i] = 1.0
+		pose.flare[i] = 0.0
+
+## v0.3 hulls, unchanged. Deleted with the legacy roster (S12).
+static func _step_legacy(rig: ShipRig, pose: ShipPose, tick: int) -> void:
 	var t: float = float(tick) / 60.0
 	for i: int in range(rig.rest.size()):
 		var group_slot: int = rig.group_index[i]

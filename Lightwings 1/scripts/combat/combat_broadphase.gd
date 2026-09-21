@@ -64,7 +64,10 @@ func rebuild() -> void:
    var ca: float=cos(angle)
    var sa: float=sin(angle)
    var origin: Vector2=actor.pos
-   for i: int in range(1,rig.ids.size()):
+   # The rig's solid circles, ascending. For a v0.3 hull that is every circle but the core, in the
+   # same order as before. For a rail-grammar hull it leaves out the rail rings (a 184 px collider
+   # would swallow the arena), inner core rings, passive rings and set-piece circles.
+   for i: int in rig.solid_indices:
     if hp[i]<=0.0: continue
     var g: Dictionary=cache.get(i,{})
     if g.is_empty():

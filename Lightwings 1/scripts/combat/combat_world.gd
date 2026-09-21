@@ -30,9 +30,9 @@ const FxCanvas = preload("res://scripts/combat/fx_canvas.gd")
 const PickupCanvas = preload("res://scripts/combat/pickup_canvas.gd")
 const Arena = preload("res://scripts/combat/circular_arena.gd")
 const FX = preload("res://scripts/combat/combat_fx.gd")
-const ELEMENTS: Array[String] = ["fire","lightning","void","corruption","plasma"]
-const COLORS: Array[Color] = [Color("ff5436"),Color("ffd23f"),Color("9aa3b3"),Color("45e06a"),Color("a97dff")]
-const PLAYER_COLOR: Color = Color("6fd3ff")
+const ELEMENTS: Array[String] = Elements.INDEX_ORDER
+const COLORS: Array[Color] = Elements.RIM_BY_INDEX
+const PLAYER_COLOR: Color = Elements.PLAYER_RIM
 const MAX_PICKUPS: int = 400
 const MAX_ACTORS: int = 100
 const MAX_DRONES: int = 80
@@ -432,6 +432,10 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  for i: int in range(n):
   var pid: String=rig.ids[i]
   var max_hp: float=float(actor.max_hp) if i==0 else (rig.authored_hp[i] if rig.authored_hp[i]>0.0 else rig.radius[i]*(4.0+3.0*float(actor.tier)))
+  # A non-solid circle (rail ring, inner core ring, passive ring, set-piece circle) is scenery:
+  # no HP, so no reward share below either. Without this a 184 px rail ring would be given
+  # radius*(4+3*tier) HP and most of the hull's limb reward. Every v0.3 circle is solid.
+  if i>0 and rig.solid[i]==0: max_hp=0.0
   part_max_hp[i]=max_hp
   part_hp[i]=float(old_hp[pid]) if old_hp.has(pid) else max_hp
   part_attached[i]=(1 if bool(old_attached[pid]) else 0) if old_attached.has(pid) else 1
@@ -440,7 +444,7 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
   part_aim[i]=old_aim[pid] if old_aim.has(pid) else Vector2.DOWN
   part_aim_error[i]=CombatAI.sample_aim_error(_rng)
   if not rig.mount_id[i].is_empty(): mount_index[rig.mount_id[i]]=i
-  if i>0 and not rig.ability_id[i].is_empty(): gun_indices.append(i)
+  if i>0 and rig.solid[i]==1 and not rig.ability_id[i].is_empty(): gun_indices.append(i)
   match str(stat_by_id.get(pid,"")):
    "sub_core": sub_core_indices.append(i)
    "shield_generator": shield_generator_indices.append(i)
@@ -1158,7 +1162,13 @@ func _step_motion(actor: Dictionary) -> void:
   actor.part_flare=flare
   if pose!=null and pose.flare.size()==flare.size(): pose.flare=flare.duplicate()
   var renderer: ShipRenderer=actor.get("renderer") as ShipRenderer
-  if is_instance_valid(renderer): renderer.part_flare=flare.duplicate()
+  if is_instance_valid(renderer):
+   renderer.part_flare=flare.duplicate()
+   # One pose per actor: the renderer draws from THIS pose instead of evaluating its own copy.
+   # Handed over every tick because a hull swap replaces both the actor's pose and the renderer's
+   # rig. Shared on purpose and safe: the renderer only reads it (the aliasing lesson is about a
+   # second WRITER).
+   renderer.external_pose=pose
 func _local_position(actor: Dictionary, id: String, fallback: Vector2) -> Vector2:
  # Fire from where the circle actually is: an orbiting group moves a mount
  # or gun exactly as far as the renderer moves it, both driven by the same

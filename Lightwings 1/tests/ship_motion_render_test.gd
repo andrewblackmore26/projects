@@ -90,6 +90,38 @@ func _orbit_case() -> void:
 	_control("pose upload disabled (tick pinned to 0)", not _bright(frozen_image, Vector2i(at + moved)))
 	frozen.queue_free()
 	await process_frame
+	# S1, one pose per actor: a renderer whose own tick is pinned to 0 must still draw the circle
+	# where the pose it was HANDED says it is - that is how the simulation's pose reaches the pixels.
+	var handed: ShipRenderer = ShipRenderer.new()
+	scene.add_child(handed)
+	handed.position = at
+	handed.set_ship(definition)
+	handed.set_process(false)
+	handed.set_motion_tick(0)
+	handed.external_pose = pose # stepped to `tick` above
+	handed._process(0)
+	await _frame()
+	await _frame() # two frames: the renderer freed just above drew its rim AT `rest`, and one frame can still show it (S0)
+	var handed_image: Image = root.get_texture().get_image()
+	_check(_bright(handed_image, Vector2i(at + moved)), "A renderer pinned to tick 0 draws the circle where the pose it was handed puts it")
+	_check(not _bright(handed_image, Vector2i(at + rest)), "...and not at its rest position")
+	handed.queue_free()
+	await process_frame
+	# Control: a handed pose that does not fit the rig must be ignored, not read out of bounds.
+	var misfit: ShipRenderer = ShipRenderer.new()
+	scene.add_child(misfit)
+	misfit.position = at
+	misfit.set_ship(definition)
+	misfit.set_process(false)
+	misfit.set_motion_tick(0)
+	var wrong: ShipMotion.ShipPose = ShipMotion.ShipPose.new(rig)
+	wrong.local = PackedVector2Array([Vector2.ZERO])
+	misfit.external_pose = wrong
+	misfit._process(0)
+	await _frame()
+	_control("a handed pose of the wrong size (must fall back to the renderer's own)", not _bright(root.get_texture().get_image(), Vector2i(at + moved)))
+	misfit.queue_free()
+	await process_frame
 
 func _overflow_case() -> void:
 	var definition: ShipDefinition = ShipDefinition.new()

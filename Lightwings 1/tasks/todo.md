@@ -423,12 +423,14 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       footprint and circle census of today's roster; gates; commit (renderer profile NOT run: it is taken in S1 beside the `_rig_to_mesh` change it judges)
 
 ## S1 — Behaviour-neutral seams (trace identical)
-- [ ] `scripts/data/elements.gd`; the three duplicated ELEMENTS/COLORS arrays become aliases; `"blue"` palette entries
-- [ ] Part joint/solid/style fields, rig packed arrays, `_step_fk` beside `_step_legacy`, `solid_indices`
+- [x] `scripts/data/elements.gd`; the three duplicated ELEMENTS/COLORS arrays become aliases; `"blue"` palette entries
+- [x] Part joint/solid/style fields, rig packed arrays, `_step_fk` beside `_step_legacy`, `solid_indices`
       in the broadphase, `ShipRenderer.external_pose`, `_rig_to_mesh` index map
-- [ ] `ShipGrammar.MOTION` (§9 tables); `ship_motion_test`: pod bob on a spinning rail, node bob, arm
-      pump moves the hub and never its radius, aim joint, chain wave; a control that disables
-      parent-angle inheritance must fail; commit
+- [x] `ShipGrammar.MOTION` (§9 tables); new `ship_fk_test` (the legacy `ship_motion_test` is left
+      alone): pod bob on a spinning rail, arm pump moves the hub and never its radius, aim joint; a
+      control that re-parents the pod so it inherits nothing must fail; commit. **Node bob is the same
+      joint as pod bob and is first exercised by the compiler in S2; the chain wave moved to S3 with
+      the rest of the stateful motion**
 
 ## S2 — Grammar, compiler, validator, first set pieces, rail rendering (trace identical; `content/` diff empty)
 - [ ] Schema-4 resources, `ShipGrammar` (coded `RULES`), `ShipCompiler`, `SetPieceCatalog` format with
@@ -673,6 +675,20 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | P6 bookkeeping | Ticked with its own review, from commit `382a40e`'s contents |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 766.5 s (12 before; +1 is the untimed-section control, caught 2/2 with the 4 real section lines still ok). Suite 38/38, golden trace NOT re-recorded (the two new timers only run under `profile_sections`). Rendered frame (30 s, 2000 bullets, 400 pickups, 17 actors): mean 8.14 ms, p95 15.72 ms against 14.0 / 26.0. Both Windows exports built and verified 2/2 |
 | Not completed / stated plainly | The rendered-frame benchmark and renderer profile baselines are taken from the gate run, not three separate runs. The `hud_model_test` diagonal fix the design notes suggested for S0 was not done; it stays on the open list. The reference census trusts one image at one scale; its ±0.3-unit agreement with the ladder on hubs and pods is the evidence that the scale basis (core_1 = 34) is right |
+
+## Review — S1 (behaviour-neutral seams)
+| What | Measured |
+|---|---|
+| `Elements` | One source for the wire order and the six colours; `ShipCatalog`, `CombatWorld` and `combat_canvas` alias it; `"blue"` added to the palette. `elements_test`: 24 checks, 3 controls. It keeps one duplication on purpose (`RIM_BY_INDEX`, a plain array the canvases index by a bullet's element int) and tests it against `RIM` with a swapped-entry control |
+| Forward-kinematics evaluator | `_step_fk` beside the untouched `_step_legacy`, chosen by `schema_version >= 4`. Confirmed by reading `_build_rig` first: v0.3 groups do NOT compose (innermost group owns a circle, posed from rest positions), so a bobbing pod on a moving hub was unrepresentable. One rule now: angle = parent's + spin·t + bob; offset from the LIVE parent, pumped. `ship_fk_test`: 19 checks, 6 controls — hub angle error ≤ 1e-4 rad and pumped-radius error ≤ 1e-3 px over 10 s; pod within 1e-3 px of "30 px from the live hub at hub angle + bob" (control: pod re-parented to the core); acceptance 4's excursions measured headless: bob ≥ 0.27 rad and pump ≥ 5.8 % peak-to-peak (controls: each amplitude zeroed); scale never leaves 1.0; aim joint holds a given aim and points outward without one (control: joint removed); pose is a pure function of the tick |
+| `ShipGrammar` | Ladder, rails, §4.4 cluster layout and every §9 default as data (`MOTION`), frequencies in rad/s as the spec writes them. Writing the "five pods" control found a real bug: the fan clamped its loop but centred on the unclamped count |
+| `solid` | Rig `solid` / `solid_indices`; the broadphase walks them (identical order for v0.3, where every circle is solid); `_configure_parts` gives a non-solid circle no HP (hence no reward share) and no gun. Exercised on the FK fixture only — no shipped hull has a non-solid circle until S11 |
+| One pose per actor | `ShipRenderer.external_pose`, handed over by `_step_motion` every tick; the renderer reads it and skips its own evaluation. **The pixel test caught a bug in the seam itself:** `set_ship` uploads once from the renderer's own pose, and the upload's dirty check keyed on the tick alone, so a pose handed over at the same tick was skipped and the hull drew at rest. Fixed by adding the pose's identity to the check — the same class of bug as the P8 flare dependency. `ship_motion_render_test`: +2 checks, +1 control (a misfit pose is ignored), 2/2 caught |
+| `_rig_to_mesh` | Per-frame id-string Dictionary lookup replaced by an index map built once per hull. `ships_renderer_profile` (20 T5 hulls, 2 runs each, same machine, minutes apart): `mean_process_ms` 1.18 / 1.24 before → 0.86 / 1.02 after |
+| Behaviour-neutral proof | Suite 40/40 with GPU (38 + `elements_test` + `ship_fk_test`); golden trace passes WITHOUT re-recording; `content/` untouched |
+| Lesson recorded | I edited three GDScript files with a Python read-replace-write. Byte-safe, and it still failed halfway: the third file did not match, after two were already rewritten. Edit refuses before touching anything. In `tasks/lessons.md` |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 771.0 s; suite 40/40. Headless 2000 bullets: mean 7.00, p95 9.80 ms (S0: 7.45–7.81 / 10.46–11.14). Rendered frame: mean 7.65, p95 14.89 ms (S0: 8.14 / 15.72). One run each, so "no regression", not "faster" |
+| Not completed / stated plainly | The renderer profile has no sim, so it measures the index map and NOT the saved second evaluation; that saving shows up only in the rendered-frame gate, which is dominated by other work. Chains and the aim SLEW are not here: both are stateful and belong with the sim in S3; S1 only gives the aim joint its input array. The 2-run profile comparison is small-sample: it shows direction, not a budget |
 
 ## Retired assertions
 

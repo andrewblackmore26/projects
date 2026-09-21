@@ -88,6 +88,12 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
 - I used `sed -i` on a GDScript file during P4a, which is exactly what the seeded rule above
   forbids. It happened to survive, but source edits go through Edit/Write — no exceptions for
   one-line constants.
+- I broke the source-edit rule a second time, in S1, with a Python `read → replace → write` over
+  three GDScript files (S0 had already done it to `tasks/todo.md`). It was byte-safe and it still
+  failed: the third file did not match across its line endings, so the script died after rewriting
+  two files and left the change half applied. The rule is not only about encoding. Edit refuses a
+  non-matching string before touching anything; a script finds out halfway through. No scripts over
+  source or task files, however mechanical the change looks.
 - A negative control covers only the lines it can reach. Scaling the time budgets to 1 % could never fail the pool-fill line of the benchmark gate, so that line got its own sabotage (`--fill-scale=2`). When adding a control, list the instrument's lines and check each one turns `ok=0` under some control.
 - **`a.b = shared_packed_array` aliases, it does not copy.** Assigning the SAME `PackedFloat32Array` object to two owners (an actor's own field and a `ShipPose`'s field) left both referencing one COW buffer; the pose's own per-element `[]=` write (inside `ShipMotion.step`, unrelated code) reached back and zeroed the actor's copy on the very next tick, killing a decaying value in 1 tick instead of 15 (P8, `combat_world.gd::_step_motion`, target rim flare). Fixed by `.duplicate()`-ing at every hand-off. A single chained `dict.key[index] = value` write DOES mutate the Dictionary's stored array in place (proven by the codebase's own `part_hp` pattern working everywhere); the risk is specifically SHARING that array with a second owner that also does index writes.
 - **A GPU test's `root.size` must match the project's base content-scale aspect ratio, or `get_texture().get_image()` silently letterboxes.** `root.size = Vector2i(900,700)` (aspect 1.286) against a project base of 1.6 returned an image measured 900x562, not 900x700 - every world-space sample coordinate then missed its content, and three different capture cases all read exactly background with zero errors printed (no shader failure, no exception - just quietly wrong). `arena_render_test.gd`'s existing 1280x800 (aspect 1.6) was the accidental reason it worked; `combat_fx_render_test.gd` copied that number after the trap was found the hard way.

@@ -4,8 +4,8 @@ const Pool = preload("res://scripts/combat/bullet_pool.gd")
 const ProjectileShader = preload("res://scripts/combat/projectile_instances.gdshader")
 const STRIDE: int = 16 # 2D transform (8), instance color (4), custom data (4).
 const INITIAL_CAPACITY: int = 256
-const PLAYER_COLOR: Color = Color("6fd3ff")
-const COLORS: Array[Color] = [Color("ff5436"), Color("ffd23f"), Color("9aa3b3"), Color("45e06a"), Color("a97dff")]
+const PLAYER_COLOR: Color = Elements.PLAYER_RIM
+const COLORS: Array[Color] = Elements.RIM_BY_INDEX
 
 var world: Node2D
 var player_mesh: MultiMeshInstance2D

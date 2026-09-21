@@ -23,9 +23,15 @@ var pose: ShipMotion.ShipPose
 ## for anything the sim does not drive (editor previews, menus) - `_sync_part_offsets`
 ## falls back to `pose.flare` (always 0.0) when the size does not match.
 var part_flare: PackedFloat32Array = PackedFloat32Array()
+## The simulation's own pose for this hull, when there is a simulation (CombatWorld hands it over
+## every tick). While it fits the rig the renderer draws from it and does not evaluate motion
+## itself, so the pixels ARE the hitboxes and each hull is posed once per tick, not twice. This
+## renderer only ever reads it. Null for previews, menus and the editor, which keep `pose`.
+var external_pose: ShipMotion.ShipPose
 var motion_tick: int = 0
 var _tick_driven: bool = false
 var _pose_hash: int = -2
+var _pose_source: int = -1
 var _flare_hash: int = -2
 var _source: ShipDefinition
 var _contours: Dictionary = {}
@@ -37,6 +43,7 @@ var _mesh_instance: MeshInstance2D
 var _mesh_material: ShaderMaterial
 var _mesh_builder: ShipMesh
 var _mesh_offsets: PackedVector4Array = []
+var _rig_to_mesh: PackedInt32Array = PackedInt32Array()
 var _override_hash: int = -1
 var _hidden_hash: int = -1
 var _last_factor: float = -1.0
@@ -64,6 +71,8 @@ func set_ship(ship: ShipDefinition, animate: bool = false) -> void:
 	_display_parts.clear()
 	rig = ShipMotion.get_rig(definition) if definition != null else null
 	pose = ShipMotion.ShipPose.new(rig) if rig != null else null
+	external_pose = null # the old hull's; the simulation hands the new one over on its next tick
+	_rig_to_mesh = PackedInt32Array() # rebuilt after the mesh is, on the first sync
 	_pose_hash = -2
 	_flare_hash = -2
 	if definition != null:
@@ -121,12 +130,26 @@ func _process(delta: float) -> void:
 				# when the sim pauses; standalone previews (editor, menus) fall
 				# back to the renderer's own always-on clock.
 				if not _tick_driven: motion_tick = int(animation_time * 60.0)
-				ShipMotion.step(rig, pose, motion_tick)
+				if not _uses_external_pose(): ShipMotion.step(rig, pose, motion_tick)
 			_sync_part_offsets()
 
 func set_motion_tick(tick: int) -> void:
 	motion_tick = tick
 	_tick_driven = true
+
+## Rig index -> mesh uniform slot (-1 when the mesh has no such circle), built once per hull. The
+## per-frame loop used to look each circle's id string up in a Dictionary instead.
+func _map_rig_to_mesh() -> void:
+	_rig_to_mesh.resize(rig.ids.size())
+	for i: int in range(rig.ids.size()):
+		_rig_to_mesh[i] = int(_mesh_builder.part_indices.get(rig.ids[i], -1))
+
+func _uses_external_pose() -> bool:
+	return external_pose != null and rig != null and external_pose.local.size() == rig.rest.size()
+
+## The pose to draw from: the simulation's when it gave one that fits this rig, else our own.
+func _drawn_pose() -> ShipMotion.ShipPose:
+	return external_pose if _uses_external_pose() else pose
 
 func _body_scale() -> float:
 	# Whole-hull breathing is gone: a group's breathe_amp scales only its own
@@ -177,7 +200,12 @@ func _sync_part_offsets() -> void:
 	# fine; a GPU test that set a flare without advancing the tick measured the rim as unchanged,
 	# deterministically, and that is the honest reading of this dependency being wrong.
 	var flare_signature: int = hash(part_flare)
-	if overrides == _override_hash and hidden == _hidden_hash and pose_tick == _pose_hash and flare_signature == _flare_hash: return
+	# WHICH pose is drawn is a dependency too (S1): `set_ship` uploads once from our own pose, so a
+	# pose handed over at the same tick was skipped and the hull drew at rest. The pixel test caught
+	# it; in play the tick advances every frame, which is why it would have hidden for one frame only.
+	var drawn_source: int = external_pose.get_instance_id() if _uses_external_pose() else 0
+	if overrides == _override_hash and hidden == _hidden_hash and pose_tick == _pose_hash and flare_signature == _flare_hash and drawn_source == _pose_source: return
+	_pose_source = drawn_source
 	_override_hash = overrides
 	_hidden_hash = hidden
 	_pose_hash = pose_tick
@@ -187,14 +215,15 @@ func _sync_part_offsets() -> void:
 	# Groups move a circle's pose away from its authored rest position; that
 	# delta (and any breathing radius scale) is the base offset every circle
 	# uploads. Manual overrides (editor drag, CPU reshape) win over it below.
-	if pose != null and rig != null:
-		var flare_source: PackedFloat32Array = part_flare if part_flare.size() == rig.ids.size() else pose.flare
+	var drawn: ShipMotion.ShipPose = _drawn_pose()
+	if drawn != null and rig != null:
+		var flare_source: PackedFloat32Array = part_flare if part_flare.size() == rig.ids.size() else drawn.flare
+		if _rig_to_mesh.size() != rig.ids.size(): _map_rig_to_mesh()
 		for i: int in range(rig.ids.size()):
-			var id: String = rig.ids[i]
-			if not _mesh_builder.part_indices.has(id): continue
-			var index: int = _mesh_builder.part_indices[id]
-			var offset: Vector2 = pose.local[i] - rig.rest[i]
-			_mesh_offsets[index] = Vector4(offset.x, offset.y, pose.scale[i], flare_source[i])
+			var index: int = _rig_to_mesh[i]
+			if index < 0: continue
+			var offset: Vector2 = drawn.local[i] - rig.rest[i]
+			_mesh_offsets[index] = Vector4(offset.x, offset.y, drawn.scale[i], flare_source[i])
 	for id: String in part_position_overrides:
 		if _mesh_builder.part_indices.has(id):
 			var index: int = _mesh_builder.part_indices[id]
