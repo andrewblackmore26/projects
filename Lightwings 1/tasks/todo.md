@@ -467,10 +467,11 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       **`motion` cost for 17 boss-fixture actors NOT measured** — it moves to S10, with the roster
 
 ## S4 — The 33 set pieces and the colour gate (trace identical)
-- [ ] All 33 authored (2–5 ladder circles; lines end on circles or the hub); `implemented` = its ability exists
-- [ ] `set_piece_test.gd`: 18 mono + 15 duo, colours match §6.3, `legal_for` equals the §6.5 lists
-      hard-coded from the spec, pairwise glyph distance with a duplicate-piece control, silver-vs-blue on pieces
-- [ ] Review capture 2: the 33-piece sheet at 1×; commit
+- [x] All 33 authored (2–5 ladder circles; lines end on circles or the hub); `implemented` = its ability exists
+- [x] `set_piece_test.gd`: 18 mono + 15 duo, colours match §6.3, `legal_for` equals the §6.5 lists
+      hard-coded from the spec, pairwise glyph distance with a piece-against-itself control
+      (silver-vs-blue was measured on rims in S2 and not repeated on pieces)
+- [x] Review capture 2: `artifacts/acceptance/set_pieces.png`, the 33-piece sheet at 1×; commit
 
 ## S5 — Editor on the grammar (trace identical)
 - [ ] Shell kept; tabs Core / Rails / Slots / Colours / Motion / Set-piece library in flat `tab_*.gd`
@@ -886,6 +887,18 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | Shine, pulse, reshape | The compiler assigns shine period by radius and the (part, cluster) phase rule. Core pulse: `core_pulse` / `core_quad` uniforms, quad baked for the 1.22× peak, render-only (the pose's core scale stays 1.0). A rail hull's shine and pulse run from the sim tick. A rail hull never takes the CPU reshape tween (one polyline per dash: ~190 draws a frame for a 184 px rail); it swaps meshes at once |
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 893.1 s; suite 47/47 (S2's 44 + `rail_combat_test`, `ship_motion_law_test`, `ship_ladder_render_test`). Headless 2000 bullets mean 8.15 / p95 10.89 ms, `motion` 0.177 ms (S0 0.157–0.168: the legacy branch now pays one `rig.legacy` test per actor; within noise, and no rail hull is in play). Rendered frame mean 8.36 / p95 16.37 ms |
 | Not completed / stated plainly | **No GPU reshape with a ghost mesh**: the plan promised one; rail hulls swap instantly instead, which is cheaper and avoids off-ladder radii mid-morph, but an evolution no longer morphs. **Follow-the-leader chains are not built**: the wave is a pure function, so a chain's tail does not trail the path its head flew; the spec's §9.6 has both. **§9.8's 0.10 s collapse and 5–7 fragments** use the existing destruction FX unchanged. **No GPU test of the core pulse or of a set piece staying aim-aligned on screen**: both are covered headless only. The marking-to-shot angle at fire events is not yet measured; that needs the roster (S10). The audit of `part_hp <= 0` readers: nine sites in `combat_world.gd` (beam 1132, guns 1242, `_damage_part` 1263/1272, radial blast 1496, bullets 1589, mounts 995/2167, rails 517), read one by one; every one SKIPS a circle at 0 HP, which is the right behaviour for scenery. Read, not tested |
+
+## Review — S4 (the 33 set pieces and the colour gate)
+| What | Measured |
+|---|---|
+| Catalogue | All 33 were authored in S2; this phase proves them. `set_piece_test`: 156 checks, 5 controls. Every expectation is written out from the spec IN the test (§6.3's colours and slots, §6.5's five pools of seven), never read back from the table under test: 33 ids, 18 mono + 15 two-colour, 33 different weapons, 2–5 circles each, every radius 7 / 5 / 4, every line between two of its circles or from the hub, every declared colour used and no other |
+| The gate | `legal_for("blue", accent)` equals §6.5's list for all five accents; every mono ship has exactly three pieces; `v_rack` mounts on yellow + red either way round; ten hybrids carry no blue and are enemy-only. Controls: `v_rack` on yellow + green, on mono yellow, a blue piece on enemy colours, a piece that does not exist |
+| 33 different shapes | Each piece rasterised with its hub on a 96 × 96 grid; pairwise differing cells. Closest pairs: `halo_node` / `iris_ring` 109, `halo_node` / `well_cup` 116, `bloom_pod` / `prism_stack` 135, `spore_rack` / `fin_trio` 141, `burst_ring` / `halo_node` 144. Threshold 55 (half the closest pair; one micro circle is ~25 cells). Control: a piece against itself |
+| Unbuilt weapons | 20 of 33 pieces have no weapon behaviour yet, and the validator's SETPIECE-IMPL keeps them off every hull until S7/S8 build them: hook_node, spore_rack, spin_ring, halo_node, phase_pair, well_cup, iris_ring, pull_cage, storm_crown, coil_array, split_lance, web_node, node_pair, rift_pair, ember_rack, collapse_cage, flare_ring, leech_arm, mesh_node, prism_stack |
+| Review capture 2 (looked at) | `artifacts/acceptance/set_pieces.png`, 33 pieces at 1× through the real compiler and renderer. All distinct, colours right, hub lines visible inside their hubs. **Seen in it:** on a ONE-pod hub the pod sits on the outward axis and forward-pointing pieces (twin_barrel, lens_stack, split_lance…) overlap it at rest. In play a piece swings to the aim so it is transient, but the roster (S10) should give armed hubs 2 or 4 pods, which straddle the axis, not 1 or 3 |
+| Silver vs blue on pieces | Not re-measured here: S2 measured chassis rims (silver 0.561, violet 0.423 from player blue). A piece's circles draw through the same rim path in the same palette keys |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 871.5 s; suite 48/48 (+ `set_piece_test`). Golden trace not re-recorded; `content/` untouched |
+| Not completed / stated plainly | The glyph distance is a CPU raster of outlines, not rendered pixels, so it does not see colour or fill; two pieces identical in outline but different in colour would read as the same. None are |
 
 ## Retired assertions
 
