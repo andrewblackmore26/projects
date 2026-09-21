@@ -539,13 +539,15 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
       rendered-frame benchmark was taken once, by the gate, not ×3
 
 ## S9 — Generator (§13; trace identical)
-- [ ] `scripts/ships/ship_recipe.gd`: `generate(params)` (the 12 steps, own seeded RNG) and
+- [x] `scripts/ships/ship_recipe.gd`: `generate(params)` (the 12 steps, own seeded RNG) and
       `style_check(ship)` = validator errors + circle count ±20% of the archetype target from
-      `budget()`, one set piece per hub, reach ring and core dot present. ONE engine: a roster entry
-      pins its structure, a generated ship leaves it to the seed
-- [ ] Editor "generate from description" resolves text into the §13.1 template (theme biases set-piece
-      weights and speed jitter only); gallery coverage cells pre-seed it
-- [ ] `ship_recipe_test.gd`: 20 seeds × every archetype × a spread of pairs pass validate + style check
+      `budget()`, reach ring and core dot present ("one set piece per hub" is structural: a slot
+      has one `set_piece` field). ONE engine: a roster entry pins its structure, a generated ship
+      leaves it to the seed
+- [x] Editor "generate from description" resolves text into the §13.1 template (theme biases set-piece
+      weights only; it does NOT bias speed jitter, which stays the seed's)
+- [ ] **Open:** gallery coverage cells pre-seed the editor but do not call the recipe to fill the hull
+- [x] `ship_recipe_test.gd`: 20 seeds × every archetype × a spread of pairs pass validate + style check
       unedited; same seed byte-identical; different seeds differ; a control per style rule; stub band 10–25%; commit
 
 ## S10 — The roster, in staging
@@ -964,6 +966,19 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 856.7 s; suite 51/51 (+ `weapon_behaviour_test`); golden trace not re-recorded |
 | Benchmark: slower than S0, and NOT because of this phase | The gate read 2000-bullet mean 8.84 / p95 13.65 ms against S0's 7.45–7.81 / 10.46–11.14, with `bullets` 4.69 against 4.00–4.20. Every section had risen by the same ~12 %, INCLUDING `ai` and `grid`, which this phase does not touch. So I measured instead of theorising: three standalone runs WITH the weapons, mean 8.33 / 9.05 / 8.54; then the previous commit's code, shelved in and measured minutes later on the same machine, mean 9.50 / 8.97 / 9.02. The old code is no faster today. The machine is slower than it was at S0 (a second Claude session is building P11 in a worktree and may be running Godot); the `phase_shot` flag test and the black-hole pass cost nothing measurable. Budgets NOT changed. **S0's baselines are no longer comparable with today's machine: S10 must take a same-session before/after, as this row did** |
 | Not completed / stated plainly | These are FIRST-DRAFT weapons, numbers untuned (S14). Simplified against the design notes: `void_orb` is a slow heavy shot, not a piercing damage-over-time orb; `pulse_ring` fires outward at once rather than orbiting first; `collapse_charge` does not pull during its warning; `ignition_lance` is a short beam with no burn; `blink_mine` does not relocate; `refract_beam` bends once toward the nearest hostile; enemy bullets do not yet take their firing piece's colour. None of the twenty has its own FX template or sound. No weapon has been SEEN in play: the census proves each fires from a unit cast, not from a hull in a fight (that is S10) |
+
+## Review — S9 (generator)
+| What | Measured |
+|---|---|
+| One engine | `ShipRecipe.generate(params)` builds a spec-§10 dictionary and hands it to `ShipGrammar.from_dict`. Anything in `params.pins` replaces the generated value key by key, so a roster entry (structure pinned) and a generated ship (structure from the seed) go through the SAME code path. Own `RandomNumberGenerator`, no clock, no unordered iteration. `style_check` = the validator's errors + circle count within ±20 % of the archetype's target + every rail has its reach ring + the core dot exists and pulses |
+| `ship_recipe_test` | 31 checks, 7 controls. 20 seeds × 7 archetypes × a spread of 10 colour pairs: all 140 pass validate, the style check AND the archetype-table warnings with no edits. Same seed → same bytes; a different seed differs. Irregular elites turn 10–25 % of their slots to stubs. Pinned rails are used verbatim under any seed. One control per style rule (count, ring, colour gate, adjacent order, rail sign, off-ladder node), each naming ITS rule |
+| Circle targets are measurements | First draft targets were my guesses (9 / 22 / 32 / 66 / 58 / 14 / 101) and four were wrong. Measured medians over 20 unpinned seeds: drone 8, sentry 19, radial elite 26, heavy elite 57, irregular elite 68, chain 16, boss 99; the test asserts the constant equals the measured median, so it cannot drift silently |
+| The generator had to AIM | Set pieces run 2–5 circles, so a free draw missed the ±20 % band: sentry 17–24 about 19, radial 23–32 about 26, irregular 52–87 about 68. `generate` now re-draws from the same RNG stream (deterministic) until the count is in band, at most 24 draws. After: sentry 17–22, radial 23–29, irregular 55–81, boss 82–114 about 99 |
+| The player roster | All 101 player hulls (5 elements × tiers 2–6 × 4 families + the seed) validate — mirror axis at rest, primary on the forward line on a rail that stands still, slots within `GameTuning.slots` — and every one mounts something in its accent (the player's dot is white, so only a set piece can show the element). **A tier's four offers are four different shapes AND four different loadouts**, which closes v0.3's open "standard_a and standard_b share geometry" item. The first run found THREE shapes at tiers 2–4 (heavy = standard_a below tier 5; standard_a = standard_b at tier 2): heavy hulls now carry four pods at every tier and standard_b's tier-2 rail is order 5 |
+| Description → template (§13.1) | "yellow red radial elite t4, artillery platform, heavy rockets, slow" resolves to radial_elite / yellow / red / tier 4 / the given seed. First run resolved it to HEAVY elite: the theme word "heavy" overrode "radial". The first archetype named wins now; a theme never touches structure. Unknown words are reported ("platform"), and a "rockets" theme mounts more `v_rack`s over 40 seeds than no theme |
+| Editor | Generate is wired to the recipe: the text resolves, the ship is built, and pressing Generate again draws the next seed |
+| `tools\gates.ps1 -GPU -Exports` | 13/13 ok in 906.7 s; suite 52/52 (+ `ship_recipe_test`); golden trace not re-recorded; `content/` untouched |
+| Not completed / stated plainly | **Acceptance 8's human half** (a designer cannot pick generated ships out of a line-up) needs the roster and the gallery's contact sheet; it is S10's capture. The gallery's coverage cells pre-seed the editor with element / tier / archetype, but do not yet call the recipe to fill the hull. Enemy hubs always carry 2 pods except on irregular elites: §13.9's "1–4 per hub" is narrowed on purpose (S4: a lone pod sits in a forward piece's way). Chains and sentries have fixed layouts; only their pieces, speeds and phases vary with the seed |
 
 ## Retired assertions
 

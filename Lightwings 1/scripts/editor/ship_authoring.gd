@@ -80,8 +80,14 @@ static func from_json(text: String) -> Dictionary:
 
 ## Generation moves to `ShipRecipe` in a later phase (S9); the editor's description box stays wired
 ## to this so the affordance survives, but it does nothing yet.
-static func from_description(_text: String) -> Dictionary:
-	return {"errors": PackedStringArray(["generation moves to ShipRecipe in S9"])}
+## Free text -> the spec §13.1 template -> a ship, through the same ShipRecipe the roster is built
+## with. Returns {ship, params, warnings (words it could not use), errors (style check)}.
+static func from_description(text: String, seed: int = 1) -> Dictionary:
+	var parsed: Dictionary = ShipRecipe.from_description(text, seed)
+	var ship: ShipDefinition = ShipRecipe.generate(parsed.params)
+	var warnings: PackedStringArray = PackedStringArray()
+	for word: String in parsed.unknown: warnings.append("not understood: " + word)
+	return {"ship": ship, "params": parsed.params, "warnings": warnings, "errors": ShipRecipe.style_check(ship)}
 
 ## A 64x64 SVG icon for the library/gallery, from the ship's already-compiled parts.
 static func thumbnail(ship: ShipDefinition) -> Texture2D:

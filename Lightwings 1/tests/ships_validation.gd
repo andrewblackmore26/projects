@@ -208,8 +208,11 @@ func _initialize() -> void:
 	# circle-authoring editor (ship design spec S5): a rail hull's JSON is `ShipGrammar`'s §10 shape
 	# (covered by ships_editor_test.gd), and generation moves to ShipRecipe in a later phase.
 	_check(not ShipAuthoring.from_json('{"unknown_ship_key":1}').has("ship"), "An unknown top-level key is rejected, not silently ignored")
-	var generated: Dictionary = ShipAuthoring.from_description("compact fire tier 3 with ricochet and mines")
-	_check(not generated.get("errors", []).is_empty(), "Generation is a stub now (moves to ShipRecipe in S9)")
+	# S9: generation is ShipRecipe's now (its own test covers it in depth). Here only that the
+	# editor-facing wrapper returns a valid ship and reports what it could not use.
+	var generated: Dictionary = ShipAuthoring.from_description("red green radial elite t3 rockets wibble")
+	_check(generated.has("ship") and generated.get("errors", []).is_empty(), "A description generates a ship that passes the style check: " + str(generated.get("errors", [])))
+	_check(str(generated.get("warnings", [])).contains("wibble"), "A word the generator cannot use is reported")
 	var outline: PackedVector2Array = ShipGeometry.outline("circle", 10)
 	var lengths: PackedFloat32Array = ShipGeometry.lengths(outline)
 	var section: PackedVector2Array = ShipGeometry.section(outline, lengths, 0, lengths[-1] * 0.13)

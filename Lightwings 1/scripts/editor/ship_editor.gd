@@ -330,9 +330,21 @@ func _load_from(path: String) -> void:
 	dirty = false
 	if not result.get("errors", []).is_empty(): status.text = "Loaded with warnings: " + " | ".join(result.errors)
 
+## Spec §13.1: the description resolves into the recipe's template and the recipe builds the ship.
+## Pressing Generate again on the same text draws the next seed, so a designer can roll.
+var _generate_seed: int = 0
 func _generate() -> void:
-	var result: Dictionary = ShipAuthoring.from_description(description.text)
-	status.text = "Generate: " + " | ".join(result.get("errors", []))
+	_generate_seed += 1
+	var result: Dictionary = ShipAuthoring.from_description(description.text, _generate_seed)
+	var generated: ShipDefinition = result.ship
+	select_core()
+	edit("Generate from description", func(s: ShipDefinition) -> void:
+		for property: String in ["id", "display_name", "description", "faction", "archetype", "tier", "role", "family", "element", "chassis_color", "accent_color", "core_depth", "core_weapon", "rails", "chain_links", "chain_mode", "passives"]:
+			s.set(property, generated.get(property)))
+	var notes: PackedStringArray = PackedStringArray(["seed %d" % _generate_seed])
+	notes.append_array(result.warnings)
+	notes.append_array(result.errors)
+	status.text = "Generated: " + " | ".join(notes)
 
 func _request_exit() -> void:
 	if not dirty: get_tree().change_scene_to_file("res://scenes/main.tscn"); return
