@@ -110,3 +110,22 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
 - **`a.b = shared_packed_array` aliases, it does not copy.** Assigning the SAME `PackedFloat32Array` object to two owners (an actor's own field and a `ShipPose`'s field) left both referencing one COW buffer; the pose's own per-element `[]=` write (inside `ShipMotion.step`, unrelated code) reached back and zeroed the actor's copy on the very next tick, killing a decaying value in 1 tick instead of 15 (P8, `combat_world.gd::_step_motion`, target rim flare). Fixed by `.duplicate()`-ing at every hand-off. A single chained `dict.key[index] = value` write DOES mutate the Dictionary's stored array in place (proven by the codebase's own `part_hp` pattern working everywhere); the risk is specifically SHARING that array with a second owner that also does index writes.
 - **A GPU test's `root.size` must match the project's base content-scale aspect ratio, or `get_texture().get_image()` silently letterboxes.** `root.size = Vector2i(900,700)` (aspect 1.286) against a project base of 1.6 returned an image measured 900x562, not 900x700 - every world-space sample coordinate then missed its content, and three different capture cases all read exactly background with zero errors printed (no shader failure, no exception - just quietly wrong). `arena_render_test.gd`'s existing 1280x800 (aspect 1.6) was the accidental reason it worked; `combat_fx_render_test.gd` copied that number after the trap was found the hard way.
 - A whole class of P8 negative controls needed an absolute threshold rethought as a RELATIVE one: "the flared rim's channel sum > 1.0" also passed for an entirely unflared enemy core, because every core is already boosted ~1.8x per spec and clears 1.0 on its own. The working control compared against a measured same-hull unflared baseline instead of a hand-picked constant - the same shape of fix as the palette-role tolerance lesson above, applied to a boolean threshold instead of a numeric band.
+- **The repo can move while you plan, so re-read the ground before the first edit, not only at session
+  start.** P11 was explored and planned against `2ec78e0`. By the time it was approved the branch had
+  gained S0 and S1, a second session was live in the same tree (files written two minutes earlier),
+  and the S series' core instrument ("trace identical") was one P11 deliberately breaks. What caught
+  it was an Edit refusing a file "modified since read", which is luck, not process. At the start of
+  implementation: `git log` against the commit the plan was made on, `git status`, and a look for
+  other live sessions. Two workstreams where one needs a stable trace and the other moves it do not
+  share a branch: the one that moves it goes in a worktree.
+- **An untracked file in a shared tree belongs to whoever commits next.** I wrote the P11 spec doc
+  into the shared tree; the other session's path-scoped `git add -- "Lightwings 1"` swept it into its
+  S2 commit within minutes. Then, not knowing that, I `rm`'d it as "my untracked file" and put a
+  tracked DELETION into their tree (undone with `git restore`). Two rules: write nothing into a tree
+  another session is committing from, and check `git ls-files` before deleting a file you believe is
+  untracked, because a status snapshot is stale the moment someone else commits.
+- A worktree has no gitignored files: no `.tools/` (the pinned engine) and no `.godot/` (the import
+  cache). Link `.tools` with a directory junction (read-only use) and build a PRIVATE cache with
+  `--headless --import`; never share `.godot/` with a session that is running Godot. Remove the
+  junction with `cmd /c rmdir` BEFORE removing the worktree: a recursive delete through a junction
+  can empty its target.

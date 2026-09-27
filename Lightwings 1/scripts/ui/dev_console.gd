@@ -32,7 +32,7 @@ func _ready() -> void:
 	line_edit = LineEdit.new()
 	line_edit.position = Vector2(210, 330)
 	line_edit.size = Vector2(860, 40)
-	line_edit.placeholder_text = "tier <1-6> [element] · level <1-5> · light <n> · help"
+	line_edit.placeholder_text = "tier <1-6> [element] · level <1-5> · light <n> · tune <key> [v] · help"
 	add_child(line_edit)
 	line_edit.text_submitted.connect(_on_submit)
 
@@ -60,7 +60,7 @@ func _on_submit(text: String) -> void:
 	line_edit.text = ""
 
 ## Pure parser. Accepts exactly: "tier <1-6> [element]", "level <1-5>",
-## "light <n>", "help". Anything else -- empty input, unknown command, wrong
+## "light <n>", "tune <key> [value]", "tune reset", "tune dump", "help". Anything else -- empty input, unknown command, wrong
 ## argument count, out-of-range numbers, an unknown element -- is rejected
 ## with ok=false and a reason, never a partial/best-effort application.
 static func parse(text: String) -> Dictionary:
@@ -108,6 +108,22 @@ static func parse(text: String) -> Dictionary:
 			if amount < 0.0:
 				return _fail("light must be >= 0")
 			return {"ok": true, "command": "light", "args": {"amount": amount}, "error": ""}
+		# Camera and movement spec: every number in GameTuning.FEEL_DEFAULTS, live. The parser
+		# validates the key here so a typo is an error in the console, not a silent no-op.
+		"tune":
+			if parts.size() == 2 and parts[1].to_lower() in ["reset", "dump"]:
+				return {"ok": true, "command": "tune", "args": {"action": parts[1].to_lower()}, "error": ""}
+			if parts.size() == 2:
+				if not GameTuning.FEEL_DEFAULTS.has(parts[1]):
+					return _fail("unknown tuning key: %s" % parts[1])
+				return {"ok": true, "command": "tune", "args": {"action": "get", "key": parts[1]}, "error": ""}
+			if parts.size() != 3:
+				return _fail("usage: tune <key> [value] · tune reset · tune dump")
+			if not GameTuning.FEEL_DEFAULTS.has(parts[1]):
+				return _fail("unknown tuning key: %s" % parts[1])
+			if not (parts[2].is_valid_float() or parts[2].is_valid_int()):
+				return _fail("tune value must be a number")
+			return {"ok": true, "command": "tune", "args": {"action": "set", "key": parts[1], "value": float(parts[2])}, "error": ""}
 		_:
 			return _fail("unknown command: %s" % command)
 

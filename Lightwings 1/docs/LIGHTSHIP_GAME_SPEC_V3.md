@@ -36,6 +36,10 @@ The document below is the supplied v0.3 product specification, verbatim. It is r
 
 `docs/LIGHTSHIP_SHIP_DESIGN_SPEC.md` (spec v2) replaces five sections of the text below: **§14** (enemies and enemy models), **§17** (visual system), **§18** (motion system), **§21** (ship editor) and **§22** (ships as data). Everything else in v0.3 stands. §17's stroke weights carry forward; §18's running-light timings do not (v2 §9.4 sets the lap period by radius). Each superseded section carries a one-line note under its heading; those notes are the only edits inside the supplied text. The "Enemy roster: 40 hulls" default above becomes 45 (a heavy elite per element is added).
 
+**Superseded on 2026-09-21 by the camera and movement spec**
+
+`docs/LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` replaces **§13** (movement and handling) and the camera behaviour of **§11** ("Camera is locked to the player") and **§12** (the warp's phases, zoom and timings), and with them the Warp line of **Appendix B**. Everything else in those sections stands: §11's node geometry, membranes, rim margin and map; §12's commit rules (control locks, the player is invulnerable, enemy projectiles are discarded), entry just inside the opposite membrane with momentum carried through, enemies not following, no motion blur, and the 0.25 s reduced-warp accessibility option. Each affected section carries a one-line note under its heading; those notes are the only edits inside the supplied text.
+
 `GameTuning` is the numeric source of truth. The milestone acceptance tests below remain acceptance criteria, not a declaration that human playtesting is complete. Verification and its limits are recorded in `VALIDATION.md` and `tasks/todo.md`.
 
 ---
@@ -181,6 +185,8 @@ Role modifiers from Section 8 apply on top. Loadout is chosen at evolution; moun
 
 ## 11. Levels, nodes and the map
 
+> **Superseded in part** by `LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` §6: the camera is no longer locked to the player. It trails the ship, zooms out slightly with speed and leans toward the aim, all within a hard clamp of 18 % of the viewport half-width, so the rim trade below (camping the rim hides most of the node) still holds. Everything else in this section stands.
+
 **Node geometry**
 - A node is a circular arena, **1.4× the viewport** in each dimension *(tune)*. Bigger than what's visible, but not by much.
 - **Camera is locked to the player.** No lookahead, no zoom-to-fit. Camping the rim means you cannot see most of the node — fewer angles to watch, no idea where anything is. That trade is intended.
@@ -197,6 +203,8 @@ Role modifiers from Section 8 apply on top. Loadout is chosen at evolution; moun
 - **Generation** is a deterministic hash of (level seed, x, y), so a node you flee and return to is the same node. Node archetypes rolled by ring: transit, skirmish, dense, elite lair, boss.
 
 ## 12. Node transition — the warp
+
+> **Superseded in part** by `LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` §7: the phase table below (push 0.30, zoom in to 1.30×, warp 0.55, arrival 0.15, zoom out 0.20, ≈ 1.0 s locked) is replaced by Push 0.20 / Break 0.06 / Warp 0.30 / Arrival 0.20, driven through the trailing camera rather than a bespoke zoom, with control returning at the START of Arrival. The commit rules and the Details list stand.
 
 Moving between nodes is a set piece, not a fade. It should feel like being squeezed through a membrane and flung down a pipe.
 
@@ -221,6 +229,8 @@ Total locked time ≈ **1.0 s**. Keep it there — a longer warp fights Section 
 - The same effect, shorter and inverted, plays on death and on waypoint jumps.
 
 ## 13. Movement and handling
+
+> **Superseded** by `LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` §2–§5 and §8, which price every speed as a ratio of the player's top speed and give handling, dash, trails and rim contact real numbers.
 
 Handling needs to feel fast and loose, because Section 7 is asking players to charge into things.
 
@@ -618,5 +628,5 @@ Match element hues for perceived luminance, not just contrast against black. An 
 - **Muzzle ring:** 10 px → 23 px, fading over 0.15 s.
 - **Impact:** ring A 4 → 30 px over 0.30 s; ring B 4 → 48 px over 0.30 s at half opacity; 5–7 fragments at 1.4–3.6 px/frame, drag 0.95, fading over 0.55 s.
 - **Reshape:** 0.8 s, invulnerable throughout. Regression adds 1.0 s grace after it completes.
-- **Warp:** push 0.30 s, zoom in 0.12 s, streaks 0.55 s, arrival 0.15 s, zoom out 0.20 s.
+- **Warp:** push 0.30 s, zoom in 0.12 s, streaks 0.55 s, arrival 0.15 s, zoom out 0.20 s. *(Superseded by `LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` §7: push 0.20 s, break 0.06 s, warp 0.30 s, arrival 0.20 s.)*
 - **Death:** screen 1.2 s, dismisses on any input.

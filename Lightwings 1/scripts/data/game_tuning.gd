@@ -90,6 +90,164 @@ const ENEMY_DROP_MULTIPLIER: float = 3.0
 const DEATH_CARD_SECONDS: float = 1.2
 const DEATH_INPUT_GUARD_SECONDS: float = 0.35
 
+## --- Feel: camera and movement (docs/LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md) -------------------------
+## Every number that spec gives, in the spec's own terms, in ONE flat table. Everything that moves is
+## priced as a ratio of `player_top_speed` (spec §2), so retuning the game's pace is one value.
+## Read through `feel(key)`, never the table: the dev console overrides values live (`tune <key> <v>`)
+## so the §9 feel pass can be run without a rebuild. Overrides are never saved, and a test that sets
+## one calls `reset_feel()` first (tasks/lessons.md: shared mutable state couples scenarios).
+##
+## A hull's `.tres` `speed` is an AUTHORING unit in which 220 is the base hull (core-only standard):
+## Compact authors 1.25x that and Heavy 0.85x, which are exactly the spec's hull ratios. Runtime top
+## speed is `player_top_speed * speed / AUTHORING_BASE_SPEED`, so retuning never needs a rebake.
+const AUTHORING_BASE_SPEED: float = 220.0
+const FEEL_DEFAULTS: Dictionary = {
+	# §2. 1600 px node / 3.5 s crossing. The source's 560 assumed 1920x1080; this game is 1280x800.
+	"player_top_speed": 460.0,
+	# §3. t90 = time from rest to 90 % of top speed. One exponential approach with tau = t90/ln10
+	# also gives reversal-to-90 % = ln20*tau: 0.208 s standard (spec 0.22), 0.17 s compact (spec 0.17).
+	# Heavy is not in the spec: it mirrors the compact ratio the other way.
+	"move.t90.standard": 0.16,
+	"move.t90.compact": 0.1307,
+	"move.t90.heavy": 0.196,
+	"move.coast_stop_s": 0.40,      # input released at top speed -> below coast_stop_frac
+	"move.coast_stop_frac": 0.05,
+	"move.drift_deg": 18.0,         # velocity lags a 90 degree input step by this much...
+	"move.drift_s": 0.15,           # ...this long after the step
+	"rim.speed_scale": 0.55,        # once on first contact, then a cap while sliding. Never per tick
+	# §4
+	"dash.burst_s": 0.18,
+	"dash.peak_ratio": 2.5,
+	"dash.cooldown_s": 1.1,
+	# §5
+	"trail.len_top": 180.0,
+	"trail.len_dash": 320.0,
+	"trail.enemy_scale": 0.3,
+	# §7, sim side. Control returns at the START of arrival.
+	"warp.push_s": 0.20,
+	"warp.break_s": 0.06,
+	"warp.warp_s": 0.30,
+	"warp.arrival_s": 0.20,
+	"warp.reduced_s": 0.25,
+	"warp.speed_ratio": 3.0,
+	"warp.push_speed_scale": 0.4,
+	# §2 and §8: top speed as a ratio of the player's. Chains are not in the spec's table.
+	"enemy_ratio.drone": 0.29,
+	"enemy_ratio.sentry": 0.0,
+	"enemy_ratio.chain": 0.22,
+	"enemy_ratio.radial": 0.16,
+	"enemy_ratio.irregular": 0.16,
+	"enemy_ratio.boss": 0.11,
+	# §8 "accelerate slowly and turn slowly": seconds to 90 % of their own top speed, and rad/s of
+	# heading. Hypotheses until P11c measures them against the disengage and seeker tests.
+	"enemy_t90.drone": 0.5,
+	"enemy_t90.chain": 0.6,
+	"enemy_t90.radial": 0.9,
+	"enemy_t90.irregular": 0.9,
+	"enemy_t90.boss": 1.2,
+	"enemy_turn.drone": 3.0,
+	"enemy_turn.chain": 2.5,
+	"enemy_turn.radial": 1.5,
+	"enemy_turn.irregular": 1.5,
+	"enemy_turn.boss": 1.0,
+	"seeker.turn_rate": 1.8,        # rad/s, the TOTAL angular rate including the weave
+	# §2 projectiles, keyed by faction then weapon. Player 1.43-1.70, enemy 0.50-0.71, so the
+	# slowest player shot is 2.01x the fastest enemy shot (rule b) by construction.
+	"shot.player.bolt": 1.70,
+	"shot.player.pulse": 1.55,
+	"shot.player.ricochet": 1.48,
+	"shot.player.flame": 1.43,
+	"shot.player.seeker": 1.43,
+	"shot.player.rocket": 1.43,
+	"shot.player.ring": 1.43,
+	"shot.player.orbit": 1.43,
+	"shot.player.bay_drone": 0.57,
+	"shot.enemy.bolt": 0.71,
+	"shot.enemy.pulse": 0.60,
+	"shot.enemy.ring": 0.60,
+	"shot.enemy.orbit": 0.60,
+	"shot.enemy.seeker": 0.57,
+	"shot.enemy.flame": 0.55,
+	"shot.enemy.plasma": 0.52,
+	"shot.enemy.void": 0.50,
+	"shot.enemy.rocket": 0.50,
+	"shot.enemy.bay_drone": 0.29,
+	# §6 camera. Fractions are of the viewport half-width (640 px). "Smoothing time" is a time
+	# constant; "over X s" and "recentre time" are 95 % settle times, so tau = X/3.
+	"cam.lag_tau": 0.22,
+	"cam.recentre_s": 0.30,
+	"cam.recentre_speed_frac": 0.25, # below this fraction of top speed the lag tau blends to recentre
+	"cam.lag_clamp": 0.14,
+	"cam.zoom_top": 0.96,
+	"cam.zoom_dash": 0.93,
+	"cam.zoom_in_s": 0.40,
+	"cam.zoom_out_s": 0.25,
+	"cam.aim_frac": 0.06,
+	"cam.aim_tau": 0.30,
+	"cam.total_clamp": 0.18,
+	# §7 camera
+	"cam.push_lag_tau": 0.45,
+	"cam.push_zoom": 1.02,
+	"cam.break_zoom": 0.94,
+	"cam.warp_lag_tau": 0.10,
+	"cam.overshoot": 0.08,
+	# §6.5 shake: screen px and seconds
+	"shake.dash.px": 2.0, "shake.dash.s": 0.10,
+	"shake.hit.px": 4.0, "shake.hit.s": 0.12,
+	"shake.regression.px": 7.0, "shake.regression.s": 0.25,
+	"shake.limb.px": 3.0, "shake.limb.s": 0.10,
+	"shake.boss_death.px": 10.0, "shake.boss_death.s": 0.5,
+}
+static var _feel_live: Dictionary = {}
+## Bumped on every change. Hot loops cache their floats and re-read only when this moves.
+static var feel_revision: int = 0
+
+static func feel(key: String) -> float:
+	if _feel_live.has(key): return float(_feel_live[key])
+	if not FEEL_DEFAULTS.has(key):
+		push_error("GameTuning.feel: unknown key '%s'" % key)
+		return 0.0
+	return float(FEEL_DEFAULTS[key])
+
+## False, and nothing changes, for a key that does not exist or a value that is not a finite number.
+static func set_feel(key: String, value: float) -> bool:
+	if not FEEL_DEFAULTS.has(key) or is_nan(value) or is_inf(value): return false
+	_feel_live[key] = value
+	feel_revision += 1
+	return true
+
+static func reset_feel() -> void:
+	_feel_live.clear()
+	feel_revision += 1
+
+static func feel_overrides() -> Dictionary: return _feel_live.duplicate()
+
+## The three time constants of the movement model for a hull role, derived from the spec's terms.
+## `drift` is the decay of the velocity component PERPENDICULAR to the input: it solves "the velocity
+## lags a 90 degree input step by drift_deg, drift_s after the step". Equal to `accel` when the
+## target cannot be met, which is the plain isotropic model.
+static func movement_taus(role: String) -> Dictionary:
+	var key: String = "move.t90." + (role if role in ["compact", "heavy"] else "standard")
+	var accel: float = maxf(0.001, feel(key) / log(10.0))
+	var coast: float = maxf(0.001, feel("move.coast_stop_s") / log(1.0 / clampf(feel("move.coast_stop_frac"), 0.0001, 0.9999)))
+	var drift: float = accel
+	var seconds: float = feel("move.drift_s")
+	var remaining: float = tan(deg_to_rad(feel("move.drift_deg"))) * (1.0 - exp(-seconds / accel))
+	if seconds > 0.0 and remaining > 0.0 and remaining < 1.0: drift = maxf(accel, -seconds / log(remaining))
+	return {"accel": accel, "coast": coast, "drift": drift}
+
+static func hull_speed_factor(authored_speed: float) -> float:
+	return authored_speed / AUTHORING_BASE_SPEED
+
+static func hull_top_speed(authored_speed: float) -> float:
+	return feel("player_top_speed") * hull_speed_factor(authored_speed)
+
+static func enemy_top_speed(archetype: String) -> float:
+	return feel("player_top_speed") * feel("enemy_ratio." + archetype)
+
+static func projectile_speed(is_player: bool, weapon: String) -> float:
+	return feel("player_top_speed") * feel("shot.%s.%s" % ["player" if is_player else "enemy", weapon])
+
 static func capacity(tier: int, _max_tier: int = MAX_TIER) -> float:
 	# A demo cap prevents further evolution; it does not grant terminal survivability.
 	return TERMINAL_CAPACITY if tier >= MAX_TIER else THRESHOLDS[clampi(tier - 1, 0, THRESHOLDS.size() - 1)]

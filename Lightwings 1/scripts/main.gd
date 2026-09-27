@@ -940,9 +940,34 @@ func _on_dev_command(result: Dictionary) -> void:
 			_travel_to_level(int(result.args.level))
 		"light":
 			combat.collect_light(float(result.args.amount),combat.player_element if not combat.player_element.is_empty() else "lightning")
+		"tune":
+			_dev_say(_apply_tune(result.args))
 		"help":
 			pass
 	_refresh_hud()
+
+## Camera and movement spec: live tuning of GameTuning.FEEL_DEFAULTS. Returns the line to show.
+## `dump` prints every override as a paste-ready block on stdout (the console shows one line).
+func _apply_tune(args: Dictionary) -> String:
+	match str(args.get("action","")):
+		"set":
+			var key: String = str(args.key)
+			if not GameTuning.set_feel(key,float(args.value)): return "ERROR: %s rejected (unknown key or not a finite number)" % key
+			return "%s = %s (default %s)" % [key,str(GameTuning.feel(key)),str(GameTuning.FEEL_DEFAULTS[key])]
+		"get":
+			return "%s = %s (default %s)" % [str(args.key),str(GameTuning.feel(str(args.key))),str(GameTuning.FEEL_DEFAULTS[str(args.key)])]
+		"reset":
+			GameTuning.reset_feel()
+			return "all tuning back to defaults"
+		"dump":
+			var overrides: Dictionary = GameTuning.feel_overrides()
+			for key: String in overrides: print("\t\"%s\": %s," % [key,str(overrides[key])])
+			return "%d override(s) printed to stdout" % overrides.size()
+	return "ERROR: unknown tune action"
+
+func _dev_say(line: String) -> void:
+	print("dev: "+line)
+	if is_instance_valid(dev_console) and is_instance_valid(dev_console.log_label): dev_console.log_label.text = line
 
 func _achieve(id: String) -> void:
 	if mode_config.achievements_enabled(): platform.unlock_achievement(id)

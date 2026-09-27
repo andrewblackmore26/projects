@@ -405,6 +405,133 @@ Carried forward for the review pass (found while verifying earlier phases, none 
   (contention), then measured inside budget on three standalone re-runs. If it recurs, either run
   the benchmark first in `gates.ps1` or take the best of N runs rather than widening the budget.
 
+# Camera and movement — build plan (P11)
+
+Spec: `docs/LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` (verbatim, under the scope approved 2026-09-21). It
+supersedes v0.3 §13 and the camera behaviour of §11/§12. Same house rules and the same judge.
+Commits: `Lightship v0.3 P11<x>: <clause>`, path-scoped to `Lightwings 1`.
+
+**Built in an isolated worktree** (`.claude/worktrees/p11-camera-movement`, branch `lightship-p11`, cut
+from `d2f9137` = S2) because the ship-design S series runs concurrently on `lightship-v0.3` and proves
+itself with "trace identical", which P11 deliberately breaks (P11b, c, d and g re-record the golden
+trace). User decision 2026-09-21. **Merge notes, kept current:**
+- P11 never rebakes `content/ships/*.tres` and never reads how `speed` is derived, only its unit:
+  runtime top speed = `player_top_speed × definition.speed / 220`. S2 made a rail hull's movement
+  stats authored fields (`ShipCatalog.refresh`), so **rail hulls must author `speed` in the same
+  220-based unit** (220 = 1.00×, Compact 1.25×, Heavy 0.85×). This is the one cross-plan contract.
+- P11i's planned deletion of `ShipDefinition.accel/drag` plus a rebake is **deferred to after the
+  merge**: S9–S11 regenerate the whole roster and would conflict totally.
+- After the merge the S series' trace baseline is the P11 re-recorded one; S14 ("tuning from
+  measurement") should start from P11's restated bot bands, not the P7 ones.
+- Shared files with small S0–S2 diffs at the cut: `combat_world.gd` (26 lines), `ship_catalog.gd` (32),
+  `tools/gates.ps1` (7). S3 is editing `combat_world.gd` and `combat_ai.gd` now; expect hunks there.
+
+**Decisions** (user, 2026-09-21): speed anchor is the 3.5 s node crossing, `player_top_speed = 460 px/s`
+(the spec's literal 560 assumed 1920×1080; the game is 1280×800; `ARENA_RADIUS` stays 800), every other
+speed a ratio of it. **No mid-build stops**; every layer live-tunable (`tune`, `cam`) so the §9 feel pass
+can be run in order afterwards. Acceptance test 1 is human-only and stays unverified.
+
+Numbers below that did not come from the spec are hypotheses until P11a measures the baseline.
+
+## P11a — Baseline and tuning table (no behaviour change; trace identical)
+- [x] This plan; worktree proven sound (full headless suite green before any edit)
+- [x] V3 §11 camera clause, §12, §13 and Appendix B warp line marked superseded
+- [x] `tests/movement_feel_test.gd` as a baseline probe: t90 / coast / reversal per shipped role × tier,
+      node crossing, dash distance, rim, trail arc length (rest / top / dash), per-archetype enemy speed,
+      seeker turn rate + hit rate vs straight and weaving targets, warp locked time. **Doubles as P6's
+      missing numbers** (P6's review records that none were taken)
+- [x] Baselines: `acceptance_bot`, `combat_benchmark` (sections on), golden trace digest
+- [x] `GameTuning`: `AUTHORING_BASE_SPEED` and ONE flat `FEEL_DEFAULTS` (enemy ratios, projectile
+      ratios by faction + weapon, camera and shake all as dotted keys, so one command tunes all); `feel()` / `set_feel()` / `reset_feel()` /
+      `feel_revision` (unknown keys and non-finite values rejected; never saved)
+- [x] Console `tune <key> <v> | reset | dump` (`dev_console.gd` parser, `main.gd::_on_dev_command`);
+      `dev_console_test.gd` extended
+- [x] `tests/feel_tuning_test.gd`: rule (a) outrun-everything-but-seekers over roster × slow × thrusters;
+      rule (b) player shots ≥ 2× enemy shots over the whole table; report line "fastest sustained hull vs
+      slowest player projectile". Controls, each failing its own line: drone ratio 0.9; enemy bolt 0.8; unknown key
+- [x] Proof: suite counts, trace identical, `gates.ps1 -Quick`; commit
+
+### Review — P11a (baseline and tuning table; also P6's missing numbers)
+| What | Measured |
+|---|---|
+| Handling today (`movement_feel_test.gd`, roster hulls) | Standard: t90 0.35 s, coast to 5 % 0.58 s, reversal 0.47 s, 37.7° off the input 0.15 s after a 90° step. Compact: 0.10 / 0.17 / 0.13 s, 3.4°. Heavy: 0.52 / 0.83 / 0.70 s, 52.5°. Spec wants 0.16 / 0.40 / 0.22 s and 18°: standard is ~2× too slow, compact is already tighter than the spec |
+| Node crossing | Seed 7.38 s, Compact T2 5.83 s, Heavy T2 8.73 s. Spec 3.5 s |
+| Dash | 3.0× for 0.183 s, 124.7 px, second dash accepted at 1.2 s |
+| Rim | First contact keeps 0.51 of speed at 45°; sliding speed falls to 0.21 of cruise; `boundary_contact` fired 111 times in 2 s (every tick) |
+| Trails | 110 px at cruise, 150 px peak in a dash, **140 px after 2 s at rest** (never shrinks) |
+| Enemies | Drone and chain 99 px/s, elites 84, **boss 159 (the fastest)**; turn 8–10 rad/s. **Every archetype's fastest shot is 780 px/s, the same as the player's**, so §2 rule (b) fails today |
+| Seeker defect, confirmed | Peak turn 23.8 rad/s at 1/60 s and **44.8 at 1/120 s** against a coded 2.8 limit: the weave term is not × dt, so it is frame-rate dependent |
+| Warp | Push 0.30 s, then 1.05 s locked. Spec: under 0.6 s |
+| Tuning table | `GameTuning.FEEL_DEFAULTS`, one flat table, `feel/set_feel/reset_feel`, console `tune`. `feel_tuning_test` 24 checks / 3 controls: rule (a) slowest state 0.595 (Heavy T2 slowed) vs fastest pursuer 0.348; rule (b) 1.43 vs 0.71. Each sabotage fails its own rule and leaves the other standing |
+| Plan correction found by measuring | I expected Heavy T6 never to reach nominal speed. It does (240 of 240.7): the accel/drag cap of 200 is × 1.2 by Thrusters. The probe's first `reaches_nominal` ignored Thrusters; fixed. The probe's first rim case measured "top speed" while grinding the wall (ratio 47); now measured in the open, with a check that contact happens at cruise |
+| Baselines | Benchmark 2000 bullets mean 9.01 / p95 12.70 ms (budgets 12.0 / 17.5). Bots: pusher 60.05 vs camper 6.4 light/min |
+| `gates.ps1 -Quick` | 4/4 ok, 442 s; suite 38/38 (36 + 2 new); golden trace untouched |
+| Not completed / stated plainly | Nothing reads the table yet, so no behaviour changed. **Open for the user:** `player_plasma_t6_compact` (1.477×) outruns its own slowest shot (flame 1.43×). Enemy t90 and turn values are guesses until P11c. GPU tests not run this step |
+
+## P11b — Player movement (trace re-recorded)
+- [ ] `_update_player`: exact exponential approach (velocity AND position in closed form), anisotropic
+      drift τ, hard clamp removed, `actor.speed` → `speed_factor` at all seven readers; evolution card and
+      editor readouts show real px/s
+- [ ] Gates: every §3 timing ±1 tick at 60 Hz; analytic agreement ±3 % at 1/960 s; 30/60/120/144 Hz
+      agree (control: Euler sabotage flag); drift 18° ± 2° at 0.15 s; crossing 3.5 ± 0.15 s (control: half
+      speed); max speed in any turn ≤ 1.02 × top
+- [ ] Retire `handling_test.gd` `ROLES` literal, `_set_role`, turn-radius proxy; keep reversal ordering;
+      `bot_pilot.gd` lead constant; commit
+
+## P11c — Enemy and projectile ratios (trace re-recorded)
+- [ ] Unicycle `_steer` (turn-rate-limited heading, exponential speed); hold band in `_decide`; lead from
+      real projectile speed; `projectile_speed(actor, key)` replaces every literal; seeker weave × dt and
+      total angular rate clamped (**defect: today's weave adds 0.35·sin rad per TICK, after a 2.8·dt limit**)
+- [ ] Disengage: per archetype × hull incl. slowed Heavy, 20 seeds, separation gain over 2 s positive
+      for median AND min (control: drone 1.3). Seeker: 20 geometries, straight ≥ 90 % hit, weave ≤ 10 %
+      (control: turn rate × 10); turn rate derived from the sweep
+- [ ] `enemy_ai_test.gd` re-measured; acceptance bots re-run and **bands restated from measurement**
+      (failed runs counted as failures); commit
+
+## P11d — Dash, rim, trails (trace re-recorded)
+- [ ] Dash 2.5× / 0.18 s / 1.1 s (ticks 65 and 67), exit snap gone, `dash_progress()`, running-light streak
+- [ ] Rim: first-contact × 0.55 then a 0.55 cap while sliding; once-per-episode `boundary_contact`;
+      `rim_contact` in `ACTOR_ALLOW`; measured at all four tick rates (control: scale 1.0)
+- [ ] Trails: explicit arc-length cap 0 / 180 / 320 px, enemies × 0.3, bosses none, taper by arc-length
+      fraction, trail broken at the warp reposition; ±10 % (control: cap disabled); benchmark + rendered frame; commit
+
+## P11e — Camera seams and centred-camera hazards (behaviour-neutral; trace identical)
+- [ ] `VIEW_HALF`, `world_to_screen()`, `view_center_world()`; `CameraRig` instance with every layer off
+- [ ] Radar, positional audio, backdrop rect + parallax anchored on the view centre; streaks converge on
+      a vanishing point ahead, full frame (**closes the open streak-geometry item above**)
+- [ ] `ui_flow_test.gd:84` and `combat_fx_render_test.gd:213` "ship is at screen centre" → round-trip
+      invariant + `world_to_screen(player)`; two-transform lockstep check kept; commit
+
+## P11f — Trailing camera (trace identical: presentation only)
+- [ ] `scripts/ships/camera_rig.gd` (pure, RefCounted): zero-order-hold lag, radial clamp 14 %, recentre τ
+      blended by speed; stepped on the sim tick (`process_physics_priority`, tick-gated); `teleport_serial`
+- [ ] Speed zoom 1.00 / 0.96 / 0.93 with asymmetric easing, snap within 1e-4; Void-hull redraw cost profiled
+- [ ] Aim influence 6 %, τ 0.30, from the sim's `player.aim`; combined clamp 18 %
+- [ ] Console `cam` (status incl. `lag_fill`), `cam <layer> on|off`, `cam preset spec|dashroom`
+- [ ] `camera_rig_test.gd`, `camera_compositor_test.gd`, `camera_render_test.gd` (GPU); commit
+
+## P11g — Transition (trace re-recorded)
+- [ ] Sim: `NONE PUSH BREAK WARP ARRIVAL FADE` (stored ints kept, 5 retired), 0.20 / 0.06 / 0.30 / 0.20,
+      closed-form BREAK ramp and WARP approach, playable ARRIVAL, `warp_swap_requested` at BREAK→WARP,
+      `warp_swap_done` persisted with the legacy mapping, invulnerable 0.56 s, `warp_in_transit()`
+- [ ] Camera: per-phase override table (ship-relative WARP, +8 % overshoot, clamp widened to 18 % in
+      BREAK/WARP); `_warp_zoom`, `WARP_ZOOM_PEAK`, `FOCUS_LEAD_PIXELS` deleted; FADE stays calm
+- [ ] `warp_test.gd` rewritten (control return measured behaviourally, < 0.6 s; control: `warp_seconds`
+      0.6); `warp_persistence_test.gd` (save in BREAK; legacy phase-2 payload must not swap twice); zero
+      damage during ARRIVAL over 20 seeds; `--show-warp` rewritten; commit
+
+## P11h — Shake
+- [ ] One signal `camera_impulse(kind)` at five sites; `CAMERA_SHAKE` table; max-not-sum, deterministic,
+      shake-free `camera_offset` so aim never jitters
+- [ ] `screen_shake` setting; Options layout fixed properly (row pitch, Steam button from the running `y`)
+      with an overlap test (control: a Control injected at y = 619); `reduced_warp` calms the transition camera; commit
+
+## P11i — Docs, review, close
+- [ ] `docs/INTERFACES.md` "Compositor & camera"; README; `VALIDATION.md` incl. "What is NOT verified";
+      `RELEASE_CHECKLIST.md`; new probes and controls wired into `tools/gates.ps1`
+- [ ] Adversarial review by read-only lenses, one dedicated to tautological controls and blind instruments
+- [ ] `gates.ps1 -GPU -Exports`; `### Review — P11`; Retired assertions; `tasks/lessons.md`; memory; commit
+
 # Ship design spec — build plan
 
 Spec: `docs/LIGHTSHIP_SHIP_DESIGN_SPEC.md` (spec **v2** verbatim, under the scope approved
