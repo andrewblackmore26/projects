@@ -30,13 +30,23 @@ Numbers marked *(h)* are hypotheses until measured.
   - **Evolution-open latency:** not instrumented. M12 measures it.
   - **Rim dwell:** NOT measurable yet, because every bot travels by teleport (`_enter_sector` + `entry_position`). M18 gives bots a real rim route and measures it then; there is no before-number, and that is said plainly.
   - **Captures:** `artifacts/baseline_m0/` holds 16 `*_refresh` PNGs at 1280×800 and 1920×1080, from today's presentation work.
-- [ ] **M1** Sim seams (trace identical). Items:
+- [x] **M1** Sim seams (trace identical). Items:
   - `run_controller.gd` extraction.
   - `sim_q` 1/720 s clock.
   - Time-scale broker and `request_hitstop`.
   - `_grant_invulnerability` choke point.
   - `feel_event` signal.
   - `arena.set_exits` / `sealed`.
+
+  Result:
+  - **Run controller.** `run_controller.gd` is 225 lines and a RefCounted. `main.gd` went from 1636 to 1502 lines with same-name forwarders; facade contract 77/0.
+  - **Clock.** `sim_q` reads exactly 720 per second at 30/60/120/144 Hz. The control, a 1/50 s step, reads 700.
+  - **Time scale and hitstop.** The broker is lowest-wins. Hitstop requests of 20 → 5 → +60 ticks → 5 are granted 8 → 0 → 5.
+  - **Invulnerability.** The choke point serves 4 grant sites, confirmed by a source scan.
+  - **Test.** `sim_seams_test` 39/0 with 6 controls caught.
+  - **Golden trace:** identical on every run.
+  - **`-Quick`:** 4/4 in 897 s. Suite 50/50, benchmark 10/10, acceptance 11/0 (752 s).
+  - **Deferred.** `tick` still advances +1 per step and is not derived from `sim_q`, because deriving it would change non-60 Hz steps. `sim_q` stays out of the snapshot until M9's bump, to keep the trace digest.
 - [ ] **M2** Screen seam (tests byte-identical, captures 0 px diff). Items:
   - `ScreenRouter`.
   - `scripts/ui/screens/*`, `hud/*`.

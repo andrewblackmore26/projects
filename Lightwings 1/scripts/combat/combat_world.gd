@@ -23,6 +23,9 @@ signal boundary_contact(position: Vector2)
 ## back instead of deadlocking (see `_update_warp`).
 signal warp_committed(direction: Vector2i)
 signal warp_arrived
+## Modernization M1 seam: the one channel every "feel" reaction (camera shake, hitstop, rumble,
+## flashes) will listen to. Declared now; M10 adds the emit sites and the kinds.
+signal feel_event(kind: StringName, at: Vector2, magnitude: float, actor_id: int)
 const Pool = preload("res://scripts/combat/bullet_pool.gd")
 const CombatAI = preload("res://scripts/combat/combat_ai.gd")
 const BulletCanvas = preload("res://scripts/combat/combat_canvas.gd")
@@ -92,6 +95,30 @@ var next_actor_id: int = 1
 var cleared_emitted: bool = false
 var contact_timer: float = 0.0
 var tick: int = 0
+## Modernization M1: an integer sim clock in 1/720 s units, exact at 30/60/120/144 Hz (720 is their
+## common multiple). Advanced by roundi(dt * time_scale * 720) per simulated step, alongside `tick`,
+## which still advances +1 per step exactly as before - `tick` drives ShipMotion and is in every
+## snapshot, so deriving it from sim_q would have been a behaviour change at non-60 Hz steps
+## (movement_feel_test steps at 1/30..1/144). Reset with `tick` in setup_player. Not in the snapshot
+## yet: adding a key changes the golden trace's snapshot digest, so persistence waits for M9's
+## snapshot bump.
+const SIM_Q_PER_SECOND: int = 720
+var sim_q: int = 0
+## Time-scale broker (M1): reason -> requested scale. The LOWEST active request wins (a slow-motion
+## and a pause-dilation together give the slower one); 1.0 when nothing is requested. Scales the dt
+## the sim integrates with; never Engine.time_scale, which would also scale UI tweens and audio.
+var _time_scale_requests: Dictionary = {}
+## Hitstop (M1; M10 is the first caller): while above zero a physics step advances nothing but
+## this countdown. Grants are capped at HITSTOP_CAP_TICKS per rolling HITSTOP_WINDOW_TICKS of `tick`
+## so a burst of kills cannot freeze the game; `_hitstop_grants` holds [tick, ticks granted] pairs.
+const HITSTOP_CAP_TICKS: int = 8
+const HITSTOP_WINDOW_TICKS: int = 60
+var hitstop_remaining: int = 0
+var _hitstop_grants: Array[Vector2i] = []
+## Test-only negative control for the hitstop cap (tests/sim_seams_test.gd); never set by gameplay.
+var hitstop_cap_disabled: bool = false
+## Instrumentation for the `_grant_invulnerability` choke point: grants counted per reason.
+var invulnerability_grants: Dictionary = {}
 var benchmark_mode: bool = false
 var benchmark_target: int = 0
 var benchmark_stats: Dictionary = {}
@@ -227,7 +254,7 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  for t: int in range(2,clampi(tier,1,GameTuning.MAX_TIER)+1): hull_history.append("player_%s_t%d_standard_a" % [element,t])
  set_player_hull(hull_history[-1])
  absorption={}
- player_invulnerable=0.0
+ player_invulnerable=0.0 # a reset, not a grant: it does not go through _grant_invulnerability
  active=true
  elapsed=0.0
  # Review finding 4: `tick` (not `elapsed`) is the one clock ShipMotion.step
@@ -236,6 +263,9 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  # counter otherwise (only ever `tick+=1`), so a new life inherited whatever
  # tick the PREVIOUS life left behind. Reset it alongside `elapsed` here.
  tick=0
+ sim_q=0
+ hitstop_remaining=0
+ _hitstop_grants.clear()
  run_kills=0
  decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS
  combo_count=0
@@ -263,8 +293,22 @@ func set_player_hull(id: String, animate: bool = false) -> bool:
  _update_visual(player,animate)
  if animate:
   reshape_remaining=GameTuning.RESHAPE_SECONDS
-  player_invulnerable=maxf(player_invulnerable,reshape_remaining)
+  _grant_invulnerability(reshape_remaining,&"reshape")
  return true
+## The single choke point for GRANTING player invulnerability (modernization M1; lessons: one choke
+## point per rule). It keeps the larger of the current grant and the new one, so no grant can
+## shorten another. Resets to 0 (a new life, a warp spring-back) and snapshot restore are not
+## grants and assign the field directly. M9 turns this into a sim_q deadline; the float field and
+## its per-step decay in _physics_process are unchanged here.
+##
+## The regression grant used to ASSIGN (RESHAPE + GRACE = 1.8 s) rather than take the max. The two
+## agree whenever the current grant is <= 1.8 s, and at a regression it always is: damage cannot
+## reach the player while invulnerable, decay is suppressed during the reshape and the warp lock,
+## and the reshape grant set_player_hull makes just before is 0.8 s. The one exception is the
+## benchmark's 1e6 s, which the max now keeps instead of cutting to 1.8 s.
+func _grant_invulnerability(seconds: float, reason: StringName) -> void:
+ invulnerability_grants[reason]=int(invulnerability_grants.get(reason,0))+1
+ player_invulnerable=maxf(player_invulnerable,seconds)
 func evolve_hull(id: String) -> bool:
  var definition: ShipDefinition=ShipCatalog.get_ship(id)
  if definition==null or definition.tier!=player_tier+1 or light_total<GameTuning.capacity(player_tier,max_player_tier) or player_tier>=max_player_tier: return false
@@ -631,11 +675,39 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   _spawn_named_enemy(boss_hull,element,tier,arena.center+Vector2(0,-230),true,false)
  for i: int in range(3): _drop_pickup(arena.center+Vector2(_rng.randf_range(-400,400),_rng.randf_range(-220,220)),element,1)
 
+## Time-scale broker (M1). A request is keyed by reason, so re-requesting replaces and releasing
+## removes only that reason's request.
+func request_time_scale(reason: StringName, scale: float) -> void:
+ _time_scale_requests[reason]=maxf(0.0,scale)
+func release_time_scale(reason: StringName) -> void:
+ _time_scale_requests.erase(reason)
+func time_scale() -> float:
+ var lowest: float=1.0
+ for reason: StringName in _time_scale_requests: lowest=minf(lowest,float(_time_scale_requests[reason]))
+ return lowest
+## Hitstop (M1): freeze the sim for `ticks` physics steps, extending (never shortening) a hitstop
+## already running. The part of an extension that would push the ticks granted in the last
+## HITSTOP_WINDOW_TICKS over HITSTOP_CAP_TICKS is clipped. Returns the ticks actually added.
+func request_hitstop(ticks: int, _reason: StringName) -> int:
+ var wanted: int=maxi(0,maxi(hitstop_remaining,ticks)-hitstop_remaining)
+ var granted_recently: int=0
+ for index: int in range(_hitstop_grants.size()-1,-1,-1):
+  if tick-_hitstop_grants[index].x>=HITSTOP_WINDOW_TICKS: _hitstop_grants.remove_at(index)
+  else: granted_recently+=_hitstop_grants[index].y
+ var added: int=wanted if hitstop_cap_disabled else clampi(HITSTOP_CAP_TICKS-granted_recently,0,wanted)
+ if added>0:
+  hitstop_remaining+=added
+  _hitstop_grants.append(Vector2i(tick,added))
+ return added
 func _physics_process(delta: float) -> void:
  if not active or player.is_empty(): return
+ if hitstop_remaining>0:
+  hitstop_remaining-=1
+  return
  tick+=1
  var began: int=Time.get_ticks_usec()
- var dt: float=minf(delta,0.05)
+ var dt: float=minf(delta,0.05)*time_scale()
+ sim_q+=roundi(dt*SIM_Q_PER_SECOND)
  _last_dt=dt
  # `motion` had no section until S0: it ran before the first section_start, so the cost every
  # rail-grammar hull will add was invisible to the benchmark.
@@ -910,7 +982,7 @@ func _warp_commit() -> void:
  _warp_swap_done=false
  warp_commit_speed=Vector2(player.vel).length()
  var locked_total: float=WARP_REDUCED_SECONDS if reduced else (WARP_ZOOM_IN_SECONDS+WARP_TRAVEL_SECONDS+WARP_ARRIVAL_SECONDS+WARP_ZOOM_OUT_SECONDS)
- player_invulnerable=maxf(player_invulnerable,locked_total)
+ _grant_invulnerability(locked_total,&"warp")
  _discard_enemy_projectiles()
  warp_committed.emit(warp_direction)
 ## Enemy-only discard (spec §12: "all enemy projectiles in the old node are
@@ -1944,7 +2016,7 @@ func _check_regression() -> void:
  if surviving<previous:
   var id: String=hull_history[surviving-1] if hull_history.size()>=surviving else "player_seed"
   set_player_hull(id,true)
-  player_invulnerable=GameTuning.RESHAPE_SECONDS+GameTuning.REGRESSION_GRACE
+  _grant_invulnerability(GameTuning.RESHAPE_SECONDS+GameTuning.REGRESSION_GRACE,&"regression")
   player_regressed.emit(previous,surviving)
 func _boss_shield_active(actor: Dictionary) -> bool:
  var indices: PackedInt32Array=actor.get("shield_generator_indices",PackedInt32Array())
@@ -2204,7 +2276,7 @@ func benchmark(count: int) -> void:
  command.aim=Vector2.RIGHT
  benchmark_mode=true
  benchmark_target=clampi(count,1,6000)
- player_invulnerable=1000000.0
+ _grant_invulnerability(1000000.0,&"benchmark")
  active=true
  for i: int in range(16):
   var point: Vector2=Vector2(250+(i%4)*400,180+(i/4)*230)
@@ -2382,10 +2454,7 @@ func _infect(target: Dictionary, source: Dictionary, damage: float, duration: fl
    nearby.infection_faction=int(source.faction)
 
 func _configure_arena_exits() -> void:
- arena.exits.clear()
- for direction: Variant in sector.get("exits",[Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]):
-  if direction is Vector2i: arena.exits.append(direction)
-  elif direction is Array and direction.size()==2: arena.exits.append(Vector2i(int(direction[0]),int(direction[1])))
+ arena.set_exits(sector.get("exits",[Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]))
 
 func _muzzle(actor: Dictionary, mount: String) -> Vector2:
  return _resolve_muzzle(actor,mount).position

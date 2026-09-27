@@ -9,6 +9,8 @@ var center: Vector2 = GameTuning.ARENA_CENTER
 var radius: float = GameTuning.ARENA_RADIUS
 var membrane_half_angle: float = asin(clampf(OPENING_HALF_WIDTH/GameTuning.ARENA_RADIUS,-1.0,1.0))
 var exits: Array[Vector2i] = [Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]
+## Modernization M1 seam for M3 (whole-rim exits): a node whose exits are closed. Nothing reads it yet.
+var sealed: bool = false
 var bounds: Rect2:
  get: return Rect2(center-Vector2.ONE*radius,Vector2.ONE*radius*2.0)
  set(value): center=value.get_center(); radius=value.size.x*0.5
@@ -49,6 +51,14 @@ func normal_at(point: Vector2, margin: float = 0.0) -> Vector2:
 
 func direction_angle(direction: Vector2i) -> float:
  return Vector2(direction).angle()
+
+## The one writer of `exits` from a sector descriptor. Takes Vector2i entries or [x, y] pairs (the
+## JSON form a snapshot restores); anything else is skipped. Refills the same array in place.
+func set_exits(dirs: Array) -> void:
+ exits.clear()
+ for direction: Variant in dirs:
+  if direction is Vector2i: exits.append(direction)
+  elif direction is Array and direction.size()==2: exits.append(Vector2i(int(direction[0]),int(direction[1])))
 
 func membrane_at(point: Vector2) -> Vector2i:
  var angle: float=(point-center).angle()

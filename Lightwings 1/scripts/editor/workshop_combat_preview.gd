@@ -71,7 +71,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if world == null or actor.is_empty(): return
 	_time += delta
-	world.player_invulnerable = 100
+	world._grant_invulnerability(100, &"workshop")
 	world.light_total = 1000
 	if pilot:
 		world.command.movement = Vector2(float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)), float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W))).limit_length()

@@ -135,3 +135,15 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
   run `git remote -v` and `git rev-list --count origin/main..main`. Also check that unpushed
   history can be pushed at all: the first push surfaced a 2021 commit carrying `node_modules`
   test keys, which GitHub push protection rejects. Commit to `main` and push after every phase.
+- **Moving code out of a file breaks every test that reads that file as text.**
+  `dialogue_coverage_test` scans `main.gd` for trigger ids, so M1's pure move of the run flow failed
+  it. Before moving code, grep `tests/` for source-file reads (`get_file_as_string`, `FileAccess`) of
+  the file you are moving code out of.
+- **A gate that fails on a loaded machine proves nothing either way.** M1's first two `-Quick` runs
+  failed on things the change never touched:
+  - the acceptance bots hit the 900 s timeout (903 s);
+  - the benchmark ran every section about 35% slower, including code that had not changed.
+
+  A rerun on a quiet machine went 4/4, with acceptance at 752 s against a 790 s baseline. When every
+  section slows by one factor, suspect load. Rerun alone and compare with the baseline before
+  blaming the change, and do not raise a budget or a timeout to make a loaded run pass.

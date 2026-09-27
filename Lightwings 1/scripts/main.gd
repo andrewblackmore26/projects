@@ -130,18 +130,20 @@ var mode_config: ModeConfig = ModeConfig.from_demo(false)
 var dev_console: DevConsole
 var _debug_show_warp: bool = false # --show-warp capture aid only, see _process
 var _capture_at_tick: int = 90 # --show-death needs a much shorter delay: the death card is only up for 1.2s
-## --- Frictionless death (spec §7.4/§24, plan P7) -------------------------
-## The next life is built the INSTANT the player dies (fresh hull, fresh
-## sector descriptor, fresh seed already rolled by campaign.on_death()), so
-## dismissing the card is just applying data already sitting here - no work
-## happens on the dismiss path itself, which is what keeps it fast.
+## The run flow (start, enter node, warp swap, death/reboot, boss defeated, saves) lives in
+## scripts/world/run_controller.gd since modernization M1; the methods below with the old names are
+## one-line forwarders, kept because tests and package_validation.gd call them on `app`.
+var run_controller: RunController
+## Frictionless death (spec §7.4/§24, plan P7): seconds the death card has been up. The next life
+## itself is prepared by RunController.on_death.
 var _death_elapsed: float = 0.0
-var _death_stats: Dictionary = {}
-var _death_next_sector: Dictionary = {}
 ## Swallows N upcoming _physics_process command frames after a dismiss, so
 ## the very press that dismissed the card (e.g. held right-click) cannot
 ## also fire a dash the instant control returns.
 var _input_swallow_frames: int = 0
+
+func _init() -> void:
+	run_controller = RunController.new(self)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -575,65 +577,11 @@ func _show_level_select(mode_id: String) -> void:
 	button(overlay,"CANCEL",Rect2(480,560,320,45),_close_overlay)
 	if first != null: first.grab_focus()
 
-func _begin_at_level(mode_id: String, level: int) -> void:
-	_close_overlay()
-	_new_game_as(mode_id)
-	if level > 1: _travel_to_level(level)
-
-func _new_game_as(mode_id: String) -> void:
-	mode_config = ModeConfig.from_id(mode_id)
-	slot = mode_config.save_slot()
-	campaign = CampaignState.new()
-	campaign.configure_mode(mode_id)
-	campaign.world_seed = randi() if not testing else 734927
-	absorbed = {}
-	pending_offers.clear()
-	previous_offers.clear()
-	offer_serial = 0
-	dialogue_director.reset()
-	_start_game_view()
-	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
-	combat.max_player_tier = mode_config.max_tier()
-	_queue_line("companion","Your first light","Your white core is your hitbox. Hollow light circles heal you and fill the same bar that grows your ship. Fly through an opening and find your first fight.","welcome_v2")
-	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
-
-## Kept for the many call sites (and tests) that only ever asked the old
-## binary demo/campaign question.
-func _new_game(is_demo: bool) -> void:
-	_new_game_as("demo" if (is_demo or OS.has_feature("demo")) else "campaign")
-
-func _travel_to_level(level: int) -> void:
-	campaign.travel_to_level(level)
-	_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
-
-func _continue_game(save_slot: String) -> void:
-	var snapshot: Dictionary = SaveService.load_snapshot(save_slot)
-	if snapshot.is_empty():
-		if not SaveService.last_error.is_empty():
-			_toast("Save could not be restored: "+SaveService.last_error)
-			return
-		_new_game(save_slot == "demo")
-		return
-	slot = save_slot
-	campaign = CampaignState.new()
-	campaign.from_dict(snapshot.get("profile",{}))
-	mode_config = ModeConfig.from_id(campaign.mode)
-	var run: Dictionary = snapshot.get("run",{})
-	pending_offers.assign(run.get("pending_offers",[]))
-	previous_offers.assign(run.get("previous_offers",[]))
-	offer_serial = int(run.get("offer_serial",0))
-	dialogue_director.restore(run.get("seen_lines",{}),run.get("line_queue",[]))
-	_start_game_view()
-	combat.max_player_tier = mode_config.max_tier()
-	if run.get("combat",{}).is_empty():
-		combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
-		_enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
-	else:
-		combat.restore(run.combat)
-	absorbed = combat.absorption
-	_toast("Instance restored. Your light is still yours.")
-	last_hp = combat.light_total
-	_refresh_hud()
+func _begin_at_level(mode_id: String, level: int) -> void: run_controller.begin_at_level(mode_id,level)
+func _new_game_as(mode_id: String) -> void: run_controller.new_game_as(mode_id)
+func _new_game(is_demo: bool) -> void: run_controller.new_game(is_demo)
+func _travel_to_level(level: int) -> void: run_controller.travel_to_level(level)
+func _continue_game(save_slot: String) -> void: run_controller.continue_game(save_slot)
 
 func _start_game_view() -> void:
 	_close_overlay()
@@ -682,13 +630,16 @@ func _start_game_view() -> void:
 		hud.add_child(dev_console)
 		dev_console.command_submitted.connect(_on_dev_command)
 
-func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> void:
-	if is_instance_valid(combat) and not combat.sector.is_empty():
-		campaign.record_node_left(campaign.current_sector,combat.elapsed,float(combat.sector_energy_remaining))
-	campaign.on_enter(coord)
-	var sector: Dictionary = campaign.sector_at(coord,combat.elapsed if is_instance_valid(combat) else 0.0)
-	combat.player_position = spawn
-	combat.start_sector(sector)
+func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> void: run_controller.enter_sector(coord,spawn,show_intro)
+
+## Companion lines the run flow triggers. They stay here with the rest of the dialogue presentation
+## (tests/dialogue_coverage_test.gd scans this file for every trigger id); RunController calls them.
+func _queue_welcome_line() -> void:
+	_queue_line("companion","Your first light","Your white core is your hitbox. Hollow light circles heal you and fill the same bar that grows your ship. Fly through an opening and find your first fight.","welcome_v2")
+
+## A node was just entered (a direct entry or the warp's swap): close the dialogue box and queue
+## the node's lines.
+func _on_node_entered(sector: Dictionary, coord: Vector2i, show_intro: bool) -> void:
 	dialogue.visible = false
 	dialogue_remaining = 0.0
 	if show_intro and str(sector.get("kind","")) == "boss" and not bool(sector.get("boss_down",false)):
@@ -701,8 +652,12 @@ func _enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> 
 		if bool(actor.get("elite",false)):
 			_queue_line("companion","A machine with many hands","That large ship carries several weapons, each with its own rhythm. Watch how its silhouette changes under fire.","first_elite_v2")
 			break
-	_refresh_hud()
-	_save_game()
+
+func _queue_reboot_line() -> void:
+	_queue_line("companion","You persisted","Your discoveries, defeated cores and unlocks remain. Rebuild your lightship, then push outward again.","reboot_v2_"+str(campaign.deaths))
+
+func _queue_defeat_line(element: String) -> void:
+	_queue_line(element,"A rival yields",DialogueDirector.defeat_line(element),"defeat_v2_"+element)
 
 func _process(delta: float) -> void:
 	if _debug_show_warp and is_instance_valid(combat):
@@ -831,39 +786,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_show_evolution()
 		get_viewport().set_input_as_handled()
 
-## Node-to-node transition is now the warp (spec §12/plan P6), not an instant
-## cut: `combat` runs the push/commit/travel state machine itself and fires
-## `warp_committed` the instant control locks. This handler does the sector
-## swap SYNCHRONOUSLY (GDScript signal emission is synchronous), so it is
-## done well before the travel phase ends and `confirm_warp_swap()` is
-## always called in time - the "missing node swap springs back" case is a
-## test-only scenario (nothing connects this signal), not something that can
-## happen in play.
-func _on_warp_committed(direction: Vector2i) -> void:
-	if not is_instance_valid(combat) or campaign == null: return
-	campaign.record_node_left(campaign.current_sector,combat.elapsed,float(combat.sector_energy_remaining))
-	var destination: Vector2i = campaign.current_sector+direction
-	campaign.on_enter(destination)
-	var sector: Dictionary = campaign.sector_at(destination,combat.elapsed)
-	combat.start_sector(sector)
-	combat.confirm_warp_swap()
-	dialogue.visible = false
-	dialogue_remaining = 0.0
-	if str(sector.get("kind","")) == "boss" and not bool(sector.get("boss_down",false)):
-		# Immediate lane (spec §25 "a line ... on encounter"): this must be able
-		# to show on entry, not only once the boss it announces is already dead.
-		_queue_line(str(sector.element),"A rival signal",DialogueDirector.entry_line(str(sector.element)),"boss_intro_"+str(sector.element),true)
-	if destination != Vector2i.ZERO:
-		_queue_line("companion","Direction and distance","Direction decides the light you find. Distance decides the danger. Every opening stays open; you can always retreat.","map_tutorial_v2")
-	for actor: Dictionary in combat.enemies:
-		if bool(actor.get("elite",false)):
-			_queue_line("companion","A machine with many hands","That large ship carries several weapons, each with its own rhythm. Watch how its silhouette changes under fire.","first_elite_v2")
-			break
-	# Saves moved off the per-node-entry critical path (plan P6 item 6): this
-	# fires once, here, inside the warp's own locked window - never on the
-	# old instant-cut hot path.
-	_save_game()
-	_refresh_hud()
+## The warp's node swap (spec §12/plan P6): see RunController.on_warp_committed.
+func _on_warp_committed(direction: Vector2i) -> void: run_controller.on_warp_committed(direction)
 
 func _refresh_hud() -> void:
 	if not is_instance_valid(combat) or campaign == null: return
@@ -976,25 +900,7 @@ func _on_rival_reward(_component: String, _offered_root: String) -> void:
 	# Legacy signal adapter: rival rewards are light only.
 	_achieve("FIRST_RIVAL")
 
-func _on_boss_defeated(element: String) -> void:
-	if element.is_empty(): return
-	# CampaignState.complete_level() is itself idempotent (tasks/todo.md:
-	# "call it every time a boss dies; it only fires level_completed... the
-	# first time"), so this handler needs no separate guard of its own.
-	var result: Dictionary = campaign.complete_level()
-	_queue_line(element,"A rival yields",DialogueDirector.defeat_line(element),"defeat_v2_"+element)
-	_achieve("FIRST_RIVAL")
-	if bool(result.get("level_completed",false)):
-		if campaign.campaign_complete():
-			_achieve("CAMPAIGN_COMPLETE")
-			# CampaignState.campaign_complete() is now mode-aware (ModeConfig.level_cap):
-			# for the demo this is true the instant level 2's boss dies, so this is
-			# exactly the demo ending trigger spec §4/preamble asks for -- "on beating
-			# the level-2 boss", not the old wedge-world "Fire core".
-			_show_ending(mode_config.id == "demo")
-		else:
-			_show_level_complete(result)
-	_save_game()
+func _on_boss_defeated(element: String) -> void: run_controller.on_boss_defeated(element)
 
 ## Level complete (spec §4/§11): reveal the next element, unlock the next
 ## level, grant the achievement (already through the mode guard, `_achieve`
@@ -1332,43 +1238,24 @@ func load_settings() -> void:
 	if config.load("user://device.cfg") == OK:
 		for key: String in settings: settings[key] = config.get_value("device",key,settings[key])
 
-## Frictionless death (spec §7.4/§24). No confirmation, no menu, no loading
-## screen: the next life is built HERE, immediately, so `_reboot` (fired by
-## the timer, a fresh press, or a test/fixture calling it directly) does no
-## work of its own beyond swapping to data that already exists.
+## Frictionless death (spec §7.4/§24). RunController.on_death builds the next life and saves the
+## profile; this half plays the sound and shows the card. (The profile save used to run after the
+## card was built; building the card touches no saved state, so the order does not matter.)
 func _on_death() -> void:
 	sound.play("death")
-	var kills: int = combat.run_kills if is_instance_valid(combat) else 0
-	var life_elapsed: float = combat.elapsed if is_instance_valid(combat) else 0.0
-	var life_ring: int = campaign.ring_reached
-	campaign.on_death() # spec §7.5: fresh seed the instant the player dies
-	_death_stats = {"ring_reached":life_ring,"best_ring":int(campaign.best_ring.get(campaign.level,0)),"kills":kills,"time":life_elapsed}
-	_death_next_sector = campaign.sector_at(Vector2i.ZERO,0.0)
-	pending_offers.clear()
+	run_controller.on_death()
+	var stats: Dictionary = run_controller.death_stats
 	_death_elapsed = 0.0
 	_open_overlay("death")
 	label(overlay,"SIGNAL LOST",Vector2(250,193),Vector2(780,78),56,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label(overlay,"RING REACHED %d · BEST %d" % [int(_death_stats.ring_reached),int(_death_stats.best_ring)],Vector2(250,290),Vector2(780,42),28,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label(overlay,"KILLS %d · TIME %s" % [int(_death_stats.kills),_format_run_time(float(_death_stats.time))],Vector2(250,340),Vector2(780,32),18,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if not testing:
-		SaveService.save_snapshot(campaign.to_dict(),{"seen_lines":seen_lines,"previous_offers":previous_offers,"offer_serial":offer_serial},slot)
+	label(overlay,"RING REACHED %d · BEST %d" % [int(stats.ring_reached),int(stats.best_ring)],Vector2(250,290),Vector2(780,42),28,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label(overlay,"KILLS %d · TIME %s" % [int(stats.kills),_format_run_time(float(stats.time))],Vector2(250,340),Vector2(780,32),18,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 func _format_run_time(seconds: float) -> String:
 	var total: int = maxi(0,roundi(seconds))
 	return "%d:%02d" % [total/60,total%60]
 
-func _reboot() -> void:
-	_close_overlay()
-	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
-	campaign.on_enter(Vector2i.ZERO)
-	combat.player_position = GameTuning.ARENA_CENTER
-	combat.start_sector(_death_next_sector if not _death_next_sector.is_empty() else campaign.sector_at(Vector2i.ZERO,0.0))
-	dialogue.visible = false
-	dialogue_remaining = 0.0
-	_input_swallow_frames = 1 # spec §7.4: swallow the dismissing press for one tick
-	_queue_line("companion","You persisted","Your discoveries, defeated cores and unlocks remain. Rebuild your lightship, then push outward again.","reboot_v2_"+str(campaign.deaths))
-	_refresh_hud()
-	_save_game()
+func _reboot() -> void: run_controller.reboot()
 func _dismiss_death_card() -> void: _reboot()
 
 func _show_ending(is_demo: bool) -> void:
@@ -1379,33 +1266,12 @@ func _show_ending(is_demo: bool) -> void:
 	button(overlay,"KEEP EXPLORING",Rect2(440,545,400,55),_close_overlay).grab_focus()
 	button(overlay,"SAVE & MAIN MENU",Rect2(440,619,400,48),func() -> void: _save_game(); _show_menu())
 
-## Instrumented (plan P6 item 6): `save_timings_ms` is a rolling window a bot
-## run / test can read p95/max off of. Saving itself only happens at calm
-## moments now - warp commit (`_on_warp_committed`), node clear
-## (`_on_sector_clear`), level complete/boss defeat (`_on_boss_defeated`),
-## and pause/menu/quit - never on the old per-node-entry hot path.
-const SAVE_TIMING_WINDOW: int = 500
-var save_timings_ms: Array[float] = []
-func _save_game() -> void:
-	if mode != "play" or campaign == null or not is_instance_valid(combat) or benchmark_mode or testing: return
-	var began: int = Time.get_ticks_usec()
-	var run: Dictionary = {"combat":combat.snapshot(),"pending_offers":pending_offers,"previous_offers":previous_offers,"offer_serial":offer_serial,"seen_lines":seen_lines,"line_queue":line_queue}
-	if combat.light_total <= 0.0: run = {"seen_lines":seen_lines,"previous_offers":previous_offers,"offer_serial":offer_serial}
-	var error: Error = SaveService.save_snapshot(campaign.to_dict(),run,slot)
-	save_timings_ms.append(float(Time.get_ticks_usec()-began)/1000.0)
-	if save_timings_ms.size() > SAVE_TIMING_WINDOW: save_timings_ms.remove_at(0)
-	if error != OK: _toast("Save failed: "+error_string(error))
-	elif platform.online and cloud_sync_ready and mode_config.cloud_enabled():
-		platform.save_cloud(SaveService.encode_snapshot({"profile":campaign.to_dict(),"run":run}),slot)
-
-## p95/max over the rolling timing window (plan P6 item 6's own reporting
-## requirement) - a bot run or test calls this after driving many warps.
-func save_timing_stats() -> Dictionary:
-	if save_timings_ms.is_empty(): return {"count":0,"p95":0.0,"max":0.0}
-	var sorted: Array[float] = save_timings_ms.duplicate()
-	sorted.sort()
-	var p95_index: int = clampi(ceili(0.95*sorted.size())-1,0,sorted.size()-1)
-	return {"count":sorted.size(),"p95":sorted[p95_index],"max":sorted[sorted.size()-1]}
+## Save hooks and their timing window: see RunController.save_game.
+var save_timings_ms: Array[float]:
+	get: return run_controller.save_timings_ms
+	set(value): run_controller.save_timings_ms = value
+func _save_game() -> void: run_controller.save_game()
+func save_timing_stats() -> Dictionary: return run_controller.save_timing_stats()
 
 func _show_cloud_review() -> void:
 	_open_overlay("cloud")
