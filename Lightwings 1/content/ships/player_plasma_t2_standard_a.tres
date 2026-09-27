@@ -1,51 +1,56 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_w1mxn"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_0ir7d"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_li0wp"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_2sbmu"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_nw3rg"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_alx6q"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_a5h61"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_1s0an"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_jjsko"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_i5vma"]
 
-[sub_resource type="Resource" id="Resource_cwmfg"]
-script = ExtResource("1_w1mxn")
+[sub_resource type="Resource" id="Resource_xgby0"]
+script = ExtResource("1_alx6q")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "spin_ring"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_5liq3"]
-script = ExtResource("1_w1mxn")
+[sub_resource type="Resource" id="Resource_dnf5h"]
+script = ExtResource("1_alx6q")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_f31d6"]
-script = ExtResource("1_w1mxn")
+[sub_resource type="Resource" id="Resource_knop1"]
+script = ExtResource("1_alx6q")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_6fmeh"]
-script = ExtResource("1_w1mxn")
+[sub_resource type="Resource" id="Resource_d2abo"]
+script = ExtResource("1_alx6q")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_5sg6n"]
-script = ExtResource("4_2sbmu")
+[sub_resource type="Resource" id="Resource_r83p1"]
+script = ExtResource("4_jjsko")
 order = 4
-slots = Array[ExtResource("1_w1mxn")]([SubResource("Resource_cwmfg"), SubResource("Resource_5liq3"), SubResource("Resource_f31d6"), SubResource("Resource_6fmeh")])
+slots = Array[ExtResource("1_alx6q")]([SubResource("Resource_xgby0"), SubResource("Resource_dnf5h"), SubResource("Resource_knop1"), SubResource("Resource_d2abo")])
 
 [resource]
-script = ExtResource("5_nw3rg")
+script = ExtResource("5_i5vma")
 id = "player_plasma_t2_standard_a"
 display_name = "Plasma T2 Standard A"
 element = "plasma"
 tier = 2
 description = "seed 228517"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 chassis_color = "blue"
 accent_color = "violet"
-rails = Array[ExtResource("4_2sbmu")]([SubResource("Resource_5sg6n")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_jjsko")]([SubResource("Resource_r83p1")])

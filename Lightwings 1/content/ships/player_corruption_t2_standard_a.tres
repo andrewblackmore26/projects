@@ -1,50 +1,55 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_2k7dp"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_8wdpo"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_fl6u2"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_i5upt"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_ss72s"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_3twix"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_0uaoq"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_vx7ni"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_tl60l"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_pvjnk"]
 
-[sub_resource type="Resource" id="Resource_8ou5w"]
-script = ExtResource("1_2k7dp")
+[sub_resource type="Resource" id="Resource_rc0k1"]
+script = ExtResource("1_3twix")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "twin_barrel"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_cdqdp"]
-script = ExtResource("1_2k7dp")
+[sub_resource type="Resource" id="Resource_f7xct"]
+script = ExtResource("1_3twix")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_kx3kx"]
-script = ExtResource("1_2k7dp")
+[sub_resource type="Resource" id="Resource_n52vo"]
+script = ExtResource("1_3twix")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_iopsi"]
-script = ExtResource("1_2k7dp")
+[sub_resource type="Resource" id="Resource_fl2v4"]
+script = ExtResource("1_3twix")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_st1fa"]
-script = ExtResource("4_i5upt")
+[sub_resource type="Resource" id="Resource_1qntt"]
+script = ExtResource("4_tl60l")
 order = 4
-slots = Array[ExtResource("1_2k7dp")]([SubResource("Resource_8ou5w"), SubResource("Resource_cdqdp"), SubResource("Resource_kx3kx"), SubResource("Resource_iopsi")])
+slots = Array[ExtResource("1_3twix")]([SubResource("Resource_rc0k1"), SubResource("Resource_f7xct"), SubResource("Resource_n52vo"), SubResource("Resource_fl2v4")])
 
 [resource]
-script = ExtResource("5_ss72s")
+script = ExtResource("5_pvjnk")
 id = "player_corruption_t2_standard_a"
 display_name = "Corruption T2 Standard A"
 tier = 2
 description = "seed 362844"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 chassis_color = "blue"
 accent_color = "green"
-rails = Array[ExtResource("4_i5upt")]([SubResource("Resource_st1fa")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_tl60l")]([SubResource("Resource_1qntt")])

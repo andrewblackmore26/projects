@@ -19,6 +19,9 @@ extends Resource
 @export var abilities: Array[String] = []
 @export var description: String = ""
 @export var schema_version: int = 3
+## Geometry revisions are independent of the campaign/save schema.
+@export var geometry_revision: int = 1
+@export var removed_part_map: Dictionary = {}
 @export var faction: String = "player"
 @export var role: String = "standard"
 @export var family: String = "standard_a"
@@ -47,11 +50,18 @@ extends Resource
 @export var accent_color: String = ""     # one of the six, or "" for a mono-colour ship
 ## Depth of the core stack, counting the dot: 2 = [34, dot], 3 = [34, 22, dot], 4 = [34, 22, 13, dot].
 @export var core_depth: int = 2
+## Optional authored living-reference geometry; empty retains the original radius ladder.
+@export var core_radii: PackedFloat32Array = PackedFloat32Array()
+@export var core_dot_radius: float = 5.0
+@export var core_dot_color: String = ""
+@export var chain_head_lobes: bool = false
+@export var chain_spacing: float = 30.0
+@export var chain_head_spacing: float = -1.0
 @export var core_weapon: String = ""      # enemies: a set piece mounted on the core
 @export var archetype: String = ""        # "" (player) | drone | sentry | radial_elite | heavy_elite | irregular_elite | chain | boss
 @export var rails: Array[RailDefinition] = []
 @export var chain_links: Array[SlotDefinition] = [] # chain archetype only, head outward
-@export var chain_mode: String = "sway"   # rigid | sway | whip (§9.6)
+@export var chain_mode: String = "sway"   # rigid | sway | whip | follow
 ## Set by ShipCompiler: id + a hash of the grammar. The rig and mesh caches key on it.
 var compile_key: String = ""
 

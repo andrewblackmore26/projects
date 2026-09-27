@@ -30,6 +30,7 @@ var tab_container: TabContainer
 var _combat_window: Window
 
 func _ready() -> void:
+	theme = UiKit.make_theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
@@ -98,7 +99,7 @@ func _button(parent: Node, text: String, action: Callable) -> Button:
 
 func _build_ui() -> void:
 	var background: ColorRect = ColorRect.new()
-	background.color = Color("0b0d13")
+	background.color = VisualStyle.BG
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 	var margin: MarginContainer = MarginContainer.new()

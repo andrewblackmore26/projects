@@ -1,73 +1,80 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_nsio1"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_1lp3q"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_uh23l"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_h8uaw"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_2nj2b"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_3e72n"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_oar2t"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_x5den"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_mcgxq"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_mmk0k"]
 
-[sub_resource type="Resource" id="Resource_eg7hm"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_75ss8"]
+script = ExtResource("1_3e72n")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_a1gsa"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_xfkih"]
+script = ExtResource("1_3e72n")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_rtvth"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_vqaa2"]
+script = ExtResource("1_3e72n")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_88hk1"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_i78bj"]
+script = ExtResource("1_3e72n")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_jlilh"]
-script = ExtResource("4_h8uaw")
+[sub_resource type="Resource" id="Resource_vgtti"]
+script = ExtResource("4_mcgxq")
 order = 4
 speed = -0.9758
 phase = 0.7854
-slots = Array[ExtResource("1_nsio1")]([SubResource("Resource_eg7hm"), SubResource("Resource_a1gsa"), SubResource("Resource_rtvth"), SubResource("Resource_88hk1")])
+slots = Array[ExtResource("1_3e72n")]([SubResource("Resource_75ss8"), SubResource("Resource_xfkih"), SubResource("Resource_vqaa2"), SubResource("Resource_i78bj")])
 
-[sub_resource type="Resource" id="Resource_fmldy"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_2uda5"]
+script = ExtResource("1_3e72n")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "well_cup"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_rihs2"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_glulk"]
+script = ExtResource("1_3e72n")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "shell_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_y17wn"]
-script = ExtResource("1_nsio1")
+[sub_resource type="Resource" id="Resource_0pcbk"]
+script = ExtResource("1_3e72n")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "shell_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_8xwju"]
-script = ExtResource("4_h8uaw")
+[sub_resource type="Resource" id="Resource_7p85v"]
+script = ExtResource("4_mcgxq")
 radius = 96
 pump_phase = 0.9
-slots = Array[ExtResource("1_nsio1")]([SubResource("Resource_fmldy"), SubResource("Resource_rihs2"), SubResource("Resource_y17wn")])
+slots = Array[ExtResource("1_3e72n")]([SubResource("Resource_2uda5"), SubResource("Resource_glulk"), SubResource("Resource_0pcbk")])
 
 [resource]
-script = ExtResource("5_2nj2b")
+script = ExtResource("5_mmk0k")
 id = "player_void_t3_heavy"
 display_name = "Void T3 Heavy"
 element = "void"
 tier = 3
 description = "seed 122534"
 schema_version = 4
+geometry_revision = 3
 role = "heavy"
 family = "heavy"
 speed = 200.0
@@ -79,4 +86,5 @@ damage_multiplier = 1.15
 chassis_color = "blue"
 accent_color = "silver"
 core_depth = 3
-rails = Array[ExtResource("4_h8uaw")]([SubResource("Resource_jlilh"), SubResource("Resource_8xwju")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_mcgxq")]([SubResource("Resource_vgtti"), SubResource("Resource_7p85v")])

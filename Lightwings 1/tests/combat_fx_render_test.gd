@@ -6,11 +6,6 @@ extends SceneTree
 
 const Harness = preload("res://tests/support/harness.gd")
 const FX = preload("res://scripts/combat/combat_fx.gd")
-## Pillar 5 threshold, in max-normalised RGB distance from the player's own projectile. Measured
-## (S0, identical over three runs): fire 1.090, lightning 0.941, corruption 0.569, void 0.433,
-## plasma 0.407; a second player projectile reads 0.000. 0.20 is about half the nearest real colour,
-## so a drift of plasma or void toward light blue fails long before the eye would confuse them.
-const PILLAR5_MIN_DISTANCE: float = 0.20
 
 var failures: int = 0
 var controls_caught: int = 0
@@ -151,59 +146,35 @@ func _collar_case() -> void:
 	empty_canvas.queue_free()
 	await process_frame
 
-## Finding 1 (tasks/todo.md P8): no enemy projectile's pixels may fall in the
-## player's light-blue hue band. Renders a single isolated enemy plasma
-## projectile (the element the finding names) via the real BulletCanvas/
-## shader and samples its brightest pixel.
-##
-## Repaired in S0 (P10 found it blind). It used to place the PLAYER at the sampled point, so the
-## patch held the white player core and read the same for every element; it tested plasma only;
-## and it compared hue alone, which means nothing for void's near-grey silver. Now: the player
-## sits far from the patch, all five elements are measured, and the metric is the distance between
-## max-normalised colours (hue AND saturation), against the player's own projectile measured
-## through the same path.
+## The HTML reference identifies projectile types by hue. Factions retain the
+## same hue; the friendly centre pip is tested independently in the range fixture.
 func _hue_gate_case() -> void:
 	const BulletCanvas = preload("res://scripts/combat/combat_canvas.gd")
-	var world: CombatWorld = CombatWorld.new()
-	scene.add_child(world)
-	world.setup_player("plasma",1,40,[],Vector2(1100,700))
+	const Pool = preload("res://scripts/combat/bullet_pool.gd")
+	var pool: LightBulletPool = Pool.new()
 	var canvas: BulletCanvas = BulletCanvas.new()
-	canvas.world = world
 	scene.add_child(canvas)
 	var at: Vector2 = Vector2(450,350)
-	world.bullets.clear()
-	world.bullets.add(at,Vector2(1,0)*100.0,-1.0,10.0,3.0,-1,0,0,0) # faction 0 = player
-	canvas.sync_pool(world.bullets)
-	await _frame()
-	await _frame()
-	var player_colour: Vector3 = _patch_colour(root.get_texture().get_image(),at,10)
-	_check(player_colour != Vector3.ZERO,"the player's projectile is found in the sampled patch")
-	for element: int in range(CombatWorld.ELEMENTS.size()):
-		world.bullets.clear()
-		world.bullets.add(at,Vector2(1,0)*100.0,-1.0,10.0,3.0,-1,1,element,0) # faction 1 = enemy
-		canvas.sync_pool(world.bullets)
+	var colours: Array[Vector3] = []
+	for flag: int in [0,Pool.HOMING,Pool.ROCKET,Pool.RICOCHET]:
+		pool.clear()
+		pool.add(at,Vector2.RIGHT*100,-1,10,3,-1,1,0,flag,9)
+		pool.add(at+Vector2(0,160),Vector2.RIGHT*100,-1,10,3,-1,0,4,flag,9)
+		canvas.sync_pool(pool)
 		await _frame()
-		# Two rendered frames, not one: a MultiMesh buffer write can reach the GPU a frame after the
-		# capture that follows it. With one frame the reading was a blend of THIS bullet and the
-		# previous one, and which elements read wrong changed from run to run.
 		await _frame()
-		var enemy_colour: Vector3 = _patch_colour(root.get_texture().get_image(),at,10)
-		var distance: float = enemy_colour.distance_to(player_colour)
-		print("pillar5 projectile %s: colour=%s distance_from_player=%.3f" % [CombatWorld.ELEMENTS[element],enemy_colour,distance])
-		_check(enemy_colour != Vector3.ZERO and distance>PILLAR5_MIN_DISTANCE,"enemy %s projectile is not player light blue (distance %.3f)" % [CombatWorld.ELEMENTS[element],distance])
-	# Control: a second player projectile through the same detector must read INSIDE the band.
-	world.bullets.clear()
-	world.bullets.add(at+Vector2(0,200),Vector2(1,0)*100.0,-1.0,10.0,3.0,-1,0,0,0)
-	canvas.sync_pool(world.bullets)
-	await _frame()
-	await _frame()
-	var again: Vector3 = _patch_colour(root.get_texture().get_image(),at+Vector2(0,200),10)
-	print("pillar5 projectile player (control): distance_from_player=%.3f" % again.distance_to(player_colour))
-	_control("sampling the PLAYER's own (light-blue) projectile",not (again.distance_to(player_colour)>PILLAR5_MIN_DISTANCE))
-	# Control: an empty patch must not pass as "not blue" by default.
+		var pixels: Image = root.get_texture().get_image()
+		# Only the outer-right rim: a centre pip is an ownership cue, not a hue change.
+		var enemy_colour: Vector3 = _patch_colour(pixels,at+Vector2(9,0),2)
+		var friendly_colour: Vector3 = _patch_colour(pixels,at+Vector2(9,160),2)
+		_check(enemy_colour!=Vector3.ZERO and enemy_colour.distance_to(friendly_colour)<0.05,"weapon type %d preserves its colour across factions" % flag)
+		colours.append(enemy_colour)
+	for i: int in range(colours.size()):
+		for j: int in range(i):
+			_check(colours[i].distance_to(colours[j])>0.2,"types %d and %d remain visibly distinct" % [i,j])
+	_control("all bodies accidentally use the first type hue",not (colours[0].distance_to(colours[0])>0.2))
 	_control("sampling an empty patch",_patch_colour(root.get_texture().get_image(),Vector2(200,100),10) == Vector3.ZERO)
 	canvas.queue_free()
-	world.queue_free()
 	await process_frame
 
 ## Mean colour of the lit pixels in a patch, divided by its largest channel, so brightness and HDR

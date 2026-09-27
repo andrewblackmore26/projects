@@ -1,49 +1,53 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_tnwyu"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_38cc4"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_qrokb"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_xplgb"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_ckx3m"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_q1xar"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_glt8g"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_gfy4m"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_0tvsl"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_ny4eb"]
 
-[sub_resource type="Resource" id="Resource_r6yju"]
-script = ExtResource("1_tnwyu")
+[sub_resource type="Resource" id="Resource_q0r1j"]
+script = ExtResource("1_q1xar")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
 
-[sub_resource type="Resource" id="Resource_e7h7l"]
-script = ExtResource("1_tnwyu")
+[sub_resource type="Resource" id="Resource_iflup"]
+script = ExtResource("1_q1xar")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_n32rd"]
-script = ExtResource("1_tnwyu")
+[sub_resource type="Resource" id="Resource_6o4ud"]
+script = ExtResource("1_q1xar")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
 
-[sub_resource type="Resource" id="Resource_sheqb"]
-script = ExtResource("1_tnwyu")
+[sub_resource type="Resource" id="Resource_tb8g7"]
+script = ExtResource("1_q1xar")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_5dvk6"]
-script = ExtResource("4_xplgb")
+[sub_resource type="Resource" id="Resource_pmw7u"]
+script = ExtResource("4_0tvsl")
 order = 4
 speed = -0.9518
 phase = 0.9095
-slots = Array[ExtResource("1_tnwyu")]([SubResource("Resource_r6yju"), SubResource("Resource_e7h7l"), SubResource("Resource_n32rd"), SubResource("Resource_sheqb")])
+slots = Array[ExtResource("1_q1xar")]([SubResource("Resource_q0r1j"), SubResource("Resource_iflup"), SubResource("Resource_6o4ud"), SubResource("Resource_tb8g7")])
 
 [resource]
-script = ExtResource("5_ckx3m")
+script = ExtResource("5_ny4eb")
 id = "enemy_sentry_void_t4"
 display_name = "Void Sentry T4"
 element = "void"
 tier = 4
 description = "seed 557440"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "silver"
+core_radii = PackedFloat32Array()
 core_weapon = "well_cup"
 archetype = "sentry"
-rails = Array[ExtResource("4_xplgb")]([SubResource("Resource_5dvk6")])
+rails = Array[ExtResource("4_0tvsl")]([SubResource("Resource_pmw7u")])

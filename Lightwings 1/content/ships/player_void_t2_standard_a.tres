@@ -1,51 +1,56 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_mxmf4"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_kmcx8"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_h23na"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_h1q1c"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_0lueq"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_qv3sl"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ajr42"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_axq7f"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_nfnc1"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_j6cct"]
 
-[sub_resource type="Resource" id="Resource_bp1au"]
-script = ExtResource("1_mxmf4")
+[sub_resource type="Resource" id="Resource_afacs"]
+script = ExtResource("1_qv3sl")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "well_cup"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_42y1o"]
-script = ExtResource("1_mxmf4")
+[sub_resource type="Resource" id="Resource_gtpud"]
+script = ExtResource("1_qv3sl")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "pull_cage"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_c64r0"]
-script = ExtResource("1_mxmf4")
+[sub_resource type="Resource" id="Resource_gaf15"]
+script = ExtResource("1_qv3sl")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_taj36"]
-script = ExtResource("1_mxmf4")
+[sub_resource type="Resource" id="Resource_kffm2"]
+script = ExtResource("1_qv3sl")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "pull_cage"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_gf4e3"]
-script = ExtResource("4_h1q1c")
+[sub_resource type="Resource" id="Resource_3mthe"]
+script = ExtResource("4_nfnc1")
 order = 4
-slots = Array[ExtResource("1_mxmf4")]([SubResource("Resource_bp1au"), SubResource("Resource_42y1o"), SubResource("Resource_c64r0"), SubResource("Resource_taj36")])
+slots = Array[ExtResource("1_qv3sl")]([SubResource("Resource_afacs"), SubResource("Resource_gtpud"), SubResource("Resource_gaf15"), SubResource("Resource_kffm2")])
 
 [resource]
-script = ExtResource("5_0lueq")
+script = ExtResource("5_j6cct")
 id = "player_void_t2_standard_a"
 display_name = "Void T2 Standard A"
 element = "void"
 tier = 2
 description = "seed 571641"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 chassis_color = "blue"
 accent_color = "silver"
-rails = Array[ExtResource("4_h1q1c")]([SubResource("Resource_gf4e3")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_nfnc1")]([SubResource("Resource_3mthe")])

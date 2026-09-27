@@ -26,10 +26,6 @@ const ELEMENT_TIER_BAND: Dictionary = {
 	"plasma": {"lo": 5, "hi": 6},
 }
 
-const ELITE_TP_MULTIPLIER: float = 2.5
-const BOSS_TP_MULTIPLIER: float = 8.0
-const ELITE_WEAPON_ROTATION: Array[String] = ["laser_prong", "egg", "droid_bay", "deployment_ramp", "turret_ring", "explosives", "rocket_launcher", "poison_cloud"]
-
 ## --- The manifest -----------------------------------------------------
 
 static func roster_manifest() -> Array[Dictionary]:

@@ -99,9 +99,11 @@ func _run() -> void:
 		for slot: SlotDefinition in s.rails[1].slots: slot.set_piece = "not_a_piece")
 	_expect("player_t3", "SLOT-BUDGET", "a secondary weapon in the primary mount", func(s: ShipDefinition) -> void: s.rails[0].slots[0].set_piece = "shell_pair")
 	_expect("player_t3", "SLOT-BUDGET", "three passives at tier 3", func(s: ShipDefinition) -> void: s.passives = ["radar", "magnet", "thrusters"])
-	# Four pods alone is 127 circles - legal, by one. Five-circle pieces everywhere is 145.
-	_expect("boss", "C-BUDGET", "four pods and a five-circle piece on every boss hub", func(s: ShipDefinition) -> void:
+	# Dense eight-slot rails exceed the shader budget even with the smaller weapon glyphs.
+	_expect("boss", "C-BUDGET", "eight slots and four pods on every boss hub", func(s: ShipDefinition) -> void:
 		for rail: RailDefinition in s.rails:
+			rail.order = 8
+			while rail.slots.size() < 8: rail.slots.append(rail.slots[-1].duplicate())
 			for slot: SlotDefinition in rail.slots:
 				if slot.type == "hub":
 					slot.pods = 4

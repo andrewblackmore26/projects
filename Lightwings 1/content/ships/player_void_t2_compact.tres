@@ -1,44 +1,48 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_nf21n"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_jl0in"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_hn7tl"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_2row4"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_bp0su"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_65ueg"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_rg05f"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_8l38j"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_usfyd"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_indwm"]
 
-[sub_resource type="Resource" id="Resource_fimp6"]
-script = ExtResource("1_nf21n")
+[sub_resource type="Resource" id="Resource_lt8wc"]
+script = ExtResource("1_65ueg")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "twin_barrel"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_b8b67"]
-script = ExtResource("1_nf21n")
+[sub_resource type="Resource" id="Resource_gpdbs"]
+script = ExtResource("1_65ueg")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "shell_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_0c43l"]
-script = ExtResource("1_nf21n")
+[sub_resource type="Resource" id="Resource_4n0aw"]
+script = ExtResource("1_65ueg")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "shell_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_uo171"]
-script = ExtResource("4_2row4")
-slots = Array[ExtResource("1_nf21n")]([SubResource("Resource_fimp6"), SubResource("Resource_b8b67"), SubResource("Resource_0c43l")])
+[sub_resource type="Resource" id="Resource_ek1f8"]
+script = ExtResource("4_usfyd")
+slots = Array[ExtResource("1_65ueg")]([SubResource("Resource_lt8wc"), SubResource("Resource_gpdbs"), SubResource("Resource_4n0aw")])
 
 [resource]
-script = ExtResource("5_bp0su")
+script = ExtResource("5_indwm")
 id = "player_void_t2_compact"
 display_name = "Void T2 Compact"
 element = "void"
 tier = 2
 description = "seed 121295"
 schema_version = 4
+geometry_revision = 3
 role = "compact"
 family = "compact"
 speed = 300.0
@@ -48,4 +52,5 @@ drag = 16.0
 hp_buffer = 0.8
 chassis_color = "blue"
 accent_color = "silver"
-rails = Array[ExtResource("4_2row4")]([SubResource("Resource_uo171")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_usfyd")]([SubResource("Resource_ek1f8")])

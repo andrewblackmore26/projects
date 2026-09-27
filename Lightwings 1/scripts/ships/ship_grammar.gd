@@ -98,7 +98,7 @@ const RULES: Dictionary = {
 	"C-BUDGET": "at most 128 circles and 512 lines",
 	"C-LADDER": "every compiled circle is on the ladder, every ring on a rail radius",
 	"C-COLOUR": "every compiled part is chassis or accent coloured",
-	"C-GRAPH": "one core, every circle reaches it, every line ends on two circles",
+	"C-GRAPH": "valid motion ancestry and a real connector path to core; guides never anchor structure",
 	"C-POS": "every cluster root sits on its rail at its slot angle",
 }
 
@@ -155,6 +155,7 @@ static func is_irregular(ship: ShipDefinition) -> bool:
 
 static func _validate_header(ship: ShipDefinition, errors: PackedStringArray) -> void:
 	if ship.schema_version != 4: errors.append("SCHEMA: schema_version is %d, not 4" % ship.schema_version)
+	if ship.geometry_revision < 1 or ship.geometry_revision > 3: errors.append("SCHEMA: unsupported geometry revision %d" % ship.geometry_revision)
 	if ship.id.is_empty() or not ship.id.is_valid_filename() or ship.id.contains("."): errors.append("SCHEMA: id '%s' is not filename-safe" % ship.id)
 	if not FACTIONS.has(ship.faction): errors.append("SCHEMA: unknown faction '%s'" % ship.faction)
 	if ship.tier < 1 or ship.tier > GameTuning.MAX_TIER: errors.append("SCHEMA: tier %d" % ship.tier)
@@ -166,6 +167,14 @@ static func _validate_header(ship: ShipDefinition, errors: PackedStringArray) ->
 	if player and ship.chassis_color != Elements.PLAYER_COLOR_KEY: errors.append("COLOUR-BLUE: a player's chassis is blue, not '%s'" % ship.chassis_color)
 	if not player and (ship.chassis_color == Elements.PLAYER_COLOR_KEY or ship.accent_color == Elements.PLAYER_COLOR_KEY): errors.append("COLOUR-BLUE: blue on a %s" % ship.faction)
 	if ship.core_depth < 2 or ship.core_depth > 4: errors.append("CORE: depth %d" % ship.core_depth)
+	if not ship.core_radii.is_empty() and ship.core_radii.size() != ship.core_depth - 1: errors.append("CORE: explicit rings must match depth")
+	var previous_radius: float = 100.0
+	for radius: float in ship.core_radii:
+		if not is_finite(radius) or radius <= 0.0 or radius >= previous_radius: errors.append("CORE: ring radii must be positive and descend")
+		previous_radius = radius
+	if not is_finite(ship.core_dot_radius) or ship.core_dot_radius <= 0.0 or ship.core_dot_radius > 10.0: errors.append("CORE: invalid eye radius")
+	if not ship.core_dot_color in ["", "white"]: errors.append("CORE: invalid eye colour")
+	if not ship.chain_mode in ["rigid", "sway", "whip", "follow"] or not is_finite(ship.chain_spacing) or ship.chain_spacing <= 0.0 or not is_finite(ship.chain_head_spacing) or ship.chain_head_spacing < -1.0: errors.append("CORE: invalid chain profile")
 	if ship.core_weapon != "" and player: errors.append("CORE: a player mounts its primary on a rail, not the core")
 	if ship.core_weapon == "" and not player and ship.archetype != "chain" and ship.archetype != "drone": errors.append("CORE: a %s carries its main weapon in the core" % ship.archetype)
 
@@ -197,6 +206,13 @@ static func _validate_rails(ship: ShipDefinition, errors: PackedStringArray) -> 
 	for i: int in range(ship.chain_links.size()): _validate_slot(ship.chain_links[i], "chain link %d" % i, errors)
 
 static func _validate_slot(slot: SlotDefinition, where: String, errors: PackedStringArray) -> void:
+	for value: float in [slot.radius_override, slot.mark_radius]:
+		if not is_finite(value) or value < 0.0 or value > 34.0: errors.append("SLOT: %s has invalid explicit radius" % where)
+	if not is_finite(slot.phase_offset) or not is_finite(slot.pod_hp_radius) or slot.pod_hp_radius < -1.0: errors.append("SLOT: %s has invalid phase or pod armour" % where)
+	if not is_finite(slot.pod_spacing) or slot.pod_spacing <= 0.0 or slot.pod_spacing > PI * 0.5:
+		errors.append("SLOT: %s has invalid pod spacing" % where)
+	if not is_finite(slot.hp_fixed) or not is_finite(slot.hp_radius) or slot.hp_fixed < 0.0 or slot.hp_radius < -1.0:
+		errors.append("SLOT: %s has an invalid armour budget" % where)
 	if not ["hub", "node", "stub"].has(slot.type): errors.append("SLOT: %s is a '%s'" % [where, slot.type])
 	if slot.type == "hub" and (slot.pods < 1 or slot.pods > MAX_PODS): errors.append("SLOT: %s has %d pods" % [where, slot.pods])
 	if slot.type != "hub" and (slot.pods != 0 or slot.set_piece != "" or slot.mount != ""): errors.append("SLOT: %s is a %s carrying pods, a set piece or a mount" % [where, slot.type])
@@ -205,7 +221,7 @@ static func _validate_slot(slot: SlotDefinition, where: String, errors: PackedSt
 
 ## One slot's identity for symmetry. Set pieces count: "filled identically" (spec §5).
 static func _slot_key(slot: SlotDefinition) -> String:
-	return "%s/%d/%d/%s" % [slot.type, slot.node_radius if slot.type == "node" else 0, slot.pods, slot.set_piece]
+	return "%s/%d/%d/%.4f/%s" % [slot.type, slot.node_radius if slot.type == "node" else 0, slot.pods, slot.pod_spacing, slot.set_piece]
 
 static func _validate_symmetry(ship: ShipDefinition, errors: PackedStringArray) -> void:
 	var player: bool = ship.faction == "player"
@@ -273,16 +289,33 @@ static func validate_compiled(ship: ShipDefinition) -> PackedStringArray:
 	if ship.accent_color != "": allowed.append(ship.accent_color)
 	var by_id: Dictionary = {}
 	for part: PartDefinition in ship.parts:
-		if part.shape == "circle": by_id[part.id] = part
+		if part.shape == "circle":
+			if by_id.has(part.id): errors.append("C-GRAPH: duplicate circle %s" % part.id)
+			by_id[part.id] = part
 	if not by_id.has("core"): errors.append("C-GRAPH: no core")
+	var connected: Dictionary = {}
+	for id: String in by_id: connected[id] = []
 	for part: PartDefinition in ship.parts:
 		if not allowed.has(part.color_role): errors.append("C-COLOUR: %s is %s" % [part.id, part.color_role])
 		if part.shape == "line":
-			if not by_id.has(part.from_id) or not by_id.has(part.to_id) or part.from_id == part.to_id: errors.append("C-GRAPH: line %s runs %s -> %s" % [part.id, part.from_id, part.to_id])
+			if not by_id.has(part.from_id) or not by_id.has(part.to_id) or part.from_id == part.to_id:
+				errors.append("C-GRAPH: line %s runs %s -> %s" % [part.id, part.from_id, part.to_id])
+			elif by_id[part.from_id].style == 5 or by_id[part.to_id].style == 5:
+				errors.append("C-GRAPH: line %s anchors on an orbit guide" % part.id)
+			else:
+				connected[part.from_id].append(part.to_id)
+				connected[part.to_id].append(part.from_id)
 			continue
 		var ring: bool = part.style == 5
 		if ring and not RAIL_RADII.has(int(round(part.radius))): errors.append("C-LADDER: rail ring %s has radius %.1f" % [part.id, part.radius])
-		if not ring and not on_ladder(part.radius): errors.append("C-LADDER: %s has radius %.1f" % [part.id, part.radius])
+		if not ring and not on_ladder(part.radius) and not _authored_radius(ship, part): errors.append("C-LADDER: %s has radius %.1f" % [part.id, part.radius])
+		if part.integrated_host != "":
+			var host: PartDefinition = by_id.get(part.integrated_host)
+			if part.solid or ring or host == null or host.style == 5 or host.id == part.id or part.position.distance_to(host.position) > 0.001:
+				errors.append("C-GRAPH: %s is not a concentric host marking" % part.id)
+			else:
+				connected[part.id].append(host.id)
+				connected[host.id].append(part.id)
 		if part.id != "core":
 			var hops: int = 0
 			var at: String = part.parent_id
@@ -290,12 +323,27 @@ static func validate_compiled(ship: ShipDefinition) -> PackedStringArray:
 				at = (by_id[at] as PartDefinition).parent_id
 				hops += 1
 			if at != "core": errors.append("C-GRAPH: %s does not reach the core" % part.id)
+	var reached: Dictionary = {"core": true}
+	var pending: Array[String] = ["core"]
+	while not pending.is_empty():
+		var next: String = pending.pop_back()
+		for neighbour: String in connected.get(next, []):
+			if not reached.has(neighbour):
+				reached[neighbour] = true
+				pending.append(neighbour)
+	for id: String in by_id:
+		if by_id[id].style != 5 and not reached.has(id): errors.append("C-GRAPH: %s has no structural line path to core" % id)
+	for source: Variant in ship.removed_part_map:
+		var target: String = str(ship.removed_part_map[source])
+		if ship.geometry_revision < 2 or not source is String or by_id.has(source) or not by_id.has(target) or not (by_id[target] as PartDefinition).solid or target == "core":
+			errors.append("C-GRAPH: invalid removed-part mapping %s -> %s" % [str(source), target])
 	for r: int in range(ship.rails.size()):
 		var rail: RailDefinition = ship.rails[r]
 		for j: int in range(rail.slots.size()):
 			if not rail.slots[j].is_occupied(): continue
 			var root: PartDefinition = by_id.get("r%ds%d" % [r + 1, j])
-			var expected: Vector2 = rail.offset + Vector2(sin(rail.phase + float(j) * TAU / float(rail.order)), -cos(rail.phase + float(j) * TAU / float(rail.order))) * float(rail.radius)
+			var angle: float = rail.phase + float(j) * TAU / float(rail.order) + rail.slots[j].phase_offset
+			var expected: Vector2 = rail.offset + Vector2(sin(angle), -cos(angle)) * float(rail.radius)
 			if root == null or root.position.distance_to(expected) > 0.01: errors.append("C-POS: rail %d slot %d is off its rail" % [r + 1, j])
 	return errors
 
@@ -305,7 +353,7 @@ static func warnings(ship: ShipDefinition) -> PackedStringArray:
 	var target: Dictionary = ARCHETYPE_TABLE.get(ship.archetype, {}) if ship.faction != "player" else {}
 	if target.is_empty(): return notes
 	if ship.rails.size() != int(target.rails): notes.append("%s has %d rails; the archetype table says %d" % [ship.id, ship.rails.size(), target.rails])
-	if ship.core_depth != int(target.core) and not (ship.archetype == "irregular_elite" and ship.core_depth == 4): notes.append("%s has core depth %d; the archetype table says %d" % [ship.id, ship.core_depth, target.core])
+	if ship.core_depth != int(target.core) and not (ship.archetype == "irregular_elite" and ship.core_depth == 4) and not (ship.archetype == "chain" and ship.chain_head_lobes and ship.core_depth == 3): notes.append("%s has core depth %d; the archetype table says %d" % [ship.id, ship.core_depth, target.core])
 	var pieces: int = mounted_pieces(ship).size()
 	if pieces < int(target.pieces_min) or pieces > int(target.pieces_max): notes.append("%s mounts %d set pieces; the archetype table says %d..%d" % [ship.id, pieces, target.pieces_min, target.pieces_max])
 	return notes
@@ -317,7 +365,7 @@ const ARCHETYPE_TABLE: Dictionary = {
 	"sentry": {"core": 2, "rails": 1, "orders": [4], "pieces_min": 1, "pieces_max": 3},
 	"radial_elite": {"core": 3, "rails": 2, "orders": [4, 3], "pieces_min": 3, "pieces_max": 4},
 	"heavy_elite": {"core": 4, "rails": 3, "orders": [6, 4, 3], "pieces_min": 8, "pieces_max": 8},
-	"irregular_elite": {"core": 3, "rails": 3, "orders": [], "pieces_min": 6, "pieces_max": 12},
+	"irregular_elite": {"core": 3, "rails": 3, "orders": [], "pieces_min": 6, "pieces_max": 14},
 	"chain": {"core": 2, "rails": 0, "orders": [], "pieces_min": 2, "pieces_max": 4},
 	"boss": {"core": 4, "rails": 4, "orders": [8, 6, 4, 3], "pieces_min": 14, "pieces_max": 20},
 }
@@ -326,15 +374,17 @@ const ARCHETYPE_TABLE: Dictionary = {
 
 ## Reads the spec's §10 shape. Strict about what it does not know: an unknown key is an error,
 ## because positions are derived and a file that tries to author one must not be read as if it had.
-const SHIP_KEYS: Array[String] = ["schema_version", "id", "name", "faction", "archetype", "tier", "role", "family", "element", "chassis_color", "accent_color", "core_depth", "core_stack", "core_dot", "core_weapon", "passives", "rails", "chain", "chain_mode", "description"]
+const SHIP_KEYS: Array[String] = ["schema_version", "geometry_revision", "removed_part_map", "id", "name", "faction", "archetype", "tier", "role", "family", "element", "chassis_color", "accent_color", "core_depth", "core_stack", "core_dot", "core_weapon", "passives", "rails", "chain", "chain_mode", "description", "core_radii", "core_dot_radius", "core_dot_color", "chain_head_lobes", "chain_spacing", "chain_head_spacing"]
 const RAIL_KEYS: Array[String] = ["radius", "order", "speed", "phase", "pump_phase", "pump_amp", "reach_ring", "offset", "slots"]
-const SLOT_KEYS: Array[String] = ["type", "radius", "pods", "set_piece", "mount", "hp", "feature", "bob_amp"]
+const SLOT_KEYS: Array[String] = ["type", "radius", "pods", "pod_spacing", "set_piece", "mount", "hp", "hp_fixed", "hp_radius", "feature", "bob_amp", "radius_override", "phase_offset", "mark_radius", "pod_hp_radius"]
 
 static func from_dict(data: Dictionary, errors: PackedStringArray) -> ShipDefinition:
 	for key: String in data:
 		if not SHIP_KEYS.has(key): errors.append("JSON: unknown ship key '%s'" % key)
 	var ship: ShipDefinition = ShipDefinition.new()
 	ship.schema_version = 4
+	ship.geometry_revision = int(data.get("geometry_revision", 1))
+	ship.removed_part_map = (data.get("removed_part_map", {}) as Dictionary).duplicate()
 	ship.id = str(data.get("id", ""))
 	ship.display_name = str(data.get("name", ship.id))
 	ship.description = str(data.get("description", ""))
@@ -350,6 +400,12 @@ static func from_dict(data: Dictionary, errors: PackedStringArray) -> ShipDefini
 	ship.core_depth = int(data.get("core_depth", (data.get("core_stack", [34]) as Array).size() + 1))
 	ship.core_weapon = str(data.get("core_weapon", ""))
 	ship.chain_mode = str(data.get("chain_mode", "sway"))
+	ship.core_radii = PackedFloat32Array(data.get("core_radii", []))
+	ship.core_dot_radius = float(data.get("core_dot_radius", 5.0))
+	ship.core_dot_color = str(data.get("core_dot_color", ""))
+	ship.chain_head_lobes = bool(data.get("chain_head_lobes", false))
+	ship.chain_spacing = float(data.get("chain_spacing", 30.0))
+	ship.chain_head_spacing = float(data.get("chain_head_spacing", -1.0))
 	var passives: Array[String] = []
 	for passive: Variant in data.get("passives", []): passives.append(str(passive))
 	ship.passives = passives
@@ -390,9 +446,16 @@ static func _slot_from(value: Variant, errors: PackedStringArray) -> SlotDefinit
 	slot.type = str(source.get("type", "stub"))
 	slot.node_radius = int(source.get("radius", 4))
 	slot.pods = int(source.get("pods", 0))
+	slot.pod_spacing = float(source.get("pod_spacing", POD_SPACING))
+	slot.radius_override = float(source.get("radius_override", 0.0))
+	slot.phase_offset = float(source.get("phase_offset", 0.0))
+	slot.mark_radius = float(source.get("mark_radius", 0.0))
+	slot.pod_hp_radius = float(source.get("pod_hp_radius", -1.0))
 	slot.set_piece = str(source.get("set_piece", ""))
 	slot.mount = str(source.get("mount", ""))
 	slot.hp = float(source.get("hp", 0.0))
+	slot.hp_fixed = float(source.get("hp_fixed", 0.0))
+	slot.hp_radius = float(source.get("hp_radius", -1.0))
 	slot.feature = str(source.get("feature", ""))
 	slot.bob_amp = float(source.get("bob_amp", -1.0))
 	return slot
@@ -407,4 +470,19 @@ static func load_json(path: String, errors: PackedStringArray) -> ShipDefinition
 static func on_ladder(radius: float) -> bool:
 	for value: int in LADDER.values():
 		if is_equal_approx(radius, float(value)): return true
+	return false
+
+static func _authored_radius(ship: ShipDefinition, part: PartDefinition) -> bool:
+	if part.id == "core" or part.id.begins_with("core_"):
+		for radius: float in ship.core_radii:
+			if is_equal_approx(radius, part.radius): return true
+	if ship.chain_head_lobes and part.id.begins_with("head_lobe") and is_equal_approx(part.radius, 11.0): return true
+	var slots: Dictionary = {}
+	for r: int in range(ship.rails.size()):
+		for j: int in range(ship.rails[r].slots.size()): slots["r%ds%d" % [r + 1, j]] = ship.rails[r].slots[j]
+	for i: int in range(ship.chain_links.size()): slots["c%d" % i] = ship.chain_links[i]
+	for id: String in slots:
+		var slot: SlotDefinition = slots[id]
+		if part.id == id and slot.radius_override > 0.0 and is_equal_approx(part.radius, slot.radius_override): return true
+		if part.id == id + "_mark" and slot.mark_radius > 0.0 and is_equal_approx(part.radius, slot.mark_radius): return true
 	return false

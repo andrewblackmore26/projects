@@ -1,39 +1,41 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_7fm0t"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_73gq8"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_dq8cm"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_rnok6"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_515m7"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_sxm6v"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_j0g57"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_cjhiy"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ree0k"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_ak1wm"]
 
-[sub_resource type="Resource" id="Resource_yvua5"]
-script = ExtResource("1_7fm0t")
+[sub_resource type="Resource" id="Resource_wrh1p"]
+script = ExtResource("1_sxm6v")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_h64y2"]
-script = ExtResource("1_7fm0t")
+[sub_resource type="Resource" id="Resource_3gg6d"]
+script = ExtResource("1_sxm6v")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_fu25d"]
-script = ExtResource("1_7fm0t")
+[sub_resource type="Resource" id="Resource_7ilal"]
+script = ExtResource("1_sxm6v")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_vi0cw"]
-script = ExtResource("4_rnok6")
+[sub_resource type="Resource" id="Resource_28o1g"]
+script = ExtResource("4_ree0k")
 speed = -0.8735
 phase = 0.8712
-slots = Array[ExtResource("1_7fm0t")]([SubResource("Resource_yvua5"), SubResource("Resource_h64y2"), SubResource("Resource_fu25d")])
+slots = Array[ExtResource("1_sxm6v")]([SubResource("Resource_wrh1p"), SubResource("Resource_3gg6d"), SubResource("Resource_7ilal")])
 
 [resource]
-script = ExtResource("5_515m7")
+script = ExtResource("5_ak1wm")
 id = "enemy_drone_corruption_t4"
 display_name = "Corruption Drone T4"
 tier = 4
 description = "seed 902998"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "green"
+core_radii = PackedFloat32Array()
 core_weapon = "sac_cluster"
 archetype = "drone"
-rails = Array[ExtResource("4_rnok6")]([SubResource("Resource_vi0cw")])
+rails = Array[ExtResource("4_ree0k")]([SubResource("Resource_28o1g")])

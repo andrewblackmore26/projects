@@ -49,9 +49,7 @@ func attach(combat: CombatWorld) -> void:
 		background_environment = Environment.new()
 		background_environment.background_mode = Environment.BG_CANVAS
 		background_environment.glow_enabled = true
-		background_environment.glow_hdr_threshold = 1.0
-		background_environment.glow_intensity = 1.5
-		background_environment.glow_strength = 0.35
+		VisualStyle.configure_glow(background_environment)
 		background_environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
 		for level: int in range(7): background_environment.set_glow_level(level, 0.6 if level == 0 else 0.0)
 	environment_node.environment = background_environment

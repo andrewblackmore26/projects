@@ -29,7 +29,7 @@ func _draw() -> void:
 	# the warp's 1.30x push - the same technique `ship_renderer.gd` uses.
 	var canvas_scale: float = canvas_scale_override if canvas_scale_override>0.0 else maxf(0.01,get_global_transform_with_canvas().get_scale().abs().x)
 	var player: Vector2 = world.player_position
-	draw_rect(Rect2(player-Vector2(800,500),Vector2(1600,1000)),Color("050507"))
+	draw_rect(Rect2(player-Vector2(800,500),Vector2(1600,1000)),VisualStyle.BG)
 	var tint: Color = ShipCatalog.get_color(str(world.sector.get("element","fire")))
 	var center: Vector2 = world.arena.center
 	var dead_limit: float = world.arena.radius+GameTuning.ARENA_MARGIN
@@ -40,10 +40,9 @@ func _draw() -> void:
 		# the spec's own 10-15% ceiling ("always below the bloom threshold") -
 		# only the ring's CONTRIBUTION within that band grows, never past it.
 		var ring: int = int(world.sector.get("ring",0))
-		var intensity: float = clampf((0.10 if layer==0 else 0.13)+float(ring)*0.0025,0.10,0.15)
-		var ink: Color = tint*intensity
-		ink.a = 1.0
-		var count: int = clampi(64+ring*6,64,160)
+		var intensity: float = clampf((0.035 if layer==0 else 0.05)+float(ring)*0.001,0.035,0.065)
+		var ink: Color = VisualStyle.BG.lerp(tint, intensity)
+		var count: int = clampi(14+ring*2,14,38)
 		for index: int in range(count):
 			var seed_point := Vector2((index*239+layer*411)%1600,(index*173+layer*237)%1000)
 			var local: Vector2 = seed_point-player*rate

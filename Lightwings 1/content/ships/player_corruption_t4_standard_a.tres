@@ -1,90 +1,97 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_7rr8x"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_4ilxj"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_cu7r6"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_3hxqt"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_6jnq0"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_78vna"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_dwocm"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_drcvk"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_xok4k"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_7j1jj"]
 
-[sub_resource type="Resource" id="Resource_lvdtc"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_f6iq0"]
+script = ExtResource("1_78vna")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_insr2"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_jkeh0"]
+script = ExtResource("1_78vna")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_7m26l"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_6q4k0"]
+script = ExtResource("1_78vna")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_o2ph0"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_og8wp"]
+script = ExtResource("1_78vna")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_7oa8r"]
-script = ExtResource("4_3hxqt")
+[sub_resource type="Resource" id="Resource_btgt6"]
+script = ExtResource("4_xok4k")
 order = 4
 speed = -0.9359
 phase = 0.7854
-slots = Array[ExtResource("1_7rr8x")]([SubResource("Resource_lvdtc"), SubResource("Resource_insr2"), SubResource("Resource_7m26l"), SubResource("Resource_o2ph0")])
+slots = Array[ExtResource("1_78vna")]([SubResource("Resource_f6iq0"), SubResource("Resource_jkeh0"), SubResource("Resource_6q4k0"), SubResource("Resource_og8wp")])
 
-[sub_resource type="Resource" id="Resource_x4bhm"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_qegtv"]
+script = ExtResource("1_78vna")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "twin_barrel"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_4e3o8"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_0arl1"]
+script = ExtResource("1_78vna")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_ynrqt"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_47l53"]
+script = ExtResource("1_78vna")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "sac_cluster"
 mount = "secondary_1"
 
-[sub_resource type="Resource" id="Resource_0i7hu"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_qrkya"]
+script = ExtResource("1_78vna")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "sac_cluster"
 mount = "secondary_1"
 
-[sub_resource type="Resource" id="Resource_d3l88"]
-script = ExtResource("1_7rr8x")
+[sub_resource type="Resource" id="Resource_4xjlh"]
+script = ExtResource("1_78vna")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_34id8"]
-script = ExtResource("4_3hxqt")
+[sub_resource type="Resource" id="Resource_ehkjy"]
+script = ExtResource("4_xok4k")
 radius = 96
 order = 5
 pump_phase = 0.9
-slots = Array[ExtResource("1_7rr8x")]([SubResource("Resource_x4bhm"), SubResource("Resource_4e3o8"), SubResource("Resource_ynrqt"), SubResource("Resource_0i7hu"), SubResource("Resource_d3l88")])
+slots = Array[ExtResource("1_78vna")]([SubResource("Resource_qegtv"), SubResource("Resource_0arl1"), SubResource("Resource_47l53"), SubResource("Resource_qrkya"), SubResource("Resource_4xjlh")])
 
 [resource]
-script = ExtResource("5_6jnq0")
+script = ExtResource("5_7j1jj")
 id = "player_corruption_t4_standard_a"
 display_name = "Corruption T4 Standard A"
 tier = 4
 description = "seed 906590"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 passives = Array[String](["siphon"])
 chassis_color = "blue"
 accent_color = "green"
 core_depth = 3
-rails = Array[ExtResource("4_3hxqt")]([SubResource("Resource_7oa8r"), SubResource("Resource_34id8")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_xok4k")]([SubResource("Resource_btgt6"), SubResource("Resource_ehkjy")])

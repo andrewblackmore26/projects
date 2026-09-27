@@ -1,52 +1,61 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_lfbpy"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_n7gwy"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_h52fp"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_rvlg1"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_jjcxh"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_yyo7v"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_8ogft"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_q844r"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_wy62f"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_7x18r"]
 
-[sub_resource type="Resource" id="Resource_2j6n2"]
-script = ExtResource("1_lfbpy")
+[sub_resource type="Resource" id="Resource_xpep1"]
+script = ExtResource("1_yyo7v")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "lens_stack"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_w4bu6"]
-script = ExtResource("1_lfbpy")
+[sub_resource type="Resource" id="Resource_o31c1"]
+script = ExtResource("1_yyo7v")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "burst_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_whfsu"]
-script = ExtResource("1_lfbpy")
+[sub_resource type="Resource" id="Resource_03218"]
+script = ExtResource("1_yyo7v")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "shell_pair"
 mount = "secondary_1"
 
-[sub_resource type="Resource" id="Resource_s883m"]
-script = ExtResource("1_lfbpy")
+[sub_resource type="Resource" id="Resource_bw05a"]
+script = ExtResource("1_yyo7v")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "burst_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_idmb6"]
-script = ExtResource("4_rvlg1")
+[sub_resource type="Resource" id="Resource_ueqs6"]
+script = ExtResource("4_wy62f")
 order = 4
-slots = Array[ExtResource("1_lfbpy")]([SubResource("Resource_2j6n2"), SubResource("Resource_w4bu6"), SubResource("Resource_whfsu"), SubResource("Resource_s883m")])
+slots = Array[ExtResource("1_yyo7v")]([SubResource("Resource_xpep1"), SubResource("Resource_o31c1"), SubResource("Resource_03218"), SubResource("Resource_bw05a")])
 
 [resource]
-script = ExtResource("5_jjcxh")
+script = ExtResource("5_7x18r")
 id = "player_fire_t2_heavy"
 display_name = "Fire T2 Heavy"
 element = "fire"
 tier = 2
 description = "seed 811705"
 schema_version = 4
+geometry_revision = 3
 role = "heavy"
 family = "heavy"
 speed = 200.0
@@ -57,4 +66,5 @@ hp_buffer = 1.3
 damage_multiplier = 1.15
 chassis_color = "blue"
 accent_color = "red"
-rails = Array[ExtResource("4_rvlg1")]([SubResource("Resource_idmb6")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_wy62f")]([SubResource("Resource_ueqs6")])

@@ -1,47 +1,96 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_6h2y6"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_1hmkv"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_6x4tv"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ov14l"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_w2taq"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_pff1o"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_7cmj2"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_b6wf2"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_gptr1"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_d1ib0"]
 
-[sub_resource type="Resource" id="Resource_ewt54"]
-script = ExtResource("1_6h2y6")
+[sub_resource type="Resource" id="Resource_tax4h"]
+script = ExtResource("1_pff1o")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 16.0
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_w5ocp"]
-script = ExtResource("1_6h2y6")
+[sub_resource type="Resource" id="Resource_r1ult"]
+script = ExtResource("1_pff1o")
 type = "node"
 node_radius = 7
+radius_override = 14.9
+mark_radius = 4.47
+hp_radius = 3.595174262734584
 
-[sub_resource type="Resource" id="Resource_841rb"]
-script = ExtResource("1_6h2y6")
+[sub_resource type="Resource" id="Resource_cm5t5"]
+script = ExtResource("1_pff1o")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 13.8
+pod_hp_radius = 4.666666666666667
 set_piece = "pull_cage"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_155r8"]
-script = ExtResource("1_6h2y6")
+[sub_resource type="Resource" id="Resource_b8y7v"]
+script = ExtResource("1_pff1o")
 type = "node"
 node_radius = 7
+radius_override = 12.7
+hp_radius = 3.0643431635388736
 
-[sub_resource type="Resource" id="Resource_gp1ge"]
-script = ExtResource("1_6h2y6")
+[sub_resource type="Resource" id="Resource_7vscf"]
+script = ExtResource("1_pff1o")
 type = "node"
+radius_override = 11.6
+mark_radius = 3.48
+hp_radius = 2.7989276139410184
+
+[sub_resource type="Resource" id="Resource_mcosu"]
+script = ExtResource("1_pff1o")
+type = "node"
+node_radius = 7
+radius_override = 10.5
+hp_radius = 2.5335120643431632
+
+[sub_resource type="Resource" id="Resource_n5ni0"]
+script = ExtResource("1_pff1o")
+type = "node"
+node_radius = 7
+radius_override = 9.399999999999999
+hp_radius = 2.268096514745308
+
+[sub_resource type="Resource" id="Resource_cy0j0"]
+script = ExtResource("1_pff1o")
+type = "node"
+node_radius = 7
+radius_override = 8.299999999999999
+mark_radius = 2.4899999999999998
+hp_radius = 2.0026809651474524
+
+[sub_resource type="Resource" id="Resource_4tl1g"]
+script = ExtResource("1_pff1o")
+type = "node"
+node_radius = 7
+radius_override = 7.199999999999999
+hp_radius = 1.7372654155495977
 
 [resource]
-script = ExtResource("5_w2taq")
+script = ExtResource("5_d1ib0")
 id = "enemy_chain_void_t5"
 display_name = "Void Chain T5"
 element = "void"
 tier = 5
 description = "seed 572255"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "silver"
+core_depth = 3
+core_radii = PackedFloat32Array(22, 9)
+chain_head_lobes = true
+chain_head_spacing = 30.0
 archetype = "chain"
-chain_links = Array[ExtResource("1_6h2y6")]([SubResource("Resource_ewt54"), SubResource("Resource_w5ocp"), SubResource("Resource_841rb"), SubResource("Resource_155r8"), SubResource("Resource_gp1ge")])
+chain_links = Array[ExtResource("1_pff1o")]([SubResource("Resource_tax4h"), SubResource("Resource_r1ult"), SubResource("Resource_cm5t5"), SubResource("Resource_b8y7v"), SubResource("Resource_7vscf"), SubResource("Resource_mcosu"), SubResource("Resource_n5ni0"), SubResource("Resource_cy0j0"), SubResource("Resource_4tl1g")])
+chain_mode = "follow"

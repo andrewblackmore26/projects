@@ -1,5 +1,23 @@
 # Lightship v0.2 → v0.3 — build plan
 
+## Review — living ships, 2026-09-27
+
+The current approved direction restores saturated reference colours, independently
+travelling rim lights, detailed connected anatomy, historical chain following and
+weapon-specific projectile treatment. It supersedes the earlier restrained
+presentation below. Revision 3 applies to new spawns and evolution; existing
+revision-1/2 saves retain their historical component state and anatomy. The menu
+layout and quiet audio remain. See [living ships validation](../docs/VALIDATION_LIVING_SHIPS_2026-09-27.md)
+for captures, compatibility checks, combat differences and current gate results.
+
+## Historical review — presentation redesign, 2026-09-27
+
+The user-approved visual/audio plan supersedes the historical travelling-light, guide-supported-spoke and minimum-density requirements below. The shared renderer, 146-hull rebuild, structural connectivity validation, geometry save migration, menu/UI and quiet audio are implemented on the existing working tree. See [the current validation record](../docs/VALIDATION_PRESENTATION_2026-09-27.md) for measured evidence and limits.
+
+Retired assertions: saturated ship rims now check shared restrained tokens while projectiles retain their bright palette; moving white highlights now check steady idle rims; minimum circle targets now check upper clutter budgets; guide duty checks use the subdued dotted guide; routine impact tests require compact feedback while destruction keeps fragments. The golden trace was re-recorded after checking the first changed field (`new_game.snapshot`) and the full fixture diff; final digest `7be208fb716b5466`.
+
+The remaining sections document earlier work.
+
 Spec: `docs/LIGHTSHIP_GAME_SPEC_V3.md` (v0.3, with the approved-scope preamble).
 Plan approved 2026-09-20. Branch `lightship-v0.3`; baseline commit `045d409` is the untouched v0.2 build.
 
@@ -1056,3 +1074,9 @@ Note: no `## Review — P4a` section exists above (P4a's own numbers were folded
 | S7 | `combat_tests.gd` "All 26 specified components have canonical metadata" | The ship design spec's catalogue adds twenty weapons | Restated as 46, exact |
 | S7 | `ships_validation.gd` "Shipped roster exposes <component>" for EVERY non-enemy ability | The twenty new weapons are mounted by no v0.3 hull on purpose; they reach the game with the rail roster at the cutover | The line still holds the v0.3 roster to the v0.3 components, and now also asserts that no v0.3 hull mounts a new one; the rail roster's own coverage is `ship_library_test` (S10) |
 | S0 | `acceptance_bot.gd` `light_chasing_faster_than_indifferent` (median chaser < median indifferent) | Medians folded capped runs in; its control compared two indifferent walks on different seeds | `light_chasing_unlocks_at_least_as_often` (16 vs 5 of 20) and `light_chasing_sooner_in_more_seeds` (12 / 0 / 8 ties), paired per seed; control pairs the indifferent walk with itself |
+
+### Geometry revision 3 golden trace audit — 2026-09-27
+
+Re-recorded the twelve-step trace for the approved living anatomy and projectile presentation. `tools/audit_geometry_trace.gd` reconstructs every previous revision-2 hash exactly after removing the new saved `hull_definition`/`chain_motion` fields and restoring only the old projectile drawn radius (`vr`, not its collider). The diagnostic writes full snapshots to `artifacts/geometry_trace_audit.json`; it does not modify the expected fixture.
+
+Revision 3 changes the per-circle maps and saved authored geometry. All public trace fields remain equal except `corruption_motion_group.light`, which changes from 89.5707 to 99.0: the following chain's moved weapon attaches its virus to the enemy drone instead of the player. The unchanged 35.36 damage/second over 0.2666667 seconds removes 9.429333 HP from that drone (52 → 42.570667), accounting for the player's exact light difference. Positions, aims, offers, campaign/profile digests, actor counts and projectile counts remain equal. The new final snapshot is `d0c55ea000489c83`. Same-route repeatability and the reversed-movement negative control remain active.

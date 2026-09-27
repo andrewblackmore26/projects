@@ -121,10 +121,10 @@ func _process(delta: float) -> void:
 	if _mesh_instance != null:
 		_mesh_instance.visible = not hull_only and reshape_remaining <= 0
 		if _mesh_instance.visible:
-			# A rail hull's shine and core pulse run from the SIM tick when there is one: they freeze
+			# A rail hull's core pulse runs from the SIM tick when there is one: it freezes
 			# when the sim does, and a pixel test can pin them. v0.3 hulls keep the wall clock.
-			var shine_time: float = float(motion_tick) / 60.0 if _tick_driven and definition.is_rail_hull() else animation_time
-			_mesh_material.set_shader_parameter("visual_time", shine_time)
+			var pulse_time: float = float(motion_tick) / 60.0 if _tick_driven and definition.is_rail_hull() else animation_time
+			_mesh_material.set_shader_parameter("visual_time", pulse_time)
 			if _last_show_core != show_core:
 				_mesh_material.set_shader_parameter("show_core", show_core)
 				_last_show_core = show_core
@@ -186,10 +186,11 @@ func _build_mesh() -> void:
 	# Rail hull (spec §4.1): the enemy's dot is its accent, or its chassis when it has none.
 	if definition.is_rail_hull() and not definition.is_player:
 		dot = ShipCatalog.get_color(definition.accent_color if definition.accent_color != "" else definition.chassis_color)
+	if definition.core_dot_color != "": dot = ShipCatalog.get_color(definition.core_dot_color)
 	_mesh_material.set_shader_parameter("core_color", dot)
 	var rail_hull: bool = definition.is_rail_hull()
-	_mesh_material.set_shader_parameter("core_pulse", float(ShipGrammar.MOTION.core_pulse_amp) if rail_hull else 0.0)
-	_mesh_material.set_shader_parameter("core_pulse_freq", float(ShipGrammar.MOTION.core_pulse_freq))
+	VisualStyle.configure_ship_material(_mesh_material)
+	_mesh_material.set_shader_parameter("core_pulse", VisualStyle.CORE_PULSE if rail_hull else 0.0)
 	_mesh_material.set_shader_parameter("core_quad", ShipMesh.core_quad_radius(definition) + 0.75 if rail_hull else 0.0)
 	_mesh_material.set_shader_parameter("core_radius", definition.core_radius)
 	_mesh_material.set_shader_parameter("show_core", show_core)
@@ -299,7 +300,7 @@ func _draw() -> void:
 		_draw_part(part, factor, canvas_scale)
 	if show_core:
 		var core: Color = Color.WHITE if definition.is_player else ShipCatalog.get_color(definition.element)
-		var boost: float = 1.8 * (1.0 + 0.1 * (0.5 - 0.5 * cos(animation_time * PI)) if evolution_ready else 1.0)
+		var boost: float = 1.15 * (1.0 + 0.1 * (0.5 - 0.5 * cos(animation_time * PI)) if evolution_ready else 1.0)
 		core = _emission(core, boost)
 		draw_circle(Vector2.ZERO, definition.core_radius / canvas_scale, core, true, -1, true)
 	_record_draw(started)
@@ -358,32 +359,29 @@ func _draw_part(part: PartDefinition, factor: float, canvas_scale: float) -> voi
 	if role == "chassis": role = "player" if definition.is_player else definition.element
 	var stroke: Color = ShipCatalog.get_color(role)
 	var fill: Color = ShipCatalog.FILLS.get(role, Color("062a12"))
-	if definition.element == "void": fill = Color.BLACK
+	if definition.element == "void" and not definition.is_rail_hull(): fill = Color.BLACK
 	if part.layer != 0 and part.shape == "circle" and part.filled:
 		var polygon: PackedVector2Array = points.duplicate()
 		if polygon.size() > 2 and polygon[0].is_equal_approx(polygon[-1]): polygon.remove_at(polygon.size() - 1)
 		if polygon.size() >= 3:
 			draw_colored_polygon(polygon, fill)
-	var width: float = (2.0 if part.shape == "line" else 1.5) / canvas_scale
-	if part.dashed or part.layer == 0:
+	var width: float = (VisualStyle.CONNECTOR_WIDTH if part.shape == "line" else VisualStyle.STROKE_WIDTH) / canvas_scale
+	if part.dashed or part.layer == 0 or part.style == 5:
 		var total: float = distances[-1]
 		var cursor: float = 0.0
 		while cursor < total:
-			var dash: PackedVector2Array = ShipGeometry.section(points, distances, cursor, minf(total, cursor + 2.0 / canvas_scale))
-			if dash.size() >= 2: draw_polyline(dash, Color(stroke, 0.5), 1.0 / canvas_scale, true)
-			cursor += 6.0 / canvas_scale
+			var dash: PackedVector2Array = ShipGeometry.section(points, distances, cursor, minf(total, cursor + VisualStyle.GUIDE_DASH / canvas_scale))
+			if dash.size() >= 2: draw_polyline(dash, Color(stroke, VisualStyle.GUIDE_OPACITY), VisualStyle.GUIDE_WIDTH / canvas_scale, true)
+			cursor += VisualStyle.GUIDE_PERIOD / canvas_scale
 	else:
-		draw_polyline(points, stroke * 0.96, width, true)
-	var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
-	light = _emission(light, 1.8)
-	var perimeter: float = distances[-1]
-	if perimeter < 0.001:
-		return
-	var start: float = running_phase(part) * perimeter
-	var finish: float = start + perimeter * 0.13
-	_draw_segment(points, distances, start, minf(finish, perimeter), light, 2.6 / canvas_scale)
-	if finish > perimeter:
-		_draw_segment(points, distances, 0.0, finish - perimeter, light, 2.6 / canvas_scale)
+		draw_polyline(points, Color(stroke, VisualStyle.CONNECTOR_OPACITY if part.shape == "line" else 1.0), width, true)
+		if part.shape == "circle":
+			var perimeter: float = distances[-1]
+			var start: float = running_phase(part) * perimeter
+			var finish: float = start + perimeter * VisualStyle.LIGHT_FRACTION
+			var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
+			_draw_segment(points, distances, start, minf(perimeter, finish), light, VisualStyle.LIGHT_WIDTH / canvas_scale)
+			if finish > perimeter: _draw_segment(points, distances, 0.0, finish - perimeter, light, VisualStyle.LIGHT_WIDTH / canvas_scale)
 
 func _emission(tint: Color, boost: float) -> Color:
 	# Immediate canvas colors are sRGB; the mesh shader emits linear HDR values.

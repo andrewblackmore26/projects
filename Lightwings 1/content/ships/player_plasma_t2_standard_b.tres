@@ -1,57 +1,62 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_yf4qj"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_lhifj"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_31l1a"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_xulof"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_2g6vh"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_vpcvr"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_8b8kb"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_fhvnu"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_t311n"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_gopgh"]
 
-[sub_resource type="Resource" id="Resource_5dawl"]
-script = ExtResource("1_yf4qj")
+[sub_resource type="Resource" id="Resource_ul411"]
+script = ExtResource("1_vpcvr")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "twin_barrel"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_k2s16"]
-script = ExtResource("1_yf4qj")
+[sub_resource type="Resource" id="Resource_7ofrl"]
+script = ExtResource("1_vpcvr")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "phase_pair"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_e2m6j"]
-script = ExtResource("1_yf4qj")
+[sub_resource type="Resource" id="Resource_dm6tr"]
+script = ExtResource("1_vpcvr")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_eqvyb"]
-script = ExtResource("1_yf4qj")
+[sub_resource type="Resource" id="Resource_7cbdj"]
+script = ExtResource("1_vpcvr")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_oiko8"]
-script = ExtResource("1_yf4qj")
+[sub_resource type="Resource" id="Resource_bplnm"]
+script = ExtResource("1_vpcvr")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "phase_pair"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_mh51v"]
-script = ExtResource("4_xulof")
+[sub_resource type="Resource" id="Resource_mnu0w"]
+script = ExtResource("4_t311n")
 order = 5
-slots = Array[ExtResource("1_yf4qj")]([SubResource("Resource_5dawl"), SubResource("Resource_k2s16"), SubResource("Resource_e2m6j"), SubResource("Resource_eqvyb"), SubResource("Resource_oiko8")])
+slots = Array[ExtResource("1_vpcvr")]([SubResource("Resource_ul411"), SubResource("Resource_7ofrl"), SubResource("Resource_dm6tr"), SubResource("Resource_7cbdj"), SubResource("Resource_bplnm")])
 
 [resource]
-script = ExtResource("5_2g6vh")
+script = ExtResource("5_gopgh")
 id = "player_plasma_t2_standard_b"
 display_name = "Plasma T2 Standard B"
 element = "plasma"
 tier = 2
 description = "seed 228518"
 schema_version = 4
+geometry_revision = 3
 family = "standard_b"
 speed = 240.0
 chassis_color = "blue"
 accent_color = "violet"
-rails = Array[ExtResource("4_xulof")]([SubResource("Resource_mh51v")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_t311n")]([SubResource("Resource_mnu0w")])

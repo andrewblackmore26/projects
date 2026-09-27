@@ -17,6 +17,23 @@ const ORBIT: int = 512
 const INFECT: int = 1024
 ## Ship design spec, `phase_shot`: passes through a hull's limbs and can only hit a core.
 const PHASE: int = 2048
+## Fixed visual history belongs to each projectile, never the shared ship-trail pool.
+## 21 positions hold the longest reference ribbon (20 segments). These samples
+## are presentation only and are deliberately omitted from combat snapshots.
+const HISTORY_POINTS: int = 21
+## Two extra RG texels carry changing ribbon data next to the position samples.
+## The renderer can keep one immutable instance per pool slot instead of rebuilding
+## every trail's transform, colour and custom data on each simulation tick.
+const HISTORY_STRIDE: int = HISTORY_POINTS + 2
+const PULSE_COLOR: Color = Color("6fd3ff")
+const SEEKER_COLOR: Color = Color("a97dff")
+const ROCKET_COLOR: Color = Color("ff5436")
+const RICOCHET_COLOR: Color = Color("ffd23f")
+const BEAM_COLOR: Color = Color("45e06a")
+const BEAM_LIGHT: Color = Color("caffd5")
+var history: PackedVector2Array = PackedVector2Array()
+var history_head: PackedInt32Array = PackedInt32Array()
+var history_count: PackedInt32Array = PackedInt32Array()
 
 var positions: PackedVector2Array = PackedVector2Array()
 var previous: PackedVector2Array = PackedVector2Array()
@@ -52,6 +69,9 @@ func _init() -> void:
 	factions.resize(CAPACITY)
 	elements.resize(CAPACITY)
 	flags.resize(CAPACITY)
+	history.resize(CAPACITY * HISTORY_STRIDE)
+	history_head.resize(CAPACITY)
+	history_count.resize(CAPACITY)
 
 func add(pos: Vector2, velocity: Vector2, life: float, damage: float, radius: float, owner: int, faction: int, element: int, special: int = NORMAL, visual_radius: float = -1.0) -> int:
 	var index: int = -1
@@ -75,6 +95,12 @@ func add(pos: Vector2, velocity: Vector2, life: float, damage: float, radius: fl
 	factions[index] = faction
 	elements[index] = element
 	flags[index] = special
+	history_head[index] = 0
+	history_count[index] = 1
+	var history_offset: int = index * HISTORY_STRIDE
+	history[history_offset] = pos
+	history[history_offset + HISTORY_POINTS] = Vector2(0, 1)
+	history[history_offset + HISTORY_POINTS + 1] = Vector2(visual_radii[index], special)
 	active_indices.append(index)
 	return index
 
@@ -82,6 +108,8 @@ func remove_at(active_position: int) -> void:
 	var index: int = active_indices[active_position]
 	free_indices.append(index)
 	lives[index] = 0.0
+	history_count[index] = 0
+	history[index * HISTORY_STRIDE + HISTORY_POINTS] = Vector2.ZERO
 	var last: int = active_indices.size() - 1
 	if active_position != last:
 		active_indices[active_position] = active_indices[last]
@@ -92,6 +120,54 @@ func clear() -> void:
 	free_indices.clear()
 	next_unused = 0
 	rejected = 0
+	history_count.fill(0)
+
+static func trail_segments(special: int) -> int:
+	if (special & (MINE | BLACK_HOLE | ORBIT)) != 0: return 0
+	if (special & ROCKET) != 0: return 16
+	if (special & HOMING) != 0: return 20
+	if (special & RICOCHET) != 0: return 13
+	return 9
+
+static func projectile_color(special: int) -> Color:
+	if (special & ROCKET) != 0: return ROCKET_COLOR
+	if (special & HOMING) != 0: return SEEKER_COLOR
+	if (special & RICOCHET) != 0: return RICOCHET_COLOR
+	return PULSE_COLOR
+
+static func projectile_light(special: int) -> Color:
+	if (special & ROCKET) != 0: return Color("ffc6b5")
+	if (special & HOMING) != 0: return Color("e4d6ff")
+	if (special & RICOCHET) != 0: return Color("fff3bd")
+	return Color("dcf5ff")
+
+static func ability_color(ability: String) -> Color:
+	if ability in ["beam", "homing_beam", "ignition_lance", "refract_beam"]: return BEAM_COLOR
+	if ability == "rocket_launcher": return ROCKET_COLOR
+	if ability == "seeker_missiles": return SEEKER_COLOR
+	if ability == "ricochet": return RICOCHET_COLOR
+	return PULSE_COLOR
+
+func sample_history(index: int) -> void:
+	var segments: int = trail_segments(flags[index])
+	var offset: int = index * HISTORY_STRIDE
+	if segments == 0:
+		# An orbiting round can become a free shot later. Keep its seed at the
+		# actual current position so release cannot join back to its spawn.
+		history_head[index] = 0
+		history_count[index] = 1
+		history[offset] = positions[index]
+		history[offset + HISTORY_POINTS] = Vector2.ZERO
+		return
+	var head: int = (history_head[index] + 1) % HISTORY_POINTS
+	history_head[index] = head
+	history[offset + head] = positions[index]
+	history_count[index] = mini(history_count[index] + 1, segments + 1)
+	history[offset + HISTORY_POINTS] = Vector2(head, history_count[index])
+	history[offset + HISTORY_POINTS + 1] = Vector2(visual_radii[index], flags[index])
+
+func history_position(index: int, back: int) -> Vector2:
+	return history[index * HISTORY_STRIDE + posmod(history_head[index] - back, HISTORY_POINTS)]
 
 func count() -> int:
 	return active_indices.size()

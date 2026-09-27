@@ -13,7 +13,8 @@ $script:ErrorPattern = 'SCRIPT ERROR:|SHADER ERROR|^ERROR:'
 $script:SummaryPattern = '(?i)\b(assertions|checks|failures)\b'
 
 function New-LogDirectory([string]$label) {
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    # Parallel verification agents must never share run.out/run.err files.
+    $stamp = (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 6)
     $dir = Join-Path $script:ProjectRoot ("artifacts\test-logs\{0}-{1}" -f $stamp, $label)
     New-Item -ItemType Directory -Force $dir | Out-Null
     return $dir
@@ -26,7 +27,7 @@ function Invoke-Godot([string]$arguments, [string]$logDir, [string]$name, [int]$
     $errFile = Join-Path $logDir "$name.err.txt"
     $full = ('--path "{0}" {1}' -f $script:ProjectRoot, $arguments)
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
-    $process = Start-Process -FilePath $script:GodotBinary -ArgumentList $full -NoNewWindow -PassThru `
+    $process = Start-Process -FilePath $script:GodotBinary -ArgumentList $full -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $outFile -RedirectStandardError $errFile
     $null = $process.Handle   # without this, ExitCode is empty after WaitForExit in PowerShell 5.1
     $timedOut = -not $process.WaitForExit($timeoutSec * 1000)

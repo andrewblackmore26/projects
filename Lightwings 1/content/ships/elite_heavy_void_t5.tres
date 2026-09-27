@@ -1,122 +1,130 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_iotq7"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_mpc4n"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_wfh0x"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_4br0p"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_gjork"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_0mbfm"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_fqaus"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_2dpnx"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_nhnsd"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_323l0"]
 
-[sub_resource type="Resource" id="Resource_pwkmk"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_42hvi"]
+script = ExtResource("1_0mbfm")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_k10ia"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_dp7uv"]
+script = ExtResource("1_0mbfm")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_tagd1"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_7gvua"]
+script = ExtResource("1_0mbfm")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_qn6po"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_0s6u5"]
+script = ExtResource("1_0mbfm")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_ulpiw"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_gmyq5"]
+script = ExtResource("1_0mbfm")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_1u4lg"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_7mobq"]
+script = ExtResource("1_0mbfm")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_w4nrf"]
-script = ExtResource("4_4br0p")
+[sub_resource type="Resource" id="Resource_s02px"]
+script = ExtResource("4_nhnsd")
 order = 6
 speed = -0.8625
 phase = 0.2234
-slots = Array[ExtResource("1_iotq7")]([SubResource("Resource_pwkmk"), SubResource("Resource_k10ia"), SubResource("Resource_tagd1"), SubResource("Resource_qn6po"), SubResource("Resource_ulpiw"), SubResource("Resource_1u4lg")])
+slots = Array[ExtResource("1_0mbfm")]([SubResource("Resource_42hvi"), SubResource("Resource_dp7uv"), SubResource("Resource_7gvua"), SubResource("Resource_0s6u5"), SubResource("Resource_gmyq5"), SubResource("Resource_7mobq")])
 
-[sub_resource type="Resource" id="Resource_g3nnx"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_k7dn5"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_6dx33"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_cq645"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_5gb1j"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_0ayea"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_sbgw4"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_e8std"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "iris_ring"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_owh2q"]
-script = ExtResource("4_4br0p")
+[sub_resource type="Resource" id="Resource_77r22"]
+script = ExtResource("4_nhnsd")
 radius = 96
 order = 4
 speed = 0.472
 phase = 0.4057
 pump_phase = 0.9
-slots = Array[ExtResource("1_iotq7")]([SubResource("Resource_g3nnx"), SubResource("Resource_6dx33"), SubResource("Resource_5gb1j"), SubResource("Resource_sbgw4")])
+slots = Array[ExtResource("1_0mbfm")]([SubResource("Resource_k7dn5"), SubResource("Resource_cq645"), SubResource("Resource_0ayea"), SubResource("Resource_e8std")])
 
-[sub_resource type="Resource" id="Resource_djpjc"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_16bvq"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "storm_crown"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_up622"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_buqjk"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "storm_crown"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_1eoao"]
-script = ExtResource("1_iotq7")
+[sub_resource type="Resource" id="Resource_2jy3l"]
+script = ExtResource("1_0mbfm")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "storm_crown"
 hp = 90.0
 
-[sub_resource type="Resource" id="Resource_y4nen"]
-script = ExtResource("4_4br0p")
+[sub_resource type="Resource" id="Resource_1gxys"]
+script = ExtResource("4_nhnsd")
 radius = 140
 speed = -0.2238
 phase = 1.8888
 pump_phase = 1.8
-slots = Array[ExtResource("1_iotq7")]([SubResource("Resource_djpjc"), SubResource("Resource_up622"), SubResource("Resource_1eoao")])
+slots = Array[ExtResource("1_0mbfm")]([SubResource("Resource_16bvq"), SubResource("Resource_buqjk"), SubResource("Resource_2jy3l")])
 
 [resource]
-script = ExtResource("5_gjork")
+script = ExtResource("5_323l0")
 id = "elite_heavy_void_t5"
 display_name = "Void Heavy Elite T5"
 element = "void"
 tier = 5
 description = "seed 81998"
 schema_version = 4
+geometry_revision = 3
 faction = "elite"
 role = "heavy"
 family = "heavy"
@@ -129,6 +137,7 @@ damage_multiplier = 1.15
 chassis_color = "silver"
 accent_color = "yellow"
 core_depth = 4
+core_radii = PackedFloat32Array()
 core_weapon = "coil_pair"
 archetype = "heavy_elite"
-rails = Array[ExtResource("4_4br0p")]([SubResource("Resource_w4nrf"), SubResource("Resource_owh2q"), SubResource("Resource_y4nen")])
+rails = Array[ExtResource("4_nhnsd")]([SubResource("Resource_s02px"), SubResource("Resource_77r22"), SubResource("Resource_1gxys")])

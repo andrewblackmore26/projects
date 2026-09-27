@@ -6,6 +6,7 @@ extends RefCounted
 
 const SAMPLES: int = 720
 const BRIGHT: float = 0.45 # max channel, sRGB 0..1: a rim, a line or a running light
+const CHROMA: float = 0.25 # Subdued green/blue remain colours; neutral text and core whites do not.
 ## "Inside a shape": rim OR fill, against the background. The first version looked for BRIGHT lobes
 ## and found none - a circle here is a dark fill inside a thin bright rim, so a ring crossing it
 ## sees two 2-degree rim hits, not one wide lobe. Measured: background max channel 0.08, fill 0.16.
@@ -50,7 +51,7 @@ static func colour_census(image: Image, region: Rect2i) -> Dictionary:
 		for x: int in range(region.position.x, region.end.x):
 			if x < 0 or y < 0 or x >= image.get_width() or y >= image.get_height(): continue
 			var pixel: Color = image.get_pixel(x, y)
-			if pixel.v < BRIGHT or pixel.s < 0.45: continue
+			if pixel.v < BRIGHT or pixel.s < CHROMA: continue
 			if pixel.h < 0.055 or pixel.h > 0.95: census.red += 1
 			elif pixel.h < 0.20: census.amber += 1
 			else: census.other += 1
@@ -64,7 +65,7 @@ static func count_red(image: Image, centre: Vector2, radius: float) -> int:
 			if x < 0 or y < 0 or x >= image.get_width() or y >= image.get_height(): continue
 			if Vector2(x, y).distance_to(centre) > radius: continue
 			var pixel: Color = image.get_pixel(x, y)
-			if pixel.v >= BRIGHT and pixel.s >= 0.45 and (pixel.h < 0.055 or pixel.h > 0.95): total += 1
+			if pixel.v >= BRIGHT and pixel.s >= CHROMA and (pixel.h < 0.055 or pixel.h > 0.95): total += 1
 	return total
 
 ## The structural signature the reference comparison is made of. `scale` is px per ship unit.

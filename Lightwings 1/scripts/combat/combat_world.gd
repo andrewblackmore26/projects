@@ -11,6 +11,7 @@ signal boss_defeated(level_id: String)
 signal event_message(text: String)
 signal attack_performed(element: String, ability: String)
 signal shot_fired(position: Vector2, element: String, ability: String)
+signal shot_audio_requested(position: Vector2, element: String, ability: String, actor_id: int)
 signal boundary_contact(position: Vector2)
 ## Spec §12: fired the instant push depth crosses the threshold (control
 ## locks, projectiles discarded, player invulnerable). The listener (today
@@ -344,6 +345,10 @@ func _spawn_named_enemy(hull_id: String, element: String, tier: int, position: V
  return actor
 func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool = false) -> void:
  if definition==null: return
+ var geometry_state: Dictionary={}
+ var previous_definition: ShipDefinition=actor.get("definition")
+ if not reset and previous_definition!=null and previous_definition.id==definition.id and previous_definition.geometry_revision<definition.geometry_revision:
+  geometry_state=CombatPersistence.encode_parts(actor)
  actor.definition=definition
  actor.speed=definition.speed
  actor.turn_rate=definition.turn_rate
@@ -364,6 +369,7 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
  # damage/cooldowns across, keyed by circle id rather than array index
  # (a definition edit can reorder or add/remove circles).
  var previous_rig: ShipMotion.ShipRig=actor.get("rig")
+ var previous_chain: Dictionary=ShipMotion.encode_chain_state(previous_rig,actor.get("pose")) if previous_rig!=null and not reset else {}
  var old_hp: Dictionary={}
  var old_attached: Dictionary={}
  var old_cd: Dictionary={}
@@ -381,6 +387,7 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
    if actor.has("part_reward_share") and i<actor.part_reward_share.size(): old_share[pid]=float(actor.part_reward_share[i])
  actor.rig=ShipMotion.get_rig(definition)
  actor.pose=ShipMotion.ShipPose.new(actor.rig)
+ if not previous_chain.is_empty(): ShipMotion.restore_chain_state(actor.rig,actor.pose,previous_chain)
  for part: PartDefinition in definition.parts:
   if not part.mount_id.is_empty() and not actor.mounts.has(part.mount_id): actor.mounts[part.mount_id]=part.position
   if part.stat_id in ["bullet_eater","void_pull","projectile_orbit"]:
@@ -396,6 +403,7 @@ func _configure_actor(actor: Dictionary, definition: ShipDefinition, reset: bool
   actor.fire_cd=0.0
   actor.erase("beam_contact")
  _configure_parts(actor,old_hp,old_attached,old_cd,old_egg,old_aim,old_share,reset)
+ if not geometry_state.is_empty(): CombatPersistence.apply_parts(self,actor,geometry_state)
  _rebuild_part_views(actor)
 ## Per-circle HP rule (spec §14/§16): the core's toughness is unchanged -
 ## it mirrors `actor.hp`/`actor.max_hp` exactly as before. A peripheral
@@ -432,15 +440,24 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
  # once here from the ShipDefinition and turned into index arrays below - the
  # single choke point boss rules (`_boss_shield_active`, `_boss_can_die`) read).
  var stat_by_id: Dictionary={}
+ var hp_by_id: Dictionary={}
  for part: PartDefinition in actor.definition.parts:
-  if part.shape=="circle" and not part.stat_id.is_empty(): stat_by_id[part.id]=part.stat_id
+  if part.shape=="circle":
+   hp_by_id[part.id]=ShipCompiler.part_max_hp(part,int(actor.tier))
+   if not part.stat_id.is_empty(): stat_by_id[part.id]=part.stat_id
  var sub_core_indices: PackedInt32Array=PackedInt32Array()
  var shield_generator_indices: PackedInt32Array=PackedInt32Array()
  var part_aim_error: PackedFloat32Array=PackedFloat32Array()
  part_aim_error.resize(n)
+ # Cosmetic circles must not advance encounter RNG or change another gun's cadence/aim.
+ # One seed per actor, then stable identity-based streams per circle, including across saves.
+ if not actor.has("part_seed"): actor.part_seed=int(_rng.randi())
+ var part_rng: RandomNumberGenerator=RandomNumberGenerator.new()
  for i: int in range(n):
   var pid: String=rig.ids[i]
-  var max_hp: float=float(actor.max_hp) if i==0 else (rig.authored_hp[i] if rig.authored_hp[i]>0.0 else rig.radius[i]*(4.0+3.0*float(actor.tier)))
+  part_rng.seed=hash([int(actor.part_seed),actor.definition.id,pid])
+  var initial_cd: float=part_rng.randf_range(0.2,1.2)
+  var max_hp: float=float(actor.max_hp) if i==0 else float(hp_by_id.get(pid,0.0))
   # A non-solid circle (rail ring, inner core ring, passive ring, set-piece circle) is scenery:
   # no HP, so no reward share below either. Without this a 184 px rail ring would be given
   # radius*(4+3*tier) HP and most of the hull's limb reward. Every v0.3 circle is solid.
@@ -448,10 +465,10 @@ func _configure_parts(actor: Dictionary, old_hp: Dictionary, old_attached: Dicti
   part_max_hp[i]=max_hp
   part_hp[i]=float(old_hp[pid]) if old_hp.has(pid) else max_hp
   part_attached[i]=(1 if bool(old_attached[pid]) else 0) if old_attached.has(pid) else 1
-  part_cd[i]=float(old_cd[pid]) if old_cd.has(pid) else _rng.randf_range(0.2,1.2)
+  part_cd[i]=float(old_cd[pid]) if old_cd.has(pid) else initial_cd
   part_egg[i]=float(old_egg[pid]) if old_egg.has(pid) else 0.0
   part_aim[i]=old_aim[pid] if old_aim.has(pid) else Vector2.DOWN
-  part_aim_error[i]=CombatAI.sample_aim_error(_rng)
+  part_aim_error[i]=CombatAI.sample_aim_error(part_rng)
   if not rig.mount_id[i].is_empty():
    mount_index[rig.mount_id[i]]=i
    var twins: PackedInt32Array=mount_twins.get(rig.mount_id[i],PackedInt32Array())
@@ -507,11 +524,8 @@ func _reward_multiplier(actor: Dictionary) -> float: return pow(1.5,maxi(0,int(a
 ## Single choke point for "what is currently visible on this hull" -
 ## rebuilt from the packed per-circle arrays instead of scanned every tick
 ## (see `_sync_visuals`, which previously rebuilt this every physics frame).
-## Spec §4.2 / §9.8: "a rail is deleted, dashed ring and all, when its last cluster dies". One
-## recorded deviation: rails 3 and 4 spoke from the ring INSIDE them, and the shader hides a line
-## whose endpoint is hidden, so a ring stays while the rail just outside it still has a cluster -
-## otherwise that rail's spokes would vanish and leave its clusters floating. Rings are scenery
-## (not solid, no HP), so "deleted" is `part_attached = 0`, which is what hides a circle.
+## A guide disappears with its last cluster. All spokes now end on the core, so another
+## rail never depends on this guide's visibility. Guides carry no health or reward.
 func _retire_dead_rails(actor: Dictionary, rig: ShipMotion.ShipRig) -> void:
  var rings: Array[int]=[]
  for i: int in range(1,rig.ids.size()):
@@ -524,9 +538,7 @@ func _retire_dead_rails(actor: Dictionary, rig: ShipMotion.ShipRig) -> void:
    if rig.parent_index[c]==ring and bool(actor.part_attached[c]) and float(actor.part_hp[c])>0.0: any=true
   alive.append(any)
  for k: int in range(rings.size()):
-  # rings[k] is rail k+1. Rail k+2 spokes from it only when that rail is the third or fourth.
-  var anchors_outer: bool=k+1<rings.size() and k+1>=ShipCompiler.SPOKES_TO_CORE_THROUGH_RAIL and alive[k+1]
-  actor.part_attached[rings[k]]=1 if alive[k] or anchors_outer else 0
+  actor.part_attached[rings[k]]=1 if alive[k] else 0
 
 func _rebuild_part_views(actor: Dictionary) -> void:
  var rig: ShipMotion.ShipRig=actor.get("rig")
@@ -555,6 +567,9 @@ func _update_visual(actor: Dictionary, animate: bool = false) -> void:
   add_child(renderer)
   actor.renderer=renderer
  renderer.set_ship(definition,animate)
+ renderer.external_pose=actor.get("pose")
+ renderer.hidden_part_ids=actor.get("hidden_ids",PackedStringArray())
+ renderer.set_motion_tick(tick)
  renderer.position=actor.pos
  renderer.rotation=Vector2(actor.aim).angle()+PI/2.0
 func _has_ability(actor: Dictionary, id: String) -> bool: return actor.get("ability_set",{}).has(id)
@@ -625,8 +640,9 @@ func _physics_process(delta: float) -> void:
  # `motion` had no section until S0: it ran before the first section_start, so the cost every
  # rail-grammar hull will add was invisible to the benchmark.
  var motion_start: int=Time.get_ticks_usec() if profile_sections else 0
- _step_motion(player)
- for actor: Dictionary in enemies: _step_motion(actor)
+ if not _uses_follow_motion(player): _step_motion(player)
+ for actor: Dictionary in enemies:
+  if not _uses_follow_motion(actor): _step_motion(actor)
  if profile_sections: section_ms.motion=(Time.get_ticks_usec()-motion_start)/1000.0
  elapsed+=dt
  player_invulnerable=maxf(0.0,player_invulnerable-dt)
@@ -721,6 +737,7 @@ func _update_player(dt: float) -> void:
   # arena-relative clamp cannot reason about mid-swap), so nothing else here
   # touches position, aim or firing.
   player.vel=Vector2(warp_direction).normalized()*warp_commit_speed
+  _finish_follow_motion(player)
   return
  var thrusters: float=1.2 if _has_ability(player,"thrusters") else 1.0
  var input_dir: Vector2=command.movement.limit_length(1.0)
@@ -760,6 +777,7 @@ func _update_player(dt: float) -> void:
  if command.aim.length_squared()>0.01:
   var speed_turn: float=float(player.turn_rate)*thrusters
   player.aim=Vector2.from_angle(rotate_toward(Vector2(player.aim).angle(),command.aim.angle(),speed_turn*dt))
+ _finish_follow_motion(player)
  if command.fire: _fire_primary(player,dt)
  for index: int in range(mini(command.secondaries.size(),player.secondaries.size())):
   if command.secondaries[index]: _use_secondary(player,index)
@@ -1006,15 +1024,17 @@ func _fire_primary(actor: Dictionary, dt: float) -> void:
  if not _mount_alive(actor,"primary"): return
  var id: String=str(actor.primary)
  if AbilityCatalog.is_continuous(id):
-  _beam(actor,id,dt,_muzzle(actor,"primary"),actor.aim)
+  var beam_emitter: Dictionary=_resolve_muzzle(actor,"primary")
+  _beam(actor,id,dt,beam_emitter.position,actor.aim)
   if float(actor.fire_cd)<=0.0:
-   _emit_shot(actor,id,actor.pos)
+   _emit_shot(actor,id,beam_emitter.position,beam_emitter.part)
    actor.fire_cd=0.16
   return
  if float(actor.fire_cd)>0.0: return
  var cooldown: float=_ability(id).cooldown
  actor.fire_cd=maxf(0.06,cooldown)*(1.0 if int(actor.id)==0 else (2.0 if bool(actor.rival) else 4.5))
- _activate_component(actor,id,_muzzle(actor,"primary"),actor.aim)
+ var emitter: Dictionary=_resolve_muzzle(actor,"primary")
+ _activate_component(actor,id,emitter.position,actor.aim,"",emitter.part)
 func _fire_basic(actor: Dictionary) -> void: _fire_primary(actor,_last_dt)
 func _use_primary(actor: Dictionary) -> void: _fire_primary(actor,_last_dt)
 func _use_secondary(actor: Dictionary, index: int = 0) -> void:
@@ -1026,20 +1046,32 @@ func _use_secondary(actor: Dictionary, index: int = 0) -> void:
  if float(actor.cooldowns.get(key,0.0))>0.0: return
  actor.cooldowns[key]=_ability(id).cooldown
  actor.secondary_cd=_ability(id).cooldown
- _activate_component(actor,id,_muzzle(actor,key),actor.aim,key)
-func _emit_shot(actor: Dictionary, id: String, at: Vector2) -> void:
+ var emitter: Dictionary=_resolve_muzzle(actor,key)
+ _activate_component(actor,id,emitter.position,actor.aim,key,emitter.part)
+func _emit_shot(actor: Dictionary, id: String, at: Vector2, emitter_part: String = "") -> void:
  shot_fired.emit(at,str(actor.element),id)
+ shot_audio_requested.emit(at,str(actor.element),id,int(actor.id))
  if int(actor.id)==0: attack_performed.emit(str(actor.element),id)
+ _emit_muzzle(actor,id,at,emitter_part)
+func _emit_muzzle(actor: Dictionary, id: String, at: Vector2, emitter_part: String = "") -> void:
  # Shot beat 1 (spec §19.1): "a ring at the emitter snapping outward and
  # fading over ~0.15 s" - fired once per ability activation (not once per
  # bullet in a spread), at the muzzle position the ability itself resolved.
- fx.emit("muzzle",at,_actor_color(actor),_fx_rng)
+ var firing_definition: ShipDefinition=actor.get("definition")
+ if emitter_part=="" and firing_definition!=null and firing_definition.core_weapon!="" and SetPieceCatalog.ability_of(firing_definition.core_weapon)==id and at.distance_squared_to(Vector2(actor.pos))<0.001:
+  emitter_part="core"
+ var core_fire: bool=firing_definition!=null and firing_definition.core_weapon!="" and emitter_part=="core"
+ var firing_color: Color=ShipCatalog.get_color(firing_definition.accent_color) if core_fire and firing_definition.accent_color!="" else Pool.ability_color(id)
+ var binding: Dictionary={"emitter_owner":int(actor.id),"emitter_part":emitter_part} if emitter_part!="" else {}
+ fx.emit("core_fire" if core_fire else "muzzle",at,firing_color,_fx_rng,binding)
 func _damage_scale(actor: Dictionary) -> float:
  return float(actor.get("damage_multiplier",1.0))*(1.0+0.12*(int(actor.tier)-1))*(1.0 if int(actor.id)==0 or bool(actor.get("rival",false)) else 0.65)
-func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector2, mount: String = "") -> void:
+func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector2, mount: String = "", emitter_part: String = "") -> void:
  var definition: AbilityDefinition=_ability(id)
  var damage: float=definition.damage*_damage_scale(actor)
- _emit_shot(actor,id,at)
+ var rig: ShipMotion.ShipRig=actor.get("rig")
+ if emitter_part=="" and rig!=null and rig.index_of(mount)>=0: emitter_part=mount
+ _emit_shot(actor,id,at,emitter_part)
  actor.shots_fired=int(actor.get("shots_fired",0))+1 # play-census instrumentation only; not read by gameplay
  ability_events[id]=int(ability_events.get(id,0))+1 # census: a weapon that never fires in play is a content bug
  match id:
@@ -1125,8 +1157,17 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
    var elbow: Vector2=arena.clamp_point(at+aim*definition.range_pixels)
    var struck: Dictionary=_nearest(actor,elbow)
    var onward: Vector2=(Vector2(struck.pos)-elbow).normalized() if not struck.is_empty() and Vector2(struck.pos).distance_to(elbow)>1.0 else aim
+   var far_end: Vector2=_ray_end(elbow,onward)
+   var first_segment: int=telegraphs.size()
    _queue_attack(actor,"laser",at,elbow,0.6,damage,0.0,-1,mount)
-   _queue_attack(actor,"laser",elbow,_ray_end(elbow,onward),0.6,damage,0.0,-1,mount)
+   _queue_attack(actor,"laser",elbow,far_end,0.6,damage,0.0,-1,mount)
+   # Retain two independent damage/warning records. Their fired presentation
+   # is one polyline so the four pulses travel continuously around the bend.
+   if telegraphs.size()>first_segment:
+    telegraphs[first_segment].beam_path=[at,elbow]
+    if telegraphs.size()>first_segment+1:
+     telegraphs[first_segment].beam_path.append(far_end)
+     telegraphs[first_segment+1].beam_continuation=true
   "incendiary_spores":
    # Three spores land around the aim point and each blooms into a small burning cloud.
    for i: int in range(3):
@@ -1146,10 +1187,10 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
 ## this - only the drawn size moves, via `BulletPool.visual_radii`.
 func _visual_radius(special: int) -> float:
  if (special & Pool.ROCKET)!=0: return 9.0
- if (special & Pool.HOMING)!=0: return 7.5
- if (special & Pool.RICOCHET)!=0: return 4.0
+ if (special & Pool.HOMING)!=0: return 4.5
+ if (special & Pool.RICOCHET)!=0: return 5.0
  if (special & Pool.CHAIN)!=0: return 3.5
- return 3.0
+ return 4.0
 func _shoot(actor: Dictionary, direction: Vector2, speed: float, damage: float, life: float = -1.0, special: int = 0, at: Vector2 = Vector2.INF) -> int:
  var origin: Vector2=Vector2(actor.pos)+direction*8.0 if at==Vector2.INF else at
  return bullets.add(origin,direction.normalized()*speed,life,damage,3.0,int(actor.id),int(actor.faction),maxi(0,ELEMENTS.find(str(actor.element))),special,_visual_radius(special))
@@ -1190,7 +1231,7 @@ func _beam(actor: Dictionary, id: String, dt: float, origin: Vector2 = Vector2.I
  actor.beam_spark_cd=maxf(0.0,float(actor.get("beam_spark_cd",0.0))-dt)
  if float(actor.beam_spark_cd)<=0.0 and path.size()>0:
   actor.beam_spark_cd=0.1
-  fx.emit("beam_spark",path[path.size()-1],PLAYER_COLOR if int(actor.faction)==0 else COLORS[maxi(0,ELEMENTS.find(str(actor.element)))],_fx_rng,{"direction":Vector2(path[path.size()-1]-path[maxi(0,path.size()-2)])})
+  fx.emit("beam_spark",path[path.size()-1],Pool.BEAM_COLOR,_fx_rng,{"direction":Vector2(path[path.size()-1]-path[maxi(0,path.size()-2)])})
 func _damage_segment(source: Dictionary, from: Vector2, to: Vector2, amount: float, hit_ids: Dictionary) -> void:
  for target: Dictionary in actors_by_id.values():
   if not _hostile(source,target): continue
@@ -1211,37 +1252,23 @@ func _part_position(actor: Dictionary, index: int) -> Vector2:
  var local: Vector2=pose.local[index] if pose!=null and index>=0 and index<pose.local.size() else Vector2.ZERO
  return Vector2(actor.pos)+local.rotated(Vector2(actor.aim).angle()+PI/2.0)
 func _gun_position(actor: Dictionary, gun: Dictionary) -> Vector2: return _part_position(actor,int(gun.get("index",-1)))
-## Narrow phase for the broadphase's one-collider-per-enemy bound: returns the rig index of the
-## earliest alive circle the swept segment touches (leaving its t in `_narrow_t`), or 0 for none.
-## Circle positions come from the POSE, the same source the renderer and the muzzles use, so a
-## hitbox can never sit where the circle is not drawn. The rotation basis is computed once here
-## rather than per circle.
-var _narrow_t: float=0.0
-func _narrow_to_circle(actor: Dictionary, from: Vector2, to: Vector2, bullet_radius: float, limit: float) -> int:
+func _uses_follow_motion(actor: Dictionary) -> bool:
  var rig: ShipMotion.ShipRig=actor.get("rig")
- if rig==null: return 0
- var pose: ShipMotion.ShipPose=actor.get("pose")
- var hp: PackedFloat32Array=actor.part_hp
- var angle: float=Vector2(actor.aim).angle()+PI/2.0
- var ca: float=cos(angle)
- var sa: float=sin(angle)
- var origin: Vector2=actor.pos
- var best: int=0
- var best_t: float=limit
- for i: int in range(1,rig.ids.size()):
-  if hp[i]<=0.0: continue
-  var l: Vector2=pose.local[i] if pose!=null and i<pose.local.size() else rig.rest[i]
-  var t: float=Pool.segment_circle_t(from,to,origin+Vector2(l.x*ca-l.y*sa,l.x*sa+l.y*ca),rig.radius[i]+bullet_radius)
-  if t>=0.0 and t<best_t:
-   best_t=t
-   best=i
- if best>0: _narrow_t=best_t
- return best
+ return rig!=null and not rig.follow_indices.is_empty()
+## Called after movement and heading integration, before any weapon reads its origin.
+func _finish_follow_motion(actor: Dictionary) -> void:
+ if not _uses_follow_motion(actor): return
+ if (actor.pose as ShipMotion.ShipPose).chain_tick<tick: _step_motion(actor)
+ else: _refresh_follow_pose(actor)
+## Late external impulses re-anchor once more without ticking aim/feedback or advancing history.
+func _refresh_follow_pose(actor: Dictionary) -> void:
+ if not _uses_follow_motion(actor): return
+ ShipMotion.step(actor.rig,actor.pose,tick,Vector2(actor.pos),Vector2(actor.aim).angle()+PI/2.0,actor.part_attached)
 func _step_motion(actor: Dictionary) -> void:
  var rig: ShipMotion.ShipRig=actor.get("rig")
  var pose: ShipMotion.ShipPose=actor.get("pose")
  if rig!=null and pose!=null and not rig.legacy: _slew_set_pieces(actor,rig,pose)
- if rig!=null and pose!=null: ShipMotion.step(rig,pose,tick)
+ if rig!=null and pose!=null: ShipMotion.step(rig,pose,tick,Vector2(actor.pos),Vector2(actor.aim).angle()+PI/2.0,actor.part_attached)
  # Target feedback (P8): `ShipMotion.step` always zeroes `pose.flare` (it is
  # a reserved slot with no sim-side owner of its own), so this actor's own
  # decaying `part_flare` is written in AFTER step, every tick, and handed to
@@ -1319,10 +1346,18 @@ func _update_guns(actor: Dictionary, dt: float, new_decision: bool = true) -> vo
   var id: String=rig.ability_id[index]
   if id in ["beam","homing_beam"]:
    # Enemy continuous beams pulse between readable windows.
-   if fmod(float(actor.age)+float(actor.part_max_hp[index]),3.0)<0.7: _beam(actor,id,dt,at,actor.part_aim[index])
+   var beam_phase: float=float(actor.age)+float(actor.part_max_hp[index])
+   if fmod(beam_phase,3.0)<0.7:
+    var windows: Dictionary=actor.get("_beam_visual_windows",{})
+    var window: int=floori(beam_phase/3.0)
+    if int(windows.get(rig.ids[index],-1))!=window:
+     windows[rig.ids[index]]=window
+     actor._beam_visual_windows=windows
+     _emit_muzzle(actor,id,at,rig.ids[index])
+    _beam(actor,id,dt,at,actor.part_aim[index])
   elif float(actor.part_cd[index])<=0.0:
    actor.part_cd[index]=maxf(0.55,_ability(id).cooldown*(2.5 if _ability(id).slot_kind=="primary" else 1.0))
-   _activate_component(actor,id,at,actor.part_aim[index],rig.ids[index])
+   _activate_component(actor,id,at,actor.part_aim[index],rig.ids[index],rig.ids[index])
 ## Single choke point (spec item 3): damages one circle, and on death removes
 ## its collider, snaps its lines and detaches its subtree as one debris
 ## record via `_destroy_part`. Called from bullet/beam/radial damage and from
@@ -1369,6 +1404,7 @@ func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
  var radii: PackedFloat32Array=PackedFloat32Array()
  var light: float=0.0
  var pose: ShipMotion.ShipPose=actor.pose
+ var attached_before: PackedByteArray=actor.part_attached.duplicate()
  for i: int in range(index,last):
   if not bool(actor.part_attached[i]): continue
   actor.part_attached[i]=0
@@ -1400,6 +1436,8 @@ func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
  # was paid out early (debris) or folded into the core-kill pool (spec item
  # 5/conservation). `reward_unpaid_limb` above stays in unmultiplied terms.
  var paid_light: float=light*_reward_multiplier(actor)
+ var debris_rng: RandomNumberGenerator=RandomNumberGenerator.new()
+ debris_rng.seed=hash([int(actor.get("part_seed",0)),int(actor.id),str(actor.definition.id),str(rig.ids[index]),tick])
  var piece: Dictionary={"offsets":offsets,"radii":radii,"color":_actor_color(actor),"element":str(actor.element),"position":Vector2(actor.pos),"velocity":Vector2(actor.vel),"angle":Vector2(actor.aim).angle()+PI/2.0,"spin":0.0,"age":0.0,"life":1.0,"light":paid_light}
  var rail_rig: ShipMotion.ShipRig=actor.get("rig")
  if rail_rig!=null and not rail_rig.legacy:
@@ -1408,14 +1446,60 @@ func _destroy_part(actor: Dictionary, index: int, _source: Dictionary) -> void:
   var motion: Dictionary=ShipGrammar.MOTION
   var basis: float=Vector2(actor.aim).angle()+PI/2.0
   var arm: Vector2=(actor.pose as ShipMotion.ShipPose).local[index].rotated(basis)
-  piece.velocity=Vector2(actor.vel)+arm.orthogonal()*-rail_rig.spin_speed[index]+Vector2.from_angle(_rng.randf()*TAU)*float(motion.debris_spread)*_rng.randf()
-  piece.spin=_rng.randf_range(float(motion.debris_spin_min),float(motion.debris_spin_max))*(1.0 if _rng.randf()<0.5 else -1.0)
+  piece.velocity=Vector2(actor.vel)+arm.orthogonal()*-rail_rig.spin_speed[index]+Vector2.from_angle(debris_rng.randf()*TAU)*float(motion.debris_spread)*debris_rng.randf()
+  piece.spin=debris_rng.randf_range(float(motion.debris_spin_min),float(motion.debris_spin_max))*(1.0 if debris_rng.randf()<0.5 else -1.0)
   piece.outward=arm.normalized()*float(motion.debris_outward_accel)
-  piece.life=float(motion.debris_fade_seconds)
+  piece.life=1.4
   piece.light_at=float(motion.debris_light_drop_seconds)
  else:
-  piece.spin=_rng.randf_range(-1.2,1.2)
+  piece.spin=debris_rng.randf_range(-1.2,1.2)
+ if not piece.has("light_at"): piece.light_at=piece.life
+ piece.release_delay=0.35
+ piece.fade_duration=1.4
+ piece.life=float(piece.release_delay)+float(piece.fade_duration)
+ piece.pieces=_debris_circles(actor,index,last,pose,attached_before,debris_rng)
  debris.append(piece)
+
+## One independently drifting body per surviving solid circle. Nested markings stay with their
+## host, retaining their exact colour, radius and offset. The destroyed junction itself is gone.
+func _debris_circles(actor: Dictionary, first: int, last: int, pose: ShipMotion.ShipPose, attached_before: PackedByteArray, rng: RandomNumberGenerator) -> Array:
+ var rig: ShipMotion.ShipRig=actor.rig
+ var definition: ShipDefinition=actor.definition
+ var by_id: Dictionary={}
+ for part: PartDefinition in definition.parts:
+  if part.shape=="circle": by_id[part.id]=part
+ var bodies: Dictionary={}
+ var owners: Dictionary={}
+ var basis: float=Vector2(actor.aim).angle()+PI/2.0
+ for index: int in range(first+1,last):
+  if attached_before[index]==0: continue
+  if not by_id.has(rig.ids[index]): continue
+  var part: PartDefinition=by_id[rig.ids[index]]
+  if part.dashed or part.layer==0: continue
+  var host: int=index
+  while host>first and rig.solid[host]==0: host=rig.parent_index[host]
+  if host<=first: continue
+  if not bodies.has(host):
+   var origin: Vector2=Vector2(actor.pos)+pose.local[host].rotated(basis)
+   var velocity: Vector2=pose.world_velocity[host] if pose.world_tick>=0 else Vector2(actor.vel)
+   var scatter: Vector2=Vector2(rng.randf_range(-42.0,42.0),rng.randf_range(30.0,66.0)).rotated(basis)
+   bodies[host]={"position":origin,"velocity":velocity+scatter,"spin":rng.randf_range(-1.5,1.5),"angle":0.0,"outward":(origin-Vector2(actor.pos)).normalized()*float(ShipGrammar.MOTION.debris_outward_accel),"circles":[],"lines":[]}
+  owners[index]=host
+  var role: String=part.color_role
+  if role=="chassis": role="player" if definition.is_player else definition.element
+  var body: Dictionary=bodies[host]
+  body.circles.append({"offset":(pose.local[index]-pose.local[host]).rotated(basis),"radius":part.radius,"filled":part.filled,"color":ShipCatalog.get_color(role),"fill":ShipCatalog.FILLS.get(role,VisualStyle.BG),"light":ShipCatalog.LIGHTS.get(role,Color.WHITE),"period":part.light_period,"phase":part.light_phase+elapsed})
+ for part: PartDefinition in definition.parts:
+  if part.shape!="line": continue
+  var from_index: int=rig.index_of(part.from_id)
+  var to_index: int=rig.index_of(part.to_id)
+  if not owners.has(from_index) or not owners.has(to_index) or owners[from_index]!=owners[to_index]: continue
+  var host: int=int(owners[from_index])
+  var role: String=part.color_role
+  if role=="chassis": role="player" if definition.is_player else definition.element
+  bodies[host].lines.append({"from":(pose.local[from_index]-pose.local[host]).rotated(basis),"to":(pose.local[to_index]-pose.local[host]).rotated(basis),"color":ShipCatalog.get_color(role)})
+ return bodies.values()
+
 func _update_debris(dt: float) -> void:
  for i: int in range(debris.size()-1,-1,-1):
   var d: Dictionary=debris[i]
@@ -1423,7 +1507,13 @@ func _update_debris(dt: float) -> void:
   if d.has("outward"): d.velocity=Vector2(d.velocity)+Vector2(d.outward)*dt
   d.position=Vector2(d.position)+Vector2(d.velocity)*dt
   d.angle=float(d.angle)+float(d.spin)*dt
-  # A rail hull's debris drops its light at 0.5 s and goes on fading to 1.0 s (spec §9.8); v0.3
+  if d.has("pieces") and float(d.age)>float(d.release_delay):
+   var active_dt: float=minf(dt,float(d.age)-float(d.release_delay))
+   for body: Dictionary in d.pieces:
+    body.velocity=Vector2(body.velocity)+Vector2(body.outward)*active_dt
+    body.position=Vector2(body.position)+Vector2(body.velocity)*active_dt
+    body.angle=float(body.angle)+float(body.spin)*active_dt
+  # A rail hull's debris drops its light at 0.5 s and goes on fading to 1.75 s; v0.3
   # debris pays at the end of its life. Either way it pays exactly once: `light` is zeroed.
   if float(d.age)>=float(d.get("light_at",d.life)) and float(d.light)>0.0:
    for size: int in _pickup_sizes(maxi(0,roundi(float(d.light)))): _drop_pickup(d.position,str(d.element),size,true)
@@ -1431,7 +1521,7 @@ func _update_debris(dt: float) -> void:
   if float(d.age)>=float(d.life):
    debris.remove_at(i)
 ## Debris must not silently lose light on a node exit mid-fade: whatever has
-## not finished its 1s fade yet pays out immediately as a pickup. Called
+## not finished its fade yet pays out immediately as a pickup. Called
 ## before a sector is cleared/cached and before every snapshot, so light is
 ## conserved whether the fight continues, is saved, or the node is left.
 func _flush_debris() -> void:
@@ -1452,7 +1542,9 @@ func _passives(actor: Dictionary, dt: float) -> void:
  if actor.get("body_features",{}).has("void_pull"):
   for target: Dictionary in _hostiles(actor):
    var toward: Vector2=Vector2(actor.pos)-Vector2(target.pos)
-   if toward.length_squared()<pow(float(actor.body_features.void_pull.value),2): target.pos=arena.clamp_point(Vector2(target.pos)+toward.normalized()*35.0*dt,3.0)
+   if toward.length_squared()<pow(float(actor.body_features.void_pull.value),2):
+    target.pos=arena.clamp_point(Vector2(target.pos)+toward.normalized()*35.0*dt,3.0)
+    _refresh_follow_pose(target)
 func _slow_multiplier(actor: Dictionary) -> float: return 0.7 if float(actor.get("slow",0.0))>0.0 else 1.0
 func _update_actor_status(actor: Dictionary, dt: float) -> void:
  actor.slow=maxf(0.0,float(actor.slow)-dt)
@@ -1630,6 +1722,7 @@ func _update_black_holes(dt: float) -> void:
    if gap.length()>BLACK_HOLE_REACH or gap.length()<4.0: continue
    var pulled: Vector2=arena.clamp_point(Vector2(target.pos)+gap.normalized()*BLACK_HOLE_PULL*dt)
    target.pos=pulled
+   _refresh_follow_pose(target)
    if int(target.id)==0: player_position=pulled
  black_holes=alive
 
@@ -1659,15 +1752,6 @@ func _update_bullets(dt: float) -> void:
    # see `_activate_component`'s `rocket_launcher` case).
    velocity=velocity.rotated(sin(elapsed*1.6+index*1.7)*2.2*dt)
   bullets.velocities[index]=velocity
-  # Per-weapon trails (spec §19 "trail length is a per-weapon property...
-  # a seeker leaves a long ribbon", rocket "thick, long"). Pulses/ricochet
-  # get their stub for free from the capsule's own `straight` stretch
-  # (combat_canvas.gd) - no pooled trail spent on them. Owner ids are offset
-  # well clear of actor ids (0..a few hundred) so a bullet trail can never
-  # collide with a ship's own lightstream in the shared 40-trail budget.
-  if (flag & (Pool.HOMING|Pool.ROCKET))!=0:
-   var rocket_like: bool=(flag & Pool.ROCKET)!=0
-   trail_pool.request(5000000+index,from,1.0,3.2 if rocket_like else 2.2,COLORS[bullets.elements[index]] if bullets.factions[index]!=0 else PLAYER_COLOR,14 if rocket_like else 12)
   if bullets.lives[index]>=0.0:
    bullets.lives[index]-=dt
    if bullets.lives[index]<=0.0:
@@ -1718,7 +1802,7 @@ func _update_bullets(dt: float) -> void:
    if not hit.is_empty():
     _prepare_shot_source(index)
     var impact_point: Vector2=from.lerp(to,nearest)
-    var bullet_color: Color=PLAYER_COLOR if bullets.factions[index]==0 else COLORS[bullets.elements[index]]
+    var bullet_color: Color=Pool.projectile_color(flag)
     # Shot beat 3 (spec §19.1/Appendix B): two rings plus 5-7 decelerating
     # fragments thrown ALONG THE INCOMING VECTOR.
     fx.emit("impact",impact_point,bullet_color,_fx_rng,{"direction":velocity})
@@ -1752,12 +1836,14 @@ func _update_bullets(dt: float) -> void:
    from=Vector2(wall.point)-normal*0.01
    # Path identity: "hard bounces off the rim, fragments thrown on each
    # bounce" and the trail "kinks at each bounce" (spec §19 table).
-   fx.emit("ricochet_kink",Vector2(wall.point),PLAYER_COLOR if bullets.factions[index]==0 else COLORS[bullets.elements[index]],_fx_rng,{"direction":normal})
-   trail_pool.kink(5000000+index)
+   fx.emit("impact",Vector2(wall.point),Pool.RICOCHET_COLOR,_fx_rng,{"direction":normal})
+   bullets.positions[index]=wall.point
+   bullets.sample_history(index) # retain the actual corner, not a shortcut across it
    if remaining<=0.000001: break
   if not removed:
    bullets.positions[index]=from
    bullets.velocities[index]=velocity
+   bullets.sample_history(index)
 ## Spec §16: "Contact with an enemy body damages the core" - the enemy's
 ## whole visible hull, not just its core centre. `_rebuild_actor_grid()`
 ## (run earlier this same tick, see the `_step` order above) already
@@ -2014,8 +2100,6 @@ func remaining_enemies() -> int:
  for actor: Dictionary in enemies:
   if not bool(actor.dead): count+=1
  return count
-func combat_status() -> Dictionary:
- return {"enemies":remaining_enemies(),"bullets":bullet_count,"pickups":pickups.size(),"primary_cooldown":float(player.get("fire_cd",0.0)),"secondary_cooldown":float(player.get("secondary_cd",0.0)),"cooldowns":player.get("cooldowns",{}),"simulation_ms":simulation_ms,"projectile_upload_ms":float(_bullet_canvas.get("upload_ms")) if is_instance_valid(_bullet_canvas) else 0.0,"pool_capacity":Pool.CAPACITY,"pool_rejected":bullets.rejected,"resource_remaining":sector_energy_remaining,"resource_paid":sector_energy_paid,"stored_bullets":0,"charge":0.0,"dash_cooldown":float(player.get("dash_cooldown",0.0)),"trail_count":trail_pool.live_count(),"trail_dropped":trail_pool.dropped_count,"warp_phase":warp_phase,"warp_progress":warp_progress}
 func _clamp_point(point: Vector2, margin: float = 0.0) -> Vector2: return arena.clamp_point(point,-margin)
 
 func _remove_visual(actor: Dictionary) -> void:
@@ -2053,6 +2137,20 @@ func _add_line_effect(from: Vector2, to: Vector2, color: Color, _duration: float
  fx.emit("chain_line",from,color,_fx_rng,{"to":to})
 func _update_effects(dt: float) -> void:
  fx.update(dt)
+ _update_effect_attachments()
+func _update_effect_attachments() -> void:
+ for index: int in fx.active_indices:
+  if fx.emitter_owner[index]<0: continue
+  var actor: Dictionary=actors_by_id.get(fx.emitter_owner[index],{})
+  var rig: ShipMotion.ShipRig=actor.get("rig")
+  var part: int=rig.index_of(fx.emitter_part[index]) if rig!=null else -1
+  if actor.is_empty() or bool(actor.get("dead",false)) or part<0 or (part>0 and (not bool(actor.part_attached[part]) or float(actor.part_hp[part])<=0.0)):
+   # Keep its final world position while it fades. It cannot jump to a new
+   # component, recycled actor or a different twin after its emitter is gone.
+   fx.emitter_owner[index]=-1
+   fx.emitter_part[index]=""
+   continue
+  fx.pos[index]=_part_position(actor,part)
 func _clear_encounter() -> void:
  for actor: Dictionary in enemies:
   _remove_visual(actor)
@@ -2189,6 +2287,22 @@ func _draw() -> void:
  world_draw_ms=float(Time.get_ticks_usec()-_p9_began)/1000.0
 func _draw_debris(d: Dictionary) -> void:
  var alpha: float=clampf(1.0-float(d.age)/float(d.life),0.0,1.0)
+ if d.has("pieces"):
+  alpha=clampf(1.0-maxf(0.0,float(d.age)-float(d.release_delay))/float(d.fade_duration),0.0,1.0)
+  var zoom: float=maxf(0.01,get_global_transform_with_canvas().x.length())
+  for body: Dictionary in d.pieces:
+   for line: Dictionary in body.lines:
+    var from: Vector2=Vector2(body.position)+Vector2(line.from).rotated(float(body.angle))
+    var to: Vector2=Vector2(body.position)+Vector2(line.to).rotated(float(body.angle))
+    draw_line(from,to,Color(line.color,alpha*VisualStyle.CONNECTOR_OPACITY),VisualStyle.CONNECTOR_WIDTH/zoom,true)
+   for circle: Dictionary in body.circles:
+    var point: Vector2=Vector2(body.position)+Vector2(circle.offset).rotated(float(body.angle))
+    var radius: float=float(circle.radius)
+    if bool(circle.filled): draw_circle(point,radius,Color(circle.fill,alpha),true,-1,true)
+    draw_arc(point,radius,0.0,TAU,48,Color(circle.color,alpha),VisualStyle.STROKE_WIDTH/zoom,true)
+    var start: float=fposmod((float(d.age)+float(circle.phase))/maxf(0.05,float(circle.period)),1.0)*TAU
+    draw_arc(point,radius,start,start+TAU*VisualStyle.LIGHT_FRACTION,12,Color(circle.light,alpha),VisualStyle.LIGHT_WIDTH/zoom,true)
+  return
  var color: Color=d.color
  color.a=alpha
  var angle: float=float(d.angle)
@@ -2217,24 +2331,16 @@ func draw_projectiles(canvas: Node2D) -> void:
    for enemy: Dictionary in enemies:
     if enemy.element=="void": canvas.draw_string(ThemeDB.fallback_font,Vector2(enemy.pos)+Vector2(-20,-30),"%d" % ceili(enemy.hp),HORIZONTAL_ALIGNMENT_LEFT,-1,12,COLORS[2])
  for beam: Dictionary in beams:
-  var color: Color=PLAYER_COLOR if int(beam.faction)==0 else COLORS[maxi(0,ELEMENTS.find(beam.element))]
-  # Spec §19 table: "wide faint band under a bright core, both jittering in
-  # width, with pulses running along it". `elapsed` (sim-tick-derived, never
-  # a wall clock) drives both the jitter and the travelling pulse so a
-  # paused sim freezes the beam exactly, same rule as everything else here.
-  var jitter: float=1.0+0.18*sin(elapsed*23.0+beam.points[0].x*0.05)
-  canvas.draw_polyline(beam.points,Color(color,0.35)*1.4,7.0*jitter,true)
-  canvas.draw_polyline(beam.points,color*1.8,2.6*jitter,true)
-  var pulse_t: float=fmod(elapsed*2.2,1.0)
-  var pulse_index: int=clampi(roundi(pulse_t*float(beam.points.size()-1)),0,beam.points.size()-1)
-  canvas.draw_circle(beam.points[pulse_index],4.0,color*1.8)
+  preload("res://scripts/combat/combat_canvas.gd").draw_beam(canvas,beam.points,elapsed,int(beam.faction)==0)
  for attack: Dictionary in telegraphs:
   var color: Color=Color("ff5436")
   var progress: float=clampf(1.0-float(attack.time)/maxf(0.001,float(attack.warn)),0.0,1.0)
   if attack.kind=="laser":
    if bool(attack.fired):
-    canvas.draw_line(attack.from,attack.to,Color(1,0.25,0.15,0.35),7.0,true)
-    canvas.draw_line(attack.from,attack.to,Color(1.8,1.55,1.45),2.6,true)
+    if bool(attack.get("beam_continuation",false)): continue
+    var beam_path: PackedVector2Array=_fired_beam_path(attack)
+    if beam_path.size()>1:
+     preload("res://scripts/combat/combat_canvas.gd").draw_beam(canvas,beam_path,elapsed,int(attack.faction)==0)
    else: canvas.draw_line(attack.from,Vector2(attack.from).lerp(attack.to,progress),Color(color,0.8),1.5,true)
   else:
    canvas.draw_arc(attack.from,float(attack.radius),0,TAU,40,color,1.5,true)
@@ -2254,6 +2360,11 @@ func draw_projectiles(canvas: Node2D) -> void:
 
 
 
+
+func _fired_beam_path(attack: Dictionary) -> PackedVector2Array:
+ if not bool(attack.get("fired",false)) or bool(attack.get("beam_continuation",false)): return PackedVector2Array()
+ if attack.has("beam_path"): return PackedVector2Array(attack.beam_path)
+ return PackedVector2Array([attack.from,attack.to]) if str(attack.get("kind",""))=="laser" else PackedVector2Array()
 
 func _regular_pattern(actor: Dictionary, dt: float) -> void:
  # A regular's element varies its authored pulse pattern, never its loadout.
@@ -2277,6 +2388,8 @@ func _configure_arena_exits() -> void:
   elif direction is Array and direction.size()==2: arena.exits.append(Vector2i(int(direction[0]),int(direction[1])))
 
 func _muzzle(actor: Dictionary, mount: String) -> Vector2:
+ return _resolve_muzzle(actor,mount).position
+func _resolve_muzzle(actor: Dictionary, mount: String) -> Dictionary:
  # Rail hull: a mount is a HUB whose id is positional ("r2s1"), so it is found through the mount
  # table, never by treating the mount's name as a circle id. Mirror twins share one mount and
  # take turns (the muzzle alternates; damage does not double), skipping a twin that has died.
@@ -2289,10 +2402,11 @@ func _muzzle(actor: Dictionary, mount: String) -> Vector2:
    for step: int in range(twins.size()):
     var index: int=twins[(turn+step)%twins.size()]
     if index==0 or (bool(actor.part_attached[index]) and float(actor.part_hp[index])>0.0) or int(actor.id)==0:
-     return _part_position(actor,index)
-  return Vector2(actor.pos)
+     return {"position":_part_position(actor,index),"part":rig.ids[index]}
+  var definition: ShipDefinition=actor.get("definition")
+  return {"position":Vector2(actor.pos),"part":"core" if mount=="primary" and definition!=null and definition.core_weapon!="" else ""}
  var fallback: Vector2=Vector2(actor.get("mounts",{}).get(mount,Vector2.ZERO))
- return Vector2(actor.pos)+_local_position(actor,mount,fallback).rotated(Vector2(actor.aim).angle()+PI/2.0)
+ return {"position":Vector2(actor.pos)+_local_position(actor,mount,fallback).rotated(Vector2(actor.aim).angle()+PI/2.0),"part":mount if rig!=null and rig.index_of(mount)>=0 else ""}
 
 func _prepare_shot_source(index: int) -> void:
  _shot_source.id=bullets.owners[index]

@@ -3,6 +3,39 @@
 class_name UiKit
 extends RefCounted
 
+static func make_theme() -> Theme:
+	var result := Theme.new()
+	result.default_font_size = 16
+	for kind: String in ["Label", "Button", "CheckButton", "CheckBox", "OptionButton", "LineEdit", "TabBar", "SpinBox"]:
+		result.set_color("font_color", kind, VisualStyle.TEXT)
+		result.set_color("font_hover_color", kind, VisualStyle.TEXT)
+		result.set_color("font_focus_color", kind, VisualStyle.TEXT)
+		result.set_color("font_pressed_color", kind, VisualStyle.ACCENT)
+		result.set_color("font_disabled_color", kind, Color("62626d"))
+	for kind: String in ["Button", "OptionButton", "LineEdit"]:
+		result.set_stylebox("normal", kind, box(VisualStyle.PANEL, Color("39393f")))
+		result.set_stylebox("hover", kind, box(Color("25252b"), VisualStyle.MUTED))
+		result.set_stylebox("pressed", kind, box(Color("302e24"), VisualStyle.ACCENT))
+		result.set_stylebox("focus", kind, box(Color.TRANSPARENT, VisualStyle.ACCENT, 2))
+		result.set_stylebox("disabled", kind, box(VisualStyle.BG, Color("303036")))
+	result.set_stylebox("panel", "PanelContainer", box(VisualStyle.PANEL, Color("34343b")))
+	result.set_stylebox("panel", "TabContainer", box(VisualStyle.PANEL, Color("34343b")))
+	result.set_stylebox("tab_selected", "TabContainer", box(VisualStyle.PANEL, VisualStyle.ACCENT))
+	result.set_stylebox("tab_unselected", "TabContainer", box(VisualStyle.BG, Color("34343b")))
+	result.set_color("font_selected_color", "TabContainer", VisualStyle.TEXT)
+	result.set_color("font_unselected_color", "TabContainer", VisualStyle.MUTED)
+	var slider_track := box(Color("3b3b43"), Color.TRANSPARENT, 0)
+	slider_track.content_margin_top = 2
+	slider_track.content_margin_bottom = 2
+	var slider_fill := box(VisualStyle.ACCENT, Color.TRANSPARENT, 0)
+	slider_fill.content_margin_top = 2
+	slider_fill.content_margin_bottom = 2
+	result.set_stylebox("slider", "HSlider", slider_track)
+	result.set_stylebox("grabber_area", "HSlider", slider_fill)
+	result.set_stylebox("grabber_area_highlight", "HSlider", slider_fill)
+	result.set_color("font_placeholder_color", "LineEdit", VisualStyle.MUTED)
+	return result
+
 static func group(parent: Node) -> Control:
 	var result := Control.new()
 	result.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

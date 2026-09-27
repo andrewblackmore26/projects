@@ -1,53 +1,57 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_jp1vh"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_4b8ln"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_kh1s1"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_2gd5u"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_5qgup"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_h3pu8"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ekyef"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ojbug"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_qy2d2"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_hjqup"]
 
-[sub_resource type="Resource" id="Resource_qby0f"]
-script = ExtResource("1_jp1vh")
+[sub_resource type="Resource" id="Resource_gaie3"]
+script = ExtResource("1_h3pu8")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "wedge_pair"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_3bsyp"]
-script = ExtResource("1_jp1vh")
+[sub_resource type="Resource" id="Resource_qow6t"]
+script = ExtResource("1_h3pu8")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_w7bgh"]
-script = ExtResource("1_jp1vh")
+[sub_resource type="Resource" id="Resource_hqyeb"]
+script = ExtResource("1_h3pu8")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_cb8gr"]
-script = ExtResource("1_jp1vh")
+[sub_resource type="Resource" id="Resource_vjy8q"]
+script = ExtResource("1_h3pu8")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_h754q"]
-script = ExtResource("1_jp1vh")
+[sub_resource type="Resource" id="Resource_eqpmm"]
+script = ExtResource("1_h3pu8")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_d3iir"]
-script = ExtResource("4_2gd5u")
+[sub_resource type="Resource" id="Resource_r6ueh"]
+script = ExtResource("4_qy2d2")
 order = 5
-slots = Array[ExtResource("1_jp1vh")]([SubResource("Resource_qby0f"), SubResource("Resource_3bsyp"), SubResource("Resource_w7bgh"), SubResource("Resource_cb8gr"), SubResource("Resource_h754q")])
+slots = Array[ExtResource("1_h3pu8")]([SubResource("Resource_gaie3"), SubResource("Resource_qow6t"), SubResource("Resource_hqyeb"), SubResource("Resource_vjy8q"), SubResource("Resource_eqpmm")])
 
 [resource]
-script = ExtResource("5_5qgup")
+script = ExtResource("5_hjqup")
 id = "player_lightning_t3_compact"
 display_name = "Lightning T3 Compact"
 element = "lightning"
 tier = 3
 description = "seed 387394"
 schema_version = 4
+geometry_revision = 3
 role = "compact"
 family = "compact"
 speed = 300.0
@@ -58,4 +62,5 @@ hp_buffer = 0.8
 chassis_color = "blue"
 accent_color = "yellow"
 core_depth = 3
-rails = Array[ExtResource("4_2gd5u")]([SubResource("Resource_d3iir")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_qy2d2")]([SubResource("Resource_r6ueh")])

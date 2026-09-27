@@ -1,49 +1,53 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_0d4v3"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_3cppi"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_k7orp"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_odnut"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_byxyd"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_u4df5"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_t4h17"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_on04w"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_5qcc1"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_7ciws"]
 
-[sub_resource type="Resource" id="Resource_84opg"]
-script = ExtResource("1_0d4v3")
+[sub_resource type="Resource" id="Resource_2sqsu"]
+script = ExtResource("1_u4df5")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 
-[sub_resource type="Resource" id="Resource_q1dxd"]
-script = ExtResource("1_0d4v3")
+[sub_resource type="Resource" id="Resource_mguf5"]
+script = ExtResource("1_u4df5")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_y27ln"]
-script = ExtResource("1_0d4v3")
+[sub_resource type="Resource" id="Resource_d3rsp"]
+script = ExtResource("1_u4df5")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 
-[sub_resource type="Resource" id="Resource_k100v"]
-script = ExtResource("1_0d4v3")
+[sub_resource type="Resource" id="Resource_720jd"]
+script = ExtResource("1_u4df5")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_ymkrx"]
-script = ExtResource("4_odnut")
+[sub_resource type="Resource" id="Resource_amgim"]
+script = ExtResource("4_5qcc1")
 order = 4
 speed = -1.0559
 phase = 0.6365
-slots = Array[ExtResource("1_0d4v3")]([SubResource("Resource_84opg"), SubResource("Resource_q1dxd"), SubResource("Resource_y27ln"), SubResource("Resource_k100v")])
+slots = Array[ExtResource("1_u4df5")]([SubResource("Resource_2sqsu"), SubResource("Resource_mguf5"), SubResource("Resource_d3rsp"), SubResource("Resource_720jd")])
 
 [resource]
-script = ExtResource("5_byxyd")
+script = ExtResource("5_7ciws")
 id = "enemy_sentry_plasma_t6"
 display_name = "Plasma Sentry T6"
 element = "plasma"
 tier = 6
 description = "seed 83822"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "violet"
+core_radii = PackedFloat32Array()
 core_weapon = "spin_ring"
 archetype = "sentry"
-rails = Array[ExtResource("4_odnut")]([SubResource("Resource_ymkrx")])
+rails = Array[ExtResource("4_5qcc1")]([SubResource("Resource_amgim")])

@@ -1,75 +1,79 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_klqvc"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_sig41"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_h32dn"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_r87e6"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_m5hhg"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_f8acu"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_61tk8"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_c2gdg"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_m3v3s"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_wa63y"]
 
-[sub_resource type="Resource" id="Resource_m28os"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_pwli5"]
+script = ExtResource("1_f8acu")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_owpf2"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_ei6dw"]
+script = ExtResource("1_f8acu")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_775j2"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_xhtkj"]
+script = ExtResource("1_f8acu")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_htt1r"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_1ra43"]
+script = ExtResource("1_f8acu")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_4tant"]
-script = ExtResource("4_r87e6")
+[sub_resource type="Resource" id="Resource_8284v"]
+script = ExtResource("4_m3v3s")
 order = 4
 speed = -0.9569
 phase = 0.356
-slots = Array[ExtResource("1_klqvc")]([SubResource("Resource_m28os"), SubResource("Resource_owpf2"), SubResource("Resource_775j2"), SubResource("Resource_htt1r")])
+slots = Array[ExtResource("1_f8acu")]([SubResource("Resource_pwli5"), SubResource("Resource_ei6dw"), SubResource("Resource_xhtkj"), SubResource("Resource_1ra43")])
 
-[sub_resource type="Resource" id="Resource_hhort"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_s8ikq"]
+script = ExtResource("1_f8acu")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 hp = 100.0
 
-[sub_resource type="Resource" id="Resource_6e1sp"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_vgrtt"]
+script = ExtResource("1_f8acu")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 hp = 100.0
 
-[sub_resource type="Resource" id="Resource_gho1j"]
-script = ExtResource("1_klqvc")
+[sub_resource type="Resource" id="Resource_xve7m"]
+script = ExtResource("1_f8acu")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 hp = 100.0
 
-[sub_resource type="Resource" id="Resource_buai2"]
-script = ExtResource("4_r87e6")
+[sub_resource type="Resource" id="Resource_jd77u"]
+script = ExtResource("4_m3v3s")
 radius = 96
 speed = 0.4291
 phase = 1.6882
 pump_phase = 0.9
-slots = Array[ExtResource("1_klqvc")]([SubResource("Resource_hhort"), SubResource("Resource_6e1sp"), SubResource("Resource_gho1j")])
+slots = Array[ExtResource("1_f8acu")]([SubResource("Resource_s8ikq"), SubResource("Resource_vgrtt"), SubResource("Resource_xve7m")])
 
 [resource]
-script = ExtResource("5_m5hhg")
+script = ExtResource("5_wa63y")
 id = "elite_radial_plasma_t6"
 display_name = "Plasma Radial Elite T6"
 element = "plasma"
 tier = 6
 description = "seed 192875"
 schema_version = 4
+geometry_revision = 3
 faction = "elite"
 role = "heavy"
 family = "heavy"
@@ -82,6 +86,7 @@ damage_multiplier = 1.15
 chassis_color = "violet"
 accent_color = "yellow"
 core_depth = 3
+core_radii = PackedFloat32Array(34, 17)
 core_weapon = "coil_pair"
 archetype = "radial_elite"
-rails = Array[ExtResource("4_r87e6")]([SubResource("Resource_4tant"), SubResource("Resource_buai2")])
+rails = Array[ExtResource("4_m3v3s")]([SubResource("Resource_8284v"), SubResource("Resource_jd77u")])

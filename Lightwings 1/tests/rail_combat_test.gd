@@ -172,8 +172,8 @@ func _test_debris(t: RefCounted) -> void:
 	for i: int in range(3): w._update_debris(1.0 / 60.0) # 0.533 s
 	t.check(w.pickups.size() > pickups_before and not w.debris.is_empty() and float(w.debris[-1].light) == 0.0, "It drops its light at 0.5 s and goes on fading")
 	var dropped: int = w.pickups.size()
-	for i: int in range(40): w._update_debris(1.0 / 60.0)
-	t.check(w.debris.is_empty() and w.pickups.size() == dropped, "It is gone at 1.0 s and never pays twice")
+	for i: int in range(74): w._update_debris(1.0 / 60.0)
+	t.check(w.debris.is_empty() and w.pickups.size() == dropped, "It is gone after the 0.35 s release and 1.4 s fade, and never pays twice")
 	release(w)
 
 func _test_core_weapon_fires(t: RefCounted) -> void:

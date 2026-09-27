@@ -37,7 +37,7 @@ func _run() -> void:
 	_check(_bright(image, Vector2i(center+Vector2(radius,0)), background), "Rim renders as a circle (pixel found on the +X radius)")
 	_check(membrane_bright > sealed_bright*1.5, "Open membrane arc is measurably brighter than the sealed wall beside it (%.4f vs %.4f)" % [membrane_bright,sealed_bright])
 	var dead_zone: float = _ring_max(image, center, radius+GameTuning.ARENA_MARGIN+10.0)
-	_check(dead_zone < background*2.0, "The 80 px beyond the rim contains no trace pixels (measured %.4f, background %.4f)" % [dead_zone,background])
+	_check(dead_zone < background+0.001, "The 80 px beyond the rim contains no trace pixels (measured %.4f, background %.4f)" % [dead_zone,background])
 	backdrop.queue_free()
 	world.queue_free()
 	await process_frame
@@ -68,7 +68,7 @@ func _run() -> void:
 	var unclipped_image: Image = root.get_texture().get_image()
 	var unclipped_background: float = _sample(unclipped_image, Vector2i(2, 2))
 	var unclipped_dead_zone: float = _ring_max(unclipped_image, center, radius+GameTuning.ARENA_MARGIN+10.0)
-	_control("dead-zone clip removed (pre-fix unclipped trace formula)", unclipped_dead_zone >= unclipped_background*2.0)
+	_control("dead-zone clip removed (pre-fix unclipped trace formula)", unclipped_dead_zone >= unclipped_background+0.001)
 	unclipped_backdrop.queue_free()
 	unclipped_world.queue_free()
 	await process_frame

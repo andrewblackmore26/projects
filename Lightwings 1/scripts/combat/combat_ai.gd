@@ -228,3 +228,4 @@ static func _steer(world, actor: Dictionary, dt: float, base_speed_fraction: flo
 	var vel: Vector2 = Vector2(actor.get("vel", Vector2.ZERO)).move_toward(target_vel, accel * dt)
 	actor.vel = vel
 	actor.pos = world.arena.clamp_point(Vector2(actor.pos) + vel * dt, 18.0)
+	world._finish_follow_motion(actor)

@@ -18,6 +18,10 @@ extends Resource
 @export var stat_id: String = ""
 @export var tp_cost: float = 1.0
 @export var hp: float = 0.0
+@export var hp_fixed: float = 0.0
+@export var hp_radius: float = -1.0
+## Only concentric, non-solid decoration may attach without a rendered connector.
+@export var integrated_host: String = ""
 @export var dashed: bool = false
 @export var stat_value: float = 0.0
 

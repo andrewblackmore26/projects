@@ -1,6 +1,8 @@
 # Lightship v0.3 validation record
 
-Recorded 2026-09-20 (P9, `lightship-v0.3`). This record describes the CURRENT source after P0–P9 of `tasks/todo.md`'s rewrite (two primitives/motion evaluator, six tiers/141-hull roster, per-circle enemy HP, five bounded Chebyshev levels, campaign/dev/demo modes, save schema 4, momentum/dash/trails/warp, the pace system, attack/impact FX, and this phase's narrative/demo/docs/exports work). The v0.2 record is archived at [VALIDATION_V02.md](VALIDATION_V02.md) and does not establish v0.3 correctness.
+The latest presentation and geometry work is recorded in [Living ships validation — 2026-09-27](VALIDATION_LIVING_SHIPS_2026-09-27.md). The earlier [presentation redesign record](VALIDATION_PRESENTATION_2026-09-27.md) and September 20 record below are historical and do not establish verification of the current presentation.
+
+Recorded 2026-09-20 (P9, `lightship-v0.3`). This record describes the historical source after P0–P9 of `tasks/todo.md`'s rewrite (two primitives/motion evaluator, six tiers/141-hull roster, per-circle enemy HP, five bounded Chebyshev levels, campaign/dev/demo modes, save schema 4, momentum/dash/trails/warp, the pace system, attack/impact FX, and this phase's narrative/demo/docs/exports work). The v0.2 record is archived at [VALIDATION_V02.md](VALIDATION_V02.md) and does not establish v0.3 correctness.
 
 **Every number below is either measured in this session or is a direct citation of a number already measured and recorded in `tasks/todo.md`'s per-phase "Review" tables** (P0 through P8, plus this phase). Where a v0.2 claim (in `VALIDATION_V02.md`) is no longer true of the v0.3 build and has not been re-measured, this record says so instead of copying the old number forward. P10 (adversarial review) has not run yet; nothing here should be read as that review's conclusion.
 

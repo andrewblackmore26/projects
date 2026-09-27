@@ -29,7 +29,6 @@ extends Node2D
 const FxShader = preload("res://scripts/combat/fx_instances.gdshader")
 const STRIDE: int=16 # 2D transform (8), instance color (4), custom data (4).
 const INITIAL_CAPACITY: int=128
-const RING_WIDTH_PX: float=1.5 # Matches the old `canvas.draw_arc(...,1.5,true)` stroke width.
 
 var above_mesh: MultiMeshInstance2D
 var below_mesh: MultiMeshInstance2D
@@ -119,9 +118,9 @@ func sync(fx: CombatFX) -> void:
    fx.Kind.RING:
     var radius: float=lerpf(fx.r0[index],fx.r1[index],t)
     if radius<=0.5: continue
-    var bright: Color=tint*1.6
+    var bright: Color=tint
     bright.a=alpha
-    _write(above_buffer,above_count*STRIDE,fx.pos[index],radius,bright,0.0,(RING_WIDTH_PX*0.5)/radius)
+    _write(above_buffer,above_count*STRIDE,fx.pos[index],radius,bright,0.0,(fx.width[index]*0.5)/radius)
     above_count+=1
    fx.Kind.DISC:
     var radius: float=lerpf(fx.r0[index],fx.r1[index],t)
@@ -139,12 +138,14 @@ func sync(fx: CombatFX) -> void:
  upload_ms=float(Time.get_ticks_usec()-began)/1000.0
 
 func _write(buffer: PackedFloat32Array, offset: int, pos: Vector2, radius: float, color: Color, mode: float, ring_width_local: float) -> void:
- buffer[offset]=radius
+ # Keep the complete outer half of the stroke and its antialiasing inside the quad.
+ var extent: float=radius*(1.0+ring_width_local)+1.0 if mode<0.5 else radius
+ buffer[offset]=extent
  buffer[offset+1]=0.0
  buffer[offset+2]=0.0
  buffer[offset+3]=pos.x
  buffer[offset+4]=0.0
- buffer[offset+5]=radius
+ buffer[offset+5]=extent
  buffer[offset+6]=0.0
  buffer[offset+7]=pos.y
  buffer[offset+8]=color.r
@@ -152,8 +153,8 @@ func _write(buffer: PackedFloat32Array, offset: int, pos: Vector2, radius: float
  buffer[offset+10]=color.b
  buffer[offset+11]=color.a
  buffer[offset+12]=mode
- buffer[offset+13]=ring_width_local
- buffer[offset+14]=0.0
+ buffer[offset+13]=ring_width_local*radius/extent
+ buffer[offset+14]=radius/extent
  buffer[offset+15]=0.0
 
 func clear_instances() -> void:

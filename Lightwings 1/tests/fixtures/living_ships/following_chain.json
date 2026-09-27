@@ -1,0 +1,82 @@
+{
+	"schema_version": 4,
+	"geometry_revision": 3,
+	"id": "living_following_chain",
+	"name": "Following chain reference",
+	"faction": "enemy",
+	"archetype": "chain",
+	"tier": 4,
+	"chassis_color": "green",
+	"accent_color": "yellow",
+	"core_depth": 3,
+	"core_radii": [
+		22,
+		9
+	],
+	"core_dot_radius": 3,
+	"core_dot_color": "white",
+	"chain_head_lobes": true,
+	"chain_mode": "follow",
+	"chain_spacing": 30,
+	"chain_head_spacing": 30,
+	"rails": [],
+	"chain": [
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 16,
+			"bob_amp": 0
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 14.9,
+			"bob_amp": 0,
+			"mark_radius": 4.47
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 13.8,
+			"bob_amp": 0
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 12.7,
+			"bob_amp": 0
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 11.6,
+			"bob_amp": 0,
+			"mark_radius": 3.48
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 10.5,
+			"bob_amp": 0
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 9.399999999999999,
+			"bob_amp": 0
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 8.299999999999999,
+			"bob_amp": 0,
+			"mark_radius": 2.4899999999999998
+		},
+		{
+			"type": "node",
+			"radius": 7,
+			"radius_override": 7.199999999999999,
+			"bob_amp": 0
+		}
+	]
+}

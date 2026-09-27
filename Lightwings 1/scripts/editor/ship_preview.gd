@@ -4,6 +4,7 @@ extends ShipPreview
 var zoom: float = 1.0
 
 func _ready() -> void:
+	auto_fit = false # Authoring zoom is explicit; menu/evolution previews fit automatically.
 	var right: float = anchor_right
 	var bottom: float = anchor_bottom
 	anchor_right = anchor_left

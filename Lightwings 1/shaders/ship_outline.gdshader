@@ -18,6 +18,15 @@ uniform float core_pulse_freq = 4.0;
 uniform float core_quad = 0.0;
 uniform bool show_core = true;
 uniform bool evolution_ready = false;
+uniform float stroke_width = 1.5;
+uniform float connector_width = 2.0;
+uniform float connector_opacity = 0.85;
+uniform float light_width = 2.6;
+uniform float light_fraction = 0.13;
+uniform float guide_width = 1.0;
+uniform float guide_opacity = 0.28;
+uniform float guide_dash = 2.0;
+uniform float guide_period = 7.0;
 
 varying vec4 base_color;
 varying vec3 running_color;
@@ -107,38 +116,38 @@ void fragment() {
 		float radius = length(UV) * (extent + flare_amount * 1.5);
 		float alpha = 1.0 - smoothstep(pulsed - 0.5, pulsed + 0.5 + flare_amount * 1.5, radius);
 		float ready_pulse = evolution_ready ? 1.0 + 0.10 * (0.5 - 0.5 * cos(visual_time * 3.141592)) : 1.0;
-		vec3 core_rgb = core_color.rgb * 1.8 * ready_pulse + flare_amount * vec3(1.6, 1.55, 1.5);
+		vec3 core_rgb = core_color.rgb * 1.15 * ready_pulse + flare_amount * vec3(1.6, 1.55, 1.5);
 		COLOR = vec4(core_rgb, alpha * part_visible);
 	} else if (primitive_kind < -0.5) {
 		COLOR = vec4(base_color.rgb, base_color.a * part_visible);
 	} else {
 		float across = abs(UV.y) * 1.8;
-		float half_width = (light_data.w > 1.5 && light_data.w < 2.5) ? 1.0 : 0.75;
-		float opacity = 1.0;
+		float half_width = (primitive_kind > 0.5 ? connector_width : stroke_width) * 0.5;
+		float opacity = primitive_kind > 0.5 ? connector_opacity : 1.0;
+		bool guide = (light_data.w > 0.5 && light_data.w < 1.5) || light_data.w > 4.5;
 		if (light_data.w > 0.5 && light_data.w < 1.5) {
-			half_width = 0.5;
-			opacity = (mod(path_pixels, 6.0) < 2.0 ? 0.5 : 0.0);
+			half_width = guide_width * 0.5;
+			opacity = (mod(path_pixels, guide_period) < guide_dash ? guide_opacity : 0.0);
 		}
-		// Ship design spec styles. 4 = a passive's thin ring. 5 = a rail: 1 px, dash 2 on / 5 off
-		// at 28 % (§4.2, §9.9). Neither carries a running light - a 13 % arc of a 184 px ring would be
-		// a 150 px HDR-bright streak.
-		bool plain = light_data.w > 3.5;
-		if (plain) half_width = 0.5;
-		if (light_data.w > 4.5) opacity = (mod(path_pixels, 7.0) < 2.0 ? 0.28 : 0.0);
+		// Passive markings share the body stroke. Style 5 is a subordinate orbit guide.
+		if (light_data.w > 4.5) {
+			half_width = guide_width * 0.5;
+			opacity = (mod(path_pixels, guide_period) < guide_dash ? guide_opacity : 0.0);
+		}
 		float outline_alpha = (1.0 - smoothstep(half_width - 0.45, half_width + 0.45, across)) * opacity;
-		float perimeter = max(perimeter_pixels, 0.001);
-				float cycles = (visual_time + light_data.y) / light_data.x;
-		if (motion_signature == 1) cycles += 0.025 * sin(cycles * 6.283185 * 5.0);
-		if (motion_signature == 2) cycles = floor(cycles * 12.0) / 12.0;
-		if (motion_signature == 3 && light_data.w > 2.5 && mod(abs(light_data.y * 10.0), 2.0) > 0.5) cycles *= -1.0;
-		float phase = fract(cycles) * perimeter;
-		float half_segment = perimeter * 0.065;
-		float centered = mod(path_pixels - phase - half_segment + perimeter * 0.5, perimeter) - perimeter * 0.5;
-		float outside_segment = max(abs(centered) - half_segment, 0.0);
-		float capsule_distance = length(vec2(outside_segment, across));
-		float light_alpha = plain ? 0.0 : 1.0 - smoothstep(0.85, 1.75, capsule_distance);
-		float alpha = max(outline_alpha, light_alpha);
-		vec3 rgb = mix(base_color.rgb * 0.96, running_color, light_alpha);
+		float alpha = outline_alpha;
+		vec3 rgb = base_color.rgb;
+		// A rounded arc runs around each physical or integrated circular rim. The
+		// arc is measured along the circumference, independently of orbital motion.
+		if (primitive_kind < 0.5 && !guide && light_fraction > 0.0) {
+			float phase = fract((visual_time + light_data.y) / max(light_data.x, 0.05));
+			float progress = path_pixels / max(perimeter_pixels, 0.001);
+			float relative = fract(progress - phase - light_fraction * 0.5 + 0.5) - 0.5;
+			float along = max(0.0, (abs(relative) - light_fraction * 0.5) * perimeter_pixels);
+			float arc = 1.0 - smoothstep(light_width * 0.5 - 0.45, light_width * 0.5 + 0.45, length(vec2(along, across)));
+			rgb = mix(rgb, running_color, arc);
+			alpha = max(alpha, arc);
+		}
 		// P8 target feedback (spec §19): "flare the target circle's own rim" -
 		// a hit brightens and widens the rim itself rather than a separate ring
 		// drawn in front of it. `flare_amount` decays to 0 over 0.25s (combat_world.gd).

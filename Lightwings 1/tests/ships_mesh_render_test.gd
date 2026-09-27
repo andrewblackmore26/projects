@@ -27,8 +27,8 @@ func _run() -> void:
 	var angle: float = -PI / 2 + TAU * 0.065
 	var first_light: Vector2i = Vector2i(normal.position + Vector2.from_angle(angle) * 40)
 	var opposite: Vector2i = Vector2i(normal.position - Vector2.from_angle(angle) * 40)
-	_check(_peak(first, first_light).b > 1.0, "13% perimeter segment emits HDR light")
-	_check(_peak(first, opposite).b < 1.05, "Rest of the perimeter remains below bloom threshold")
+	_check(_peak(first, first_light).r > _peak(first, opposite).r + 0.2, "The rounded pale highlight stands out from its saturated rim")
+	_check(_peak(first, opposite).r < 0.3, "The opposite rim retains its saturated blue colour")
 	var normal_core: int = _horizontal_width(first, Vector2i(120, 120), 8, 1.1)
 	var minimum_core: int = _horizontal_width(first, Vector2i(340, 120), 8, 1.1)
 	_check(normal_core >= 5 and normal_core <= 7 and normal_core == minimum_core, "Three-pixel core radius survives minimum zoom")
@@ -39,7 +39,7 @@ func _run() -> void:
 	normal._process(0)
 	await _frame()
 	var second: Image = root.get_texture().get_image()
-	_check(_peak(second, first_light).b < 1.05 and _peak(second, opposite).b > 1.0, "Running light travels half a perimeter in one second")
+	_check(_peak(second, first_light).r < _peak(first, first_light).r - 0.2 and _peak(second, opposite).r > _peak(first, opposite).r + 0.2, "A half-period moves the pale arc to the opposite side")
 	normal.part_position_overrides["test_body"] = Vector2(70, 0)
 	normal._process(0)
 	await _frame()
@@ -79,7 +79,7 @@ func _peak(image: Image, at: Vector2i) -> Color:
 	for y: int in range(at.y - 1, at.y + 2):
 		for x: int in range(at.x - 1, at.x + 2):
 			var pixel: Color = image.get_pixel(x, y)
-			if pixel.b > result.b: result = pixel
+			if pixel.r + pixel.b > result.r + result.b: result = pixel
 	return result
 
 func _horizontal_width(image: Image, center: Vector2i, range_pixels: int, threshold: float) -> int:

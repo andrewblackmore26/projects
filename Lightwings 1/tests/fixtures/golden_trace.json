@@ -13,7 +13,7 @@
 			"paused": false,
 			"profile": "76242fbb2b74df20",
 			"sector": "(0, 0)",
-			"snapshot": "48488eddd8fb5d5d",
+			"snapshot": "5571b071c29d9e70",
 			"step": "new_game",
 			"tier": 1
 		},
@@ -29,7 +29,7 @@
 			"paused": false,
 			"profile": "76242fbb2b74df20",
 			"sector": "(0, 0)",
-			"snapshot": "80a6c3fed9ade092",
+			"snapshot": "b485dded791584e0",
 			"step": "origin_flown",
 			"tier": 1
 		},
@@ -45,7 +45,7 @@
 			"paused": false,
 			"profile": "24026384ef9df9c3",
 			"sector": "(1, 0)",
-			"snapshot": "d0c63215973d9ca3",
+			"snapshot": "1c210975ddeec4fb",
 			"step": "entered_1_0",
 			"tier": 1
 		},
@@ -61,7 +61,7 @@
 			"paused": false,
 			"profile": "24026384ef9df9c3",
 			"sector": "(1, 0)",
-			"snapshot": "82f592c683aade53",
+			"snapshot": "b7790c88b9b525bf",
 			"step": "fought_1_0",
 			"tier": 1
 		},
@@ -81,7 +81,7 @@
 			"paused": true,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "47b78f928b5f4e42",
+			"snapshot": "6a3a90f69d4c9e00",
 			"step": "evolution_offered",
 			"tier": 1
 		},
@@ -97,7 +97,7 @@
 			"paused": false,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "38a68808db23e1af",
+			"snapshot": "824142addff995f4",
 			"step": "evolved",
 			"tier": 2
 		},
@@ -113,7 +113,7 @@
 			"paused": false,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "a74c6df597efa5f7",
+			"snapshot": "3ea4b732037f1edb",
 			"step": "fought_as_t2",
 			"tier": 2
 		},
@@ -129,7 +129,7 @@
 			"paused": true,
 			"profile": "fafb3a0fac75c787",
 			"sector": "(1, 0)",
-			"snapshot": "a74c6df597efa5f7",
+			"snapshot": "3ea4b732037f1edb",
 			"step": "map_open",
 			"tier": 2
 		},
@@ -145,7 +145,7 @@
 			"paused": false,
 			"profile": "1aa5e035929ce78e",
 			"sector": "(2, 0)",
-			"snapshot": "5fadfcccddf68947",
+			"snapshot": "1e9d3983d07b8b26",
 			"step": "fought_2_0",
 			"tier": 2
 		},
@@ -153,7 +153,7 @@
 			"bullets": 6,
 			"enemies": 2,
 			"hull": "player_fire_t2_standard_b",
-			"light": 92.5173,
+			"light": 99.0,
 			"lines": "cce3f550dbb69329",
 			"mode": "play",
 			"offers": [],
@@ -161,7 +161,7 @@
 			"paused": false,
 			"profile": "1aa5e035929ce78e",
 			"sector": "(2, 0)",
-			"snapshot": "18290958736f7657",
+			"snapshot": "3e97aefc962ac72c",
 			"step": "corruption_motion_group",
 			"tier": 2
 		},
@@ -177,7 +177,7 @@
 			"paused": false,
 			"profile": "8a49adc826055691",
 			"sector": "(0, 0)",
-			"snapshot": "63e4390ca074c956",
+			"snapshot": "1b55e9c385506f3d",
 			"step": "died",
 			"tier": 2
 		},
@@ -193,7 +193,7 @@
 			"paused": false,
 			"profile": "8a49adc826055691",
 			"sector": "(0, 0)",
-			"snapshot": "e0947a015e4b29fd",
+			"snapshot": "d0c55ea000489c83",
 			"step": "rebooted",
 			"tier": 1
 		}

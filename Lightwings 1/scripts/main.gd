@@ -1,9 +1,9 @@
 extends Node
 
-const BLUE := Color("6fd3ff")
-const WHITE := Color("efeee8")
-const MUTED := Color("9099a8")
-const GOLD := Color("ffd23f")
+const BLUE := VisualStyle.BLUE
+const WHITE := VisualStyle.TEXT
+const MUTED := VisualStyle.MUTED
+const GOLD := VisualStyle.ACCENT
 ## Rendered-frame gate budgets, ms/frame in the stress case: 2000 live bullets AND the 400-pickup
 ## cap AND 17 actors, mobile renderer, HDR 2D and glow on, 1280x800, vsync off, on the development
 ## desktop (RTX 5070 Ti / Ryzen 7 9800X3D). Two immediate-mode draw loops were found here and both
@@ -20,9 +20,8 @@ const GOLD := Color("ffd23f")
 const RENDERED_FRAME_BUDGET_MEAN_MS: float = 14.0
 const RENDERED_FRAME_BUDGET_P95_MS: float = 26.0
 ## Per-overlay-kind policy: whether opening it pauses the tree, and whether
-## Escape/ui_cancel is allowed to close it while it is open. "intro" is kept
-## for parity with the pre-refactor code even though no call site opens it
-## today. Default (kind not listed) matches today's blanket behaviour.
+## Escape/ui_cancel is allowed to close it while it is open. Default (kind
+## not listed) matches today's blanket behaviour.
 ## P7 additions (spec §7.4/§24, frictionless death):
 ## - `freezes_sim`: the sim is stopped WITHOUT pausing the tree, so a timer
 ##   and fresh-press detection can still run while it is up.
@@ -39,7 +38,6 @@ const SCREEN_POLICY: Dictionary = {
 	"ending": {"pauses": true, "escape_closes": false},
 	"cloud": {"pauses": true, "escape_closes": true},
 	"confirm": {"pauses": true, "escape_closes": true},
-	"intro": {"pauses": true, "escape_closes": false},
 }
 const DEFAULT_SCREEN_POLICY: Dictionary = {"pauses": true, "escape_closes": true, "freezes_sim": false, "any_input_dismiss": false, "auto_close": 0.0, "input_guard": 0.0}
 
@@ -91,7 +89,10 @@ var line_queue: Array[Dictionary]:
 var seen_lines: Dictionary:
 	get: return dialogue_director.seen_lines
 	set(value): dialogue_director.seen_lines = value
-var settings: Dictionary = {"volume":0.7,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false,"reduced_warp":false}
+var settings: Dictionary = {"volume":0.7,"effects_volume":0.55,"interface_volume":0.45,"ambience_volume":0.15,"pickup_cues":false,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false,"reduced_warp":false}
+var options_tab: int = 0
+var _options_return: String = ""
+var _options_focus: WeakRef
 var elapsed_ui: float = 0.0
 var toast_remaining: float = 0.0
 var dialogue_remaining: float = 0.0
@@ -151,6 +152,7 @@ func _ready() -> void:
 	load_settings()
 	_create_environment()
 	sound = Soundscape.new()
+	sound.configure(settings)
 	add_child(sound)
 	platform = PlatformService.new()
 	add_child(platform)
@@ -205,6 +207,13 @@ func _ready() -> void:
 			combat.light_total = 100.0
 			combat.absorption = {"fire":20.0,"corruption":20.0,"plasma":20.0}
 			_show_evolution()
+		elif (arg == "--show-options" or arg.begins_with("--show-options=")) and OS.has_feature("editor"):
+			if arg.contains("="): options_tab = maxi(0,["audio","display","gameplay","controls"].find(arg.get_slice("=",1)))
+			_show_options()
+		elif arg == "--show-pause" and OS.has_feature("editor"):
+			_new_game(false)
+			_close_overlay()
+			_show_pause()
 		elif arg == "--show-map" and OS.has_feature("editor"):
 			_new_game(false)
 			_show_map()
@@ -295,8 +304,7 @@ func _create_environment() -> void:
 	environment.background_mode = Environment.BG_CANVAS
 	environment.background_canvas_max_layer = 0
 	environment.glow_enabled = true
-	environment.glow_intensity = 1.5
-	environment.glow_strength = 0.35
+	VisualStyle.configure_glow(environment)
 	environment.glow_hdr_threshold = 1.0
 	environment.glow_bloom = 0.0
 	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
@@ -313,18 +321,7 @@ func _create_ui() -> void:
 	ui = Control.new()
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var theme := Theme.new()
-	theme.default_font_size = 16
-	theme.set_color("font_color", "Label", WHITE)
-	theme.set_color("font_color", "Button", WHITE)
-	theme.set_color("font_hover_color", "Button", Color.WHITE)
-	theme.set_color("font_disabled_color", "Button", Color("505866"))
-	theme.set_stylebox("normal", "Button", box(Color("111620"), Color("303a49")))
-	theme.set_stylebox("hover", "Button", box(Color("1a2130"), Color("6a788a")))
-	theme.set_stylebox("pressed", "Button", box(Color("263449"), GOLD))
-	theme.set_stylebox("focus", "Button", box(Color(0,0,0,0), GOLD, 2))
-	theme.set_stylebox("disabled", "Button", box(Color("0b0d12"), Color("202631")))
-	ui.theme = theme
+	ui.theme = UiKit.make_theme()
 	layer.add_child(ui)
 	hud = group(ui)
 	menu = group(ui)
@@ -335,7 +332,7 @@ func _create_ui() -> void:
 	_build_hud()
 
 func _build_hud() -> void:
-	panel(hud,Rect2(0,0,1280,78),Color("090b10"),Color("202630"))
+	panel(hud,Rect2(0,0,1280,78),VisualStyle.PANEL,Color("34343b"))
 	label(hud,"L I G H T S H I P",Vector2(24,12),Vector2(290,27),20,WHITE)
 	sector_label = label(hud,"ORIGIN",Vector2(25,43),Vector2(330,23),11,MUTED)
 	energy_label = label(hud,"LIGHT · T1",Vector2(365,8),Vector2(590,25),15,BLUE)
@@ -355,7 +352,7 @@ func _build_hud() -> void:
 	light_mix_secondary = label(hud,"",Vector2(660,51),Vector2(295,20),10,MUTED)
 	button(hud,"MAP · TAB",Rect2(989,18,171,40),_show_map)
 	button(hud,"Ⅱ",Rect2(1172,18,78,40),_show_pause)
-	panel(hud,Rect2(0,717,1280,83),Color("090b10"),Color("202630"))
+	panel(hud,Rect2(0,717,1280,83),VisualStyle.PANEL,Color("34343b"))
 	build_label = label(hud,"SEED",Vector2(24,728),Vector2(790,62),13,MUTED)
 	slot_overlay = Control.new()
 	slot_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -466,10 +463,33 @@ func _show_menu() -> void:
 	dev_console = null
 	clear(menu)
 	menu.visible = true
-	label(menu,"AN INSTANCE AWAKENS",Vector2(76,77),Vector2(600,30),13,GOLD)
-	label(menu,"LIGHTSHIP",Vector2(70,124),Vector2(650,100),76,WHITE)
-	label(menu,"Absorb light. Become something new.",Vector2(78,238),Vector2(570,38),23,MUTED)
-	label(menu,"A living machine in a world of rival minds.\nLight is your health. Grow, reshape, and survive.",Vector2(78,294),Vector2(550,65),16,MUTED)
+	sound.set_context("menu")
+	var background := ColorRect.new()
+	background.color = VisualStyle.BG
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	menu.add_child(background)
+	var margin := MarginContainer.new()
+	margin.name = "MenuLayout"
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side: String in ["left", "right"]: margin.add_theme_constant_override("margin_" + side, 80)
+	for side: String in ["top", "bottom"]: margin.add_theme_constant_override("margin_" + side, 56)
+	menu.add_child(margin)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 64)
+	margin.add_child(columns)
+	var left := VBoxContainer.new()
+	left.custom_minimum_size.x = 430
+	left.add_theme_constant_override("separation", 14)
+	columns.add_child(left)
+	_menu_label(left, "AN INSTANCE AWAKENS", 12, GOLD)
+	_menu_label(left, "LIGHTSHIP", 62, WHITE)
+	_menu_label(left, "Absorb light. Become something new.", 20, MUTED)
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 20
+	left.add_child(gap)
+	var actions := VBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	left.add_child(actions)
 	## Available modes for THIS build flavour (spec §4: a demo build offers
 	## demo only -- Dev must never be reachable there). The old "PLAY THE
 	## DEMO" full-build entry is gone: the demo is its own build flavour now
@@ -477,37 +497,63 @@ func _show_menu() -> void:
 	var available_modes: Array[String] = ModeConfig.available_modes(OS.has_feature("demo"))
 	var menu_slot: String = ModeConfig.from_id(available_modes[0]).save_slot()
 	var exists: bool = not SaveService.load_snapshot(menu_slot).is_empty() or FileAccess.file_exists(SaveService.snapshot_path(menu_slot))
-	var primary: Button = button(menu,("CONTINUE " if exists else "BEGIN ")+menu_slot.to_upper(),Rect2(78,395,375,52),func() -> void: _continue_game(menu_slot) if exists else _show_level_select(available_modes[0]))
+	var primary: Button = _menu_action(actions,("CONTINUE " if exists else "BEGIN ")+menu_slot.to_upper(),func() -> void: _continue_game(menu_slot) if exists else _show_level_select(available_modes[0]))
+	primary.custom_minimum_size.y = 52
+	primary.add_theme_stylebox_override("normal",box(Color("292820"),GOLD))
 	if "dev" in available_modes:
-		button(menu,"DEV MODE",Rect2(78,460,375,48),_show_level_select.bind("dev"))
+		_menu_action(actions,"DEV MODE",_show_level_select.bind("dev"))
 	if exists and OS.has_feature("demo"):
-		button(menu,"NEW DEMO",Rect2(78,637,181,36),_confirm_new.bind(true))
+		_menu_action(actions,"NEW DEMO",_confirm_new.bind(true))
 	if OS.has_feature("editor"):
-		button(menu,"SHIP WORKSHOP",Rect2(78,521,181,44),_open_editor)
-		button(menu,"SHIP ATLAS",Rect2(271,521,182,44),_open_gallery)
-	button(menu,"OPTIONS",Rect2(78,578,181,44),_show_options)
-	button(menu,"QUIT",Rect2(271,578,182,44),_quit)
+		var tools_row := HBoxContainer.new()
+		tools_row.add_theme_constant_override("separation", 10)
+		actions.add_child(tools_row)
+		_menu_action(tools_row,"SHIP WORKSHOP",_open_editor)
+		_menu_action(tools_row,"SHIP ATLAS",_open_gallery)
+	var utilities := HBoxContainer.new()
+	utilities.add_theme_constant_override("separation", 10)
+	actions.add_child(utilities)
+	_menu_action(utilities,"OPTIONS",_show_options)
+	_menu_action(utilities,"QUIT",_quit)
 	if exists and not OS.has_feature("demo"):
-		button(menu,"NEW CAMPAIGN",Rect2(78,637,181,36),_confirm_new)
+		_menu_action(actions,"NEW CAMPAIGN",_confirm_new)
 	if not OS.has_feature("demo") and not SaveService.load_snapshot("demo").is_empty():
-		button(menu,"IMPORT DEMO",Rect2(271,637,182,36),_import_demo)
-	label(menu,"WASD + MOUSE  /  CONTROLLER",Vector2(78,718),Vector2(600,24),12,MUTED)
-	# Approved preamble: the demo is campaign levels 1-2 (Lightning + Fire), no tier cap.
-	label(menu,"DEMO  ·  LIGHTNING / FIRE · LEVELS 1–2 · NO TIER CAP" if OS.has_feature("demo") else "FIVE ELEMENTS / %d LIGHTSHIPS" % ShipGenerator.player_hull_count(),Vector2(78,751),Vector2(650,20),11,Color("586271"))
+		_menu_action(actions,"IMPORT DEMO",_import_demo)
 	if platform.online and not OS.has_feature("demo"):
 		cloud_review = platform.inspect_cloud(menu_slot)
 		cloud_sync_ready = str(cloud_review.get("state","")) in ["same","missing"]
 		if str(cloud_review.get("state","")) in ["conflict","remote_only"]:
-			button(menu,"REVIEW CLOUD SAVE",Rect2(78,680,375,36),_show_cloud_review)
-	var menu_roots: Array = ["lightning","fire"] if OS.has_feature("demo") else ["fire","plasma","void","corruption"]
-	for i: int in range(menu_roots.size()):
-		var root: String = str(menu_roots[i])
-		var preview := ShipPreview.new()
-		menu.add_child(preview)
-		preview.position = Vector2(695 + (i % 2)*248,135+(i/2)*290)
-		preview.initialize(ShipCatalog.make_ship(root,GameTuning.MAX_TIER if OS.has_feature("demo") else 5,i==0),Vector2(220,240),1.8)
-		label(menu,root.to_upper(),preview.position+Vector2(20,222),Vector2(180,25),12,ShipCatalog.get_color(root)).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_menu_action(actions,"REVIEW CLOUD SAVE",_show_cloud_review)
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(spacer)
+	_menu_label(left,"WASD + MOUSE  /  CONTROLLER",11,MUTED)
+	_menu_label(left,"DEMO · LIGHTNING / FIRE · LEVELS 1–2" if OS.has_feature("demo") else "FIVE ELEMENTS · ONE LIVING MACHINE",11,MUTED)
+	var hero := ShipPreview.new()
+	hero.name = "MenuHero"
+	hero.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hero.custom_minimum_size = Vector2(360, 360)
+	hero.preview_time_scale = 1.0
+	hero.fit_margin = 48.0
+	columns.add_child(hero)
+	hero.initialize(ShipCatalog.get_ship("player_lightning_t3_standard_a"),Vector2(560,640),1.8)
 	primary.grab_focus()
+
+func _menu_label(parent: Node, text: String, font_size: int, ink: Color) -> Label:
+	var result := Label.new()
+	result.text = text
+	result.add_theme_font_size_override("font_size",font_size)
+	result.add_theme_color_override("font_color",ink)
+	parent.add_child(result)
+	return result
+
+func _menu_action(parent: Node, text: String, action: Callable) -> Button:
+	var result: Button = button(parent,text,Rect2(0,0,0,40),action)
+	result.custom_minimum_size.y = 40
+	result.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	result.add_theme_font_size_override("font_size",14)
+	return result
 
 ## Level select (spec §4: "Menu: Campaign and Dev mode, each with level
 ## select"). Campaign offers levels 1..completed+1; dev offers all five.
@@ -595,6 +641,7 @@ func _start_game_view() -> void:
 	menu.visible = false
 	hud.visible = true
 	mode = "play"
+	sound.set_context("play")
 	if is_instance_valid(combat):
 		combat.active = false
 		combat.queue_free()
@@ -608,7 +655,7 @@ func _start_game_view() -> void:
 	combat.add_child(backdrop)
 	combat.light_collected.connect(_on_energy)
 	combat.player_regressed.connect(_on_regression)
-	combat.shot_fired.connect(_on_shot_fired)
+	combat.shot_audio_requested.connect(_on_shot_fired)
 	combat.player_died.connect(_on_death)
 	combat.sector_cleared.connect(_on_sector_clear)
 	combat.boss_defeated.connect(_on_boss_defeated)
@@ -769,7 +816,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not overlay_kind.is_empty() and not bool(SCREEN_POLICY.get(overlay_kind,DEFAULT_SCREEN_POLICY).escape_closes):
 			return
 		if not overlay_kind.is_empty():
-			_close_overlay()
+			if overlay_kind == "options": _close_options()
+			else: _close_overlay()
 		elif mode == "play":
 			_show_pause()
 		get_viewport().set_input_as_handled()
@@ -862,7 +910,7 @@ func _on_energy(element: String, amount: float) -> void:
 	absorbed = combat.absorption
 	if campaign.unlock_element(element,amount):
 		_queue_line("companion","A new dialect",element.capitalize()+" light now belongs among your possible futures. Absorb it to change the hulls you are offered.","unlocked_"+element)
-	if amount >= 5 or fmod(elapsed_ui,0.3)<0.04: sound.play("pickup")
+	sound.play("pickup")
 	if combat.light_total >= EvolutionRules.threshold(combat.player_tier) and combat.player_tier < mode_config.max_tier():
 		_queue_line("companion","Enough light to change","Press E or A to choose a complete new lightship. Its labelled weapons and passives are part of the hull. The choice follows the light you absorb.","first_threshold_v2")
 
@@ -871,8 +919,8 @@ func _on_regression(from_tier: int, to_tier: int) -> void:
 	_toast("RESHAPING · T%d → T%d" % [from_tier,to_tier])
 	_queue_line("companion","A smaller shape, the same instance","Damage spent your light and returned you to an earlier hull. Absorb enough to grow again and you can choose a different future.","first_regression_v2")
 
-func _on_shot_fired(at: Vector2, element: String, _ability: String) -> void:
-	sound.play_at(element,at-combat.player_position)
+func _on_shot_fired(at: Vector2, element: String, _ability: String, actor_id: int = 1) -> void:
+	sound.play_at(element,at-combat.player_position,"player" if actor_id == 0 else "enemy")
 
 ## Applies a validated DevConsole.parse() result. Only ever reachable when
 ## mode_config.console_enabled() (the dev_console node does not exist
@@ -984,19 +1032,20 @@ func _show_evolution() -> void:
 		var ship: ShipDefinition = ShipCatalog.get_ship(id)
 		if ship == null: continue
 		var ink: Color = ShipCatalog.get_color(ship.element)
-		panel(overlay,Rect2(x,165,330,497),Color("0d1018"),Color(ink,0.6))
+		panel(overlay,Rect2(x,165,330,497),VisualStyle.PANEL,Color(ink,0.4))
 		label(overlay,"%s · %s · T%d" % [ship.element.to_upper(),ship.role.to_upper(),ship.tier],Vector2(x+20,183),Vector2(290,25),12,ink)
 		label(overlay,ship.display_name,Vector2(x+20,218),Vector2(290,48),24,WHITE)
 		var preview := ShipPreview.new()
+		preview.fit_margin = 14.0
 		overlay.add_child(preview)
 		preview.position = Vector2(x+20,267)
 		preview.initialize(ship,Vector2(290,175),1.5)
 		label(overlay,"Primary: %s\nSecondary: %s\nPassive: %s" % [_ability_name(ship.primary),_ability_names(ship.secondaries),_ability_names(ship.passives)],Vector2(x+20,450),Vector2(290,92),14,WHITE)
 		label(overlay,"Speed %.0f · Buffer ×%.2f\nFootprint %.0f px · Magnet %.0f px" % [ship.speed,ship.hp_buffer,ship.footprint,ship.magnet_radius],Vector2(x+20,547),Vector2(290,45),12,MUTED)
-		var choice: Button = button(overlay,"BECOME "+ship.display_name.to_upper(),Rect2(x+20,608,290,40),_choose_evolution.bind(id))
+		var choice: Button = button(overlay,"CHOOSE SHIP",Rect2(x+20,608,290,40),_choose_evolution.bind(id))
 		if first == null: first = choice
 		x += 350.0
-	label(overlay,"GAMEPLAY PAUSED · Complete preset loadout · Protected throughout the 0.8-second reshape",Vector2(100,679),Vector2(1080,25),13,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label(overlay,"GAMEPLAY PAUSED · Choose your next form",Vector2(100,679),Vector2(1080,25),13,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button(overlay,"DECIDE LATER",Rect2(520,720,240,43),_close_overlay)
 	if first != null: first.grab_focus()
 
@@ -1043,7 +1092,7 @@ func _show_map() -> void:
 		tile.tooltip_text = _sector_description(map_cell.coord)
 		if map_cell.is_boss: label(overlay,"◎",at,Vector2(cell,cell),12,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		elif map_cell.current: label(overlay,"●",at,Vector2(cell,cell),12,WHITE).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	panel(overlay,Rect2(700,92,480,412),Color("0d1018"),Color("303a49"))
+	panel(overlay,Rect2(700,92,480,412),VisualStyle.PANEL,Color("34343b"))
 	map_detail = label(overlay,"",Vector2(725,112),Vector2(430,201),17,WHITE)
 	label(overlay,"● You   ◎ Boss (bearing above, from the first tick)\nDark = unexplored, reveals nothing. Wall border = sealed perimeter.\nLayouts re-roll every life (spec §7).",Vector2(725,330),Vector2(430,140),15,MUTED)
 	button(overlay,"RETURN TO FLIGHT",Rect2(870,721,320,45),_close_overlay).grab_focus()
@@ -1105,10 +1154,6 @@ func _draw_minimap() -> void:
 		minimap.draw_circle(center+direction.normalized()*87,3,ShipCatalog.get_color(str(campaign.sector_at(model.boss_coord).get("element",""))))
 	minimap.draw_string(ThemeDB.fallback_font,Vector2(3,203),"RING %d · T%d · BOSS %s %d" % [CampaignState.ring(campaign.current_sector),combat.player_tier,model.bearing_direction,model.bearing_distance],HORIZONTAL_ALIGNMENT_LEFT,180,12,MUTED)
 
-func _show_rival_intro(sector: Dictionary) -> void:
-	var element: String = str(sector.get("element","fire"))
-	_queue_line(element,"Rival signal",DialogueDirector.entry_line(element),"intro_v2_"+element)
-
 func _reward_for(root: String, tier: int) -> String:
 	return {"fire":"cinder_pod" if tier>=4 else "ember_gun","lightning":"capacitor","void":"satellite","corruption":"spore_bud"}.get(root,"laser_prong")
 
@@ -1122,48 +1167,114 @@ func _show_pause() -> void:
 	button(overlay,"SAVE & QUIT",Rect2(450,521,380,52),_quit)
 
 func _show_options() -> void:
+	if overlay_kind != "options":
+		_options_return = overlay_kind
+		var focused: Control = get_viewport().gui_get_focus_owner()
+		_options_focus = weakref(focused) if focused != null else null
 	_open_overlay("options")
-	label(overlay,"OPTIONS & CONTROLS",Vector2(80,55),Vector2(1100,52),34,WHITE)
-	label(overlay,"Set a binding with a key, mouse button, or controller input. Escape cancels capture.",Vector2(82,112),Vector2(1100,28),14,MUTED)
-	var y: float = 170
-	for property: String in ["auto_fire","music","glow","show_elements","fullscreen","reduced_warp","damage_numbers"]:
-		var check := CheckButton.new()
-		check.position = Vector2(85,y)
-		check.size = Vector2(365,40)
-		check.text = {"auto_fire":"Auto-fire","music":"Ambient music","glow":"HDR glow","show_elements":"Element names & pattern labels","fullscreen":"Fullscreen","reduced_warp":"Reduced warp effect (accessibility)","damage_numbers":"Damage numbers"}[property]
-		check.button_pressed = bool(settings[property])
-		overlay.add_child(check)
-		check.toggled.connect(func(value: bool) -> void: settings[property]=value; apply_settings(); save_settings())
-		y += 56
-	label(overlay,"MASTER VOLUME",Vector2(90,y+8),Vector2(360,25),13,MUTED)
+	label(overlay,"OPTIONS",Vector2(90,55),Vector2(1100,52),34,WHITE)
+	var tabs := TabContainer.new()
+	tabs.name = "OptionsTabs"
+	tabs.position = Vector2(90,135)
+	tabs.size = Vector2(1100,530)
+	overlay.add_child(tabs)
+	var pages: Dictionary = {}
+	for title: String in ["Audio","Display","Gameplay","Controls"]:
+		var page := MarginContainer.new()
+		page.name = title
+		for side: String in ["left","right","top","bottom"]: page.add_theme_constant_override("margin_"+side,28)
+		tabs.add_child(page)
+		var content := VBoxContainer.new()
+		content.add_theme_constant_override("separation",15)
+		page.add_child(content)
+		pages[title] = content
+	_option_slider(pages.Audio,"Master volume","volume")
+	_option_slider(pages.Audio,"Effects","effects_volume")
+	_option_slider(pages.Audio,"Interface","interface_volume")
+	_option_slider(pages.Audio,"Ambience","ambience_volume")
+	_option_toggle(pages.Audio,"Ambient music","music")
+	_option_toggle(pages.Audio,"Pickup cues","pickup_cues")
+	_option_toggle(pages.Display,"Fullscreen","fullscreen")
+	_option_toggle(pages.Display,"Soft glow","glow")
+	_option_toggle(pages.Display,"Reduced warp effect","reduced_warp")
+	_option_toggle(pages.Display,"Damage numbers","damage_numbers")
+	_option_toggle(pages.Gameplay,"Auto-fire","auto_fire")
+	_option_toggle(pages.Gameplay,"Element names and pattern labels","show_elements")
+	_menu_label(pages.Controls,"Choose a binding, then press a key, mouse button or controller input.",14,MUTED)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation",18)
+	grid.add_theme_constant_override("v_separation",10)
+	pages.Controls.add_child(grid)
+	for action: String in InputBindings.ACTIONS:
+		var action_label: Label = _menu_label(grid,str(InputBindings.ACTIONS[action]),14,WHITE)
+		action_label.custom_minimum_size.x = 125
+		var bind_button: Button = button(grid,_binding_label(action),Rect2(0,0,0,34),_capture_binding.bind(action))
+		bind_button.tooltip_text = InputBindings.describe(action)
+		bind_button.custom_minimum_size = Vector2(300,34)
+		bind_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bind_button.add_theme_font_size_override("font_size",12)
+	if platform.online: _menu_action(pages.Controls,"STEAM CONTROLLER LAYOUT",func() -> void: platform.show_input_bindings())
+	tabs.current_tab = options_tab
+	tabs.tab_changed.connect(func(index: int) -> void: options_tab = index)
+	button(overlay,"DONE",Rect2(870,711,320,48),_close_options).grab_focus()
+
+func _close_options() -> void:
+	var previous: String = _options_return
+	var focus: Control = _options_focus.get_ref() as Control if _options_focus != null else null
+	_close_overlay()
+	_options_return = ""
+	_options_focus = null
+	if previous == "pause" and mode == "play": _show_pause()
+	elif is_instance_valid(focus) and focus.is_visible_in_tree(): focus.grab_focus()
+
+func _binding_label(action: String) -> String:
+	var labels := PackedStringArray()
+	for event: InputEvent in InputMap.action_get_events(action):
+		if event is InputEventKey:
+			labels.append(OS.get_keycode_string(event.physical_keycode if event.physical_keycode else event.keycode))
+		elif event is InputEventMouseButton:
+			labels.append({MOUSE_BUTTON_LEFT:"Left click",MOUSE_BUTTON_RIGHT:"Right click",MOUSE_BUTTON_MIDDLE:"Middle click",MOUSE_BUTTON_WHEEL_UP:"Wheel up",MOUSE_BUTTON_WHEEL_DOWN:"Wheel down"}.get(event.button_index,"Mouse %d" % event.button_index))
+		elif event is InputEventJoypadMotion:
+			var direction: String = "−" if event.axis_value < 0 else "+"
+			labels.append({JOY_AXIS_LEFT_X:"Left stick X"+direction,JOY_AXIS_LEFT_Y:"Left stick Y"+direction,JOY_AXIS_RIGHT_X:"Right stick X"+direction,JOY_AXIS_RIGHT_Y:"Right stick Y"+direction,JOY_AXIS_TRIGGER_LEFT:"LT",JOY_AXIS_TRIGGER_RIGHT:"RT"}.get(event.axis,"Pad axis %d%s" % [event.axis,direction]))
+		elif event is InputEventJoypadButton:
+			labels.append({JOY_BUTTON_A:"South / A",JOY_BUTTON_B:"East / B",JOY_BUTTON_X:"West / X",JOY_BUTTON_Y:"North / Y",JOY_BUTTON_LEFT_SHOULDER:"LB",JOY_BUTTON_RIGHT_SHOULDER:"RB",JOY_BUTTON_BACK:"Back",JOY_BUTTON_START:"Start",JOY_BUTTON_LEFT_STICK:"Left stick press",JOY_BUTTON_RIGHT_STICK:"Right stick press",JOY_BUTTON_DPAD_UP:"D-pad up",JOY_BUTTON_DPAD_DOWN:"D-pad down",JOY_BUTTON_DPAD_LEFT:"D-pad left",JOY_BUTTON_DPAD_RIGHT:"D-pad right"}.get(event.button_index,"Pad button %d" % event.button_index))
+		else: labels.append(event.as_text())
+	return "  ·  ".join(labels) if not labels.is_empty() else "Unbound"
+
+func _option_toggle(parent: Node, title: String, property: String) -> CheckButton:
+	var check := CheckButton.new()
+	check.text = title
+	check.custom_minimum_size.y = 40
+	check.button_pressed = bool(settings[property])
+	parent.add_child(check)
+	check.toggled.connect(func(value: bool) -> void: settings[property]=value; apply_settings(); save_settings())
+	return check
+
+func _option_slider(parent: Node, title: String, property: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation",24)
+	row.custom_minimum_size.y = 42
+	parent.add_child(row)
+	var caption: Label = _menu_label(row,title,16,WHITE)
+	caption.custom_minimum_size.x = 230
 	var slider := HSlider.new()
-	slider.position = Vector2(90,y+45)
-	slider.size = Vector2(350,36)
+	slider.name = property
 	slider.min_value = 0.0
 	slider.max_value = 1.0
-	slider.step = 0.05
-	slider.value = float(settings.volume)
-	overlay.add_child(slider)
-	slider.value_changed.connect(func(value: float) -> void: settings.volume=value; apply_settings(); save_settings())
-	if platform.online:
-		button(overlay,"STEAM CONTROLLER LAYOUT",Rect2(90,619,350,42),func() -> void: platform.show_input_bindings())
-	# Two columns (plan P6: ACTIONS grew to 16 with "dash" - a single column
-	# laid out by index at 35px/row reaches y=150+15*35=675 and its ~33px row
-	# collides with DONE at y=711; reflowed into two 8-row columns instead of
-	# shrinking the row height, so bindings stay readable).
-	var half: int = ceili(float(InputBindings.ACTIONS.size())/2.0)
-	var index: int = 0
-	for action: String in InputBindings.ACTIONS:
-		var column: int = index/half
-		var row: int = index%half
-		var label_x: float = 520.0 if column==0 else 850.0
-		var button_x: float = 625.0 if column==0 else 955.0
-		var row_y: float = 150.0+float(row)*35.0
-		label(overlay,str(InputBindings.ACTIONS[action]),Vector2(label_x,row_y+8),Vector2(100,25),13,WHITE)
-		var bind_button: Button = button(overlay,InputBindings.describe(action),Rect2(button_x,row_y,200,33),_capture_binding.bind(action))
-		bind_button.add_theme_font_size_override("font_size",11)
-		index += 1
-	button(overlay,"DONE",Rect2(870,711,320,48),_close_overlay).grab_focus()
+	slider.step = 0.01
+	slider.value = float(settings[property])
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+	var value_label: Label = _menu_label(row,"%d%%" % roundi(slider.value*100),14,MUTED)
+	value_label.custom_minimum_size.x = 65
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	slider.value_changed.connect(func(value: float) -> void:
+		settings[property]=value
+		value_label.text="%d%%" % roundi(value*100)
+		apply_settings()
+		save_settings())
 
 func _capture_binding(action: String) -> void:
 	rebind_action = action
@@ -1182,9 +1293,7 @@ func apply_settings() -> void:
 		combat.warp_reduced = bool(settings.get("reduced_warp",false))
 		combat.show_damage_numbers = bool(settings.get("damage_numbers",false)) # spec §24: off by default
 	if sound != null:
-		sound.volume = float(settings.volume)
-		sound.music_enabled = bool(settings.music)
-		sound.apply_settings()
+		sound.configure(settings)
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if bool(settings.fullscreen) else DisplayServer.WINDOW_MODE_WINDOWED)
 
@@ -1361,7 +1470,7 @@ func _update_dialogue(delta: float) -> void:
 	var line: Dictionary = dialogue_director.pop_next(combat_clear)
 	clear(dialogue)
 	dialogue.visible = true
-	panel(dialogue,Rect2(105,549,1070,154),Color("0c0f16"),Color("394453"))
+	panel(dialogue,Rect2(105,549,1070,154),VisualStyle.PANEL,Color("39393f"))
 	var portrait := AIPortrait.new()
 	portrait.element = str(line.element)
 	portrait.position = Vector2(125,568)
@@ -1377,12 +1486,13 @@ func _open_overlay(kind: String) -> void:
 	overlay_kind = kind
 	overlay.visible = true
 	var shade := ColorRect.new()
-	shade.color = Color(0.012,0.017,0.027,0.97)
+	shade.color = VisualStyle.BG
 	shade.size = Vector2(1280,800)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.add_child(shade)
 	var policy: Dictionary = SCREEN_POLICY.get(kind,DEFAULT_SCREEN_POLICY)
 	get_tree().paused = mode == "play" and bool(policy.pauses)
+	sound.set_context("pause" if mode == "play" else "menu")
 	dialogue.visible = false
 
 func _close_overlay() -> void:
@@ -1391,6 +1501,7 @@ func _close_overlay() -> void:
 	overlay.visible = false
 	rebind_action = ""
 	get_tree().paused = false
+	if sound != null: sound.set_context("play" if mode == "play" else "menu")
 	if is_instance_valid(combat): combat.set_command(ShipCommand.new())
 
 func _toast(text: String) -> void:

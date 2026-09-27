@@ -15,8 +15,6 @@ extends RefCounted
 ## Ids are positional: core, core_2, core_3, passive_<k>, r<rail>, r<rail>s<slot>, ...p<pod>,
 ## ...w<n>, core_w<n>, c<link>; lines end in _spoke, _link or l<n>.
 
-const SPOKES_TO_CORE_THROUGH_RAIL: int = 2 # user decision 4: rails 1-2 spoke to the core rim
-
 class Build extends RefCounted:
 	var rings: Array[PartDefinition] = []
 	var lines: Array[PartDefinition] = []
@@ -42,7 +40,7 @@ static func compile(ship: ShipDefinition) -> void:
 		for part: PartDefinition in group: parts.append(part)
 	ship.parts = parts
 	ship.groups = []
-	ship.core_radius = float(ShipGrammar.LADDER.core_dot)
+	ship.core_radius = ship.core_dot_radius
 	ship.symmetry = "none"
 	ship.is_player = ship.faction == "player"
 	_loadout(ship)
@@ -60,7 +58,8 @@ static func draws_core_piece(ship: ShipDefinition) -> bool:
 
 ## Everything that decides the compiled output, in a fixed order.
 static func grammar_signature(ship: ShipDefinition) -> Array:
-	var signature: Array = [ship.id, ship.faction, ship.tier, ship.chassis_color, ship.accent_color, ship.core_depth, ship.core_weapon, ship.archetype, ship.passives, ship.chain_mode]
+	var signature: Array = [ship.id, ship.faction, ship.tier, ship.chassis_color, ship.accent_color, ship.core_depth, ship.core_weapon, ship.archetype, ship.passives, ship.chain_mode, ship.geometry_revision, ship.removed_part_map]
+	signature.append([ship.core_radii, ship.core_dot_radius, ship.core_dot_color, ship.chain_head_lobes, ship.chain_spacing, ship.chain_head_spacing])
 	for rail: RailDefinition in ship.rails:
 		signature.append([rail.radius, rail.order, rail.speed, rail.phase, rail.pump_phase, rail.pump_amp, rail.reach_ring, rail.offset])
 		for slot: SlotDefinition in rail.slots: signature.append(_slot_signature(slot))
@@ -68,20 +67,28 @@ static func grammar_signature(ship: ShipDefinition) -> Array:
 	return signature
 
 static func _slot_signature(slot: SlotDefinition) -> Array:
-	return [slot.type, slot.node_radius, slot.pods, slot.set_piece, slot.mount, slot.hp, slot.feature, slot.bob_amp]
+	return [slot.type, slot.node_radius, slot.pods, slot.set_piece, slot.mount, slot.hp, slot.feature, slot.bob_amp, snappedf(slot.hp_fixed, 0.0000001), snappedf(slot.hp_radius, 0.0000001), slot.pod_spacing, snappedf(slot.radius_override, 0.0000001), snappedf(slot.phase_offset, 0.0000001), snappedf(slot.mark_radius, 0.0000001), snappedf(slot.pod_hp_radius, 0.0000001)]
+
+static func part_max_hp(part: PartDefinition, tier: int) -> float:
+	if not part.solid: return 0.0
+	if part.hp_radius >= 0.0: return part.hp_fixed + part.hp_radius * (4.0 + 3.0 * float(tier))
+	return part.hp if part.hp > 0.0 else part.radius * (4.0 + 3.0 * float(tier))
 
 ## Circle, line and set-piece counts without compiling: what the validator's 128 cap and the
 ## editor's readout use. `ship_compiler_test` holds it equal to the compiled counts.
 static func budget(ship: ShipDefinition) -> Dictionary:
 	var circles: int = maxi(1, ship.core_depth - 1) + ship.passives.size()
-	var lines: int = 0
+	if not ship.core_radii.is_empty(): circles = ship.core_radii.size() + ship.passives.size()
+	if ship.chain_head_lobes: circles += 2
+	var lines: int = 2 if ship.chain_head_lobes else 0
 	var solid: int = 1
 	var pieces: int = 0
 	if ship.core_weapon != "":
 		pieces += 1
 		if draws_core_piece(ship):
-			circles += (SetPieceCatalog.get_piece(ship.core_weapon).get("circles", []) as Array).size()
-			lines += (SetPieceCatalog.get_piece(ship.core_weapon).get("lines", []) as Array).size()
+			circles += (SetPieceCatalog.for_revision(ship.core_weapon, ship.geometry_revision).get("circles", []) as Array).size()
+			lines += (SetPieceCatalog.for_revision(ship.core_weapon, ship.geometry_revision).get("lines", []) as Array).size()
+			lines += (SetPieceCatalog.for_revision(ship.core_weapon, ship.geometry_revision).get("integrated", []) as Array).size()
 	var slots: Array[SlotDefinition] = []
 	for rail: RailDefinition in ship.rails:
 		if rail.reach_ring: circles += 1
@@ -92,6 +99,7 @@ static func budget(ship: ShipDefinition) -> Dictionary:
 		circles += 1
 		lines += 1
 		solid += 1
+		if slot.mark_radius > 0.0: circles += 1
 		if slot.type != "hub": continue
 		circles += slot.pods
 		lines += slot.pods
@@ -99,8 +107,8 @@ static func budget(ship: ShipDefinition) -> Dictionary:
 		if slot.feature == "shield_generator": circles += 2
 		if slot.set_piece != "":
 			pieces += 1
-			circles += (SetPieceCatalog.get_piece(slot.set_piece).get("circles", []) as Array).size()
-			lines += (SetPieceCatalog.get_piece(slot.set_piece).get("lines", []) as Array).size()
+			circles += (SetPieceCatalog.for_revision(slot.set_piece, ship.geometry_revision).get("circles", []) as Array).size()
+			lines += (SetPieceCatalog.for_revision(slot.set_piece, ship.geometry_revision).get("lines", []) as Array).size()
 	return {"circles": circles, "lines": lines, "solid": solid, "set_pieces": pieces}
 
 # ---------------------------------------------------------------- parts
@@ -139,104 +147,144 @@ static func _shine(part: PartDefinition, part_index: int, cluster_index: int) ->
 	var laps: float = float(part_index) * float(motion.shine_phase_per_part) + float(cluster_index) * float(motion.shine_phase_per_cluster)
 	part.light_phase = -fposmod(laps, 1.0) * part.light_period
 
+## Living references specify laps per second by role, independently of a circle's radius.
+## Positive phase follows the source SVG's t * rate + offset. Legacy revisions keep their
+## authored ladder periods and phase convention; these fields affect rendering only.
+const RIM_LAPS_PER_SECOND: Dictionary = {"outer_core": 0.4, "inner_core": 0.7, "hub": 0.42, "pod": 0.5, "bead": 0.6, "satellite": 0.55, "chain": 0.5}
+
+static func _role_shine(part: PartDefinition, role: String, phase: float, revision: int) -> void:
+	if revision < 3: return
+	part.light_period = 1.0 / float(RIM_LAPS_PER_SECOND[role])
+	part.light_phase = fposmod(phase, 1.0) * part.light_period
+
 ## Forward is up (-y); angles run clockwise, which is what Vector2.rotated does on a y-down screen.
 static func _direction(angle: float) -> Vector2:
 	return Vector2(sin(angle), -cos(angle))
 
 static func _core(ship: ShipDefinition, build: Build, chassis: String, accent: String) -> void:
 	var rings: int = clampi(ship.core_depth - 1, 1, ShipGrammar.CORE_RADII.size())
+	var radii: PackedFloat32Array = ship.core_radii if not ship.core_radii.is_empty() else PackedFloat32Array(ShipGrammar.CORE_RADII.slice(0, rings))
+	rings = radii.size()
+	if ship.chain_head_lobes:
+		for i: int in range(2):
+			var lobe: PartDefinition = _circle("head_lobe%d" % i, "core", Vector2(-14.0 if i == 0 else 14.0, -16.0), 11.0, chassis, true, false)
+			_shine(lobe, i + 2, 0)
+			_role_shine(lobe, "chain", float(i + 1) * 0.23, ship.geometry_revision)
+			build.core.append(lobe)
+			build.lines.append(_line(lobe.id + "_link", "core", lobe.id, chassis, true))
 	for i: int in range(rings):
 		var innermost: bool = i == rings - 1 and i > 0
 		# The reference's inner core ring is the accent colour and filled; otherwise alternate.
 		var colour: String = accent if innermost and ship.faction != "player" else chassis
 		var filled: bool = i % 2 == 0 or (innermost and ship.faction != "player")
-		var part: PartDefinition = _circle("core" if i == 0 else "core_%d" % (i + 1), "" if i == 0 else "core", Vector2.ZERO, float(ShipGrammar.CORE_RADII[i]), colour, filled, i == 0)
+		var part: PartDefinition = _circle("core" if i == 0 else "core_%d" % (i + 1), "" if i == 0 else "core", Vector2.ZERO, radii[i], colour, filled, i == 0)
+		if i > 0: part.integrated_host = "core"
 		_shine(part, i, 0)
+		_role_shine(part, "chain" if ship.archetype == "chain" else "outer_core" if i == 0 else "inner_core", 0.69 if ship.archetype == "chain" and i > 0 else 0.0, ship.geometry_revision)
 		build.core.append(part)
 	# Passives are colourless: thin chassis rings on the two ladder radii the stack never uses.
 	var passive_radii: Array[int] = [int(ShipGrammar.LADDER.hub), int(ShipGrammar.LADDER.pod)]
 	for k: int in range(mini(ship.passives.size(), passive_radii.size())):
 		var ring: PartDefinition = _circle("passive_%d" % k, "core", Vector2.ZERO, float(passive_radii[k]), chassis, false, false)
 		ring.style = 4
+		ring.integrated_host = "core"
 		ring.ability_id = ship.passives[k]
 		ring.mount_id = "passive_%d" % k
 		build.passives.append(ring)
 	if ship.core_weapon != "" and SetPieceCatalog.has(ship.core_weapon):
-		build.core[0].ability_id = SetPieceCatalog.ability_of(ship.core_weapon)
-		build.core[0].mount_id = "primary"
+		for part: PartDefinition in build.core:
+			if part.id == "core":
+				part.ability_id = SetPieceCatalog.ability_of(ship.core_weapon)
+				part.mount_id = "primary"
 		# The reference's core is clean: its accent inner ring IS the core weapon's mark. Only a
 		# depth-2 core (drone, sentry) has no such ring, so only there is the piece itself drawn,
 		# at the core's forward rim (a piece is drawn for a r15 hub; the core is r34).
 		if draws_core_piece(ship):
 			var lift: float = float(ShipGrammar.CORE_RADII[0]) - float(ShipGrammar.LADDER.hub)
-			_piece(build, ship.core_weapon, "core", "core_", Vector2(0, -lift), 0.0, false)
+			_piece(build, ship.core_weapon, "core", "core_", Vector2(0, -lift), 0.0, false, ship.geometry_revision)
 	build.cluster = 1
 
 static func _rail(ship: ShipDefinition, build: Build, rail_index: int, chassis: String) -> void:
 	var rail: RailDefinition = ship.rails[rail_index]
 	var motion: Dictionary = ShipGrammar.MOTION
 	var ring_id: String = "r%d" % (rail_index + 1)
-	# The ring is a real circle: the clusters' parent (so they turn about the rail's own centre,
-	# offset and all) and, for rails 3-4, the inner end of the next rail's spokes.
+	# Guides are motion pivots only. Structural lines must never terminate on them.
 	var ring: PartDefinition = _circle(ring_id, "core", rail.offset, float(rail.radius), chassis, false, false)
 	ring.style = 5
 	build.rings.append(ring)
 	var pump_amp: float = rail.pump_amp if rail.pump_amp >= 0.0 else float(motion.pump_amp)
-	var spoke_from: String = "core" if rail_index < SPOKES_TO_CORE_THROUGH_RAIL else "r%d" % rail_index
 	for j: int in range(rail.slots.size()):
 		var slot: SlotDefinition = rail.slots[j]
 		if not slot.is_occupied(): continue
-		var angle: float = rail.phase + float(j) * TAU / float(maxi(1, rail.order))
+		var angle: float = rail.phase + float(j) * TAU / float(maxi(1, rail.order)) + slot.phase_offset
 		var id: String = "%ss%d" % [ring_id, j]
-		var root: PartDefinition = _cluster(build, slot, id, ring_id, rail.offset + _direction(angle) * float(rail.radius), angle, chassis, j)
+		var root: PartDefinition = _cluster(build, slot, id, ring_id, rail.offset + _direction(angle) * float(rail.radius), angle, chassis, j, ship.geometry_revision, ship.accent_color)
 		root.spin_speed = rail.speed
 		root.pump_amp = pump_amp
 		root.pump_freq = float(motion.pump_freq)
 		root.pump_phase = rail.pump_phase
-		build.lines.append(_line(id + "_spoke", spoke_from, id, chassis))
+		build.lines.append(_line(id + "_spoke", "core", id, chassis))
 
 ## A hub with its pods and set piece, or a node. Returns the cluster's root circle.
-static func _cluster(build: Build, slot: SlotDefinition, id: String, parent: String, at: Vector2, outward: float, chassis: String, slot_index: int) -> PartDefinition:
+static func _cluster(build: Build, slot: SlotDefinition, id: String, parent: String, at: Vector2, outward: float, chassis: String, slot_index: int, revision: int, accent: String = "") -> PartDefinition:
 	var motion: Dictionary = ShipGrammar.MOTION
 	var cluster: int = build.cluster
+	var chain: bool = id.begins_with("c")
 	build.cluster += 1
+	if slot.mark_radius > 0.0:
+		var mark: PartDefinition = _circle(id + "_mark", id, at, slot.mark_radius, accent if accent != "" else chassis, true, false)
+		mark.integrated_host = id
+		_role_shine(mark, "chain" if chain else "satellite", float(slot_index) * (0.11 if chain else 0.25), revision)
+		build.piece_circles.append(mark)
 	if slot.type == "node":
-		var node: PartDefinition = _circle(id, parent, at, float(slot.node_radius), chassis, true, true)
+		var node: PartDefinition = _circle(id, parent, at, slot.radius_override if slot.radius_override > 0.0 else float(slot.node_radius), chassis, true, true)
 		node.bob_amp = slot.bob_amp if slot.bob_amp >= 0.0 else float(motion.node_bob_amp)
 		node.bob_freq = float(motion.node_bob_freq)
 		node.bob_phase = float(slot_index) * float(motion.node_bob_phase_step)
 		node.hp = slot.hp
+		node.hp_fixed = slot.hp_fixed
+		node.hp_radius = slot.hp_radius
 		_shine(node, 0, cluster)
+		_role_shine(node, "chain" if chain else "satellite", float(slot_index) * (0.11 if chain else 0.25), revision)
 		build.small.append(node)
 		return node
-	var hub: PartDefinition = _circle(id, parent, at, float(ShipGrammar.LADDER.hub), chassis, true, true)
+	var hub: PartDefinition = _circle(id, parent, at, slot.radius_override if slot.radius_override > 0.0 else float(ShipGrammar.LADDER.hub), chassis, true, true)
 	hub.hp = slot.hp
+	hub.hp_fixed = slot.hp_fixed
+	hub.hp_radius = slot.hp_radius
 	if slot.feature != "": hub.stat_id = slot.feature
 	_shine(hub, 0, cluster)
+	_role_shine(hub, "chain" if chain else "hub", float(slot_index) * (0.11 if chain else 0.2), revision)
 	build.hubs.append(hub)
 	var fan: PackedFloat32Array = ShipGrammar.pod_angles(slot.pods)
+	for i: int in range(fan.size()): fan[i] *= slot.pod_spacing / ShipGrammar.POD_SPACING
 	for m: int in range(fan.size()):
 		var pod: PartDefinition = _circle("%sp%d" % [id, m], id, at + _direction(outward + fan[m]) * ShipGrammar.POD_DISTANCE, float(ShipGrammar.LADDER.pod), chassis, true, true)
 		pod.bob_amp = slot.bob_amp if slot.bob_amp >= 0.0 else float(motion.pod_bob_amp)
+		pod.hp_radius = slot.pod_hp_radius
 		pod.bob_freq = float(motion.pod_bob_freq)
 		pod.bob_phase = float(m) * float(motion.pod_bob_phase_step)
 		_shine(pod, m + 1, cluster)
+		_role_shine(pod, "chain" if chain else "pod", float(slot_index) * 0.11 + float(m) * 0.31 if chain else float(m) * 0.31, revision)
 		build.small.append(pod)
 		build.lines.append(_line("%sp%d_link" % [id, m], id, pod.id, chassis))
 	if slot.feature == "shield_generator":
 		# The boss's second core stack: [22, 13] inside the hub's slot, chassis colour, not solid.
 		for k: int in range(2):
-			build.passives.append(_circle("%sc%d" % [id, k], id, at, float(ShipGrammar.CORE_RADII[k + 1]), chassis, k == 1, false))
+			var marking: PartDefinition = _circle("%sc%d" % [id, k], id, at, float(ShipGrammar.CORE_RADII[k + 1]), chassis, k == 1, false)
+			marking.integrated_host = id
+			_role_shine(marking, "chain" if chain else "inner_core", float(k) * 0.23, revision)
+			build.passives.append(marking)
 	if slot.set_piece != "" and SetPieceCatalog.has(slot.set_piece):
 		hub.ability_id = SetPieceCatalog.ability_of(slot.set_piece)
 		hub.mount_id = slot.mount if slot.mount != "" else id
-		_piece(build, slot.set_piece, id, id, at, outward, true)
+		_piece(build, slot.set_piece, id, id, at, outward, true, revision, float(slot_index) * (0.11 if chain else 0.4))
 	return hub
 
 ## Expands a set piece onto `host`. Its first circle is the aim joint and the rest hang off it, so
 ## the whole piece turns to the aim while the hub underneath rides its rail (spec §9.7).
-static func _piece(build: Build, piece_id: String, host: String, prefix: String, at: Vector2, outward: float, aims: bool) -> void:
-	var piece: Dictionary = SetPieceCatalog.get_piece(piece_id)
+static func _piece(build: Build, piece_id: String, host: String, prefix: String, at: Vector2, outward: float, aims: bool, revision: int, phase: float = 0.0) -> void:
+	var piece: Dictionary = SetPieceCatalog.for_revision(piece_id, revision)
 	var colours: Array = piece.get("colours", [])
 	var ids: Array[String] = []
 	var circles: Array = piece.get("circles", [])
@@ -246,7 +294,11 @@ static func _piece(build: Build, piece_id: String, host: String, prefix: String,
 		var circle: PartDefinition = _circle(id, host if n == 0 else ids[0], at + Vector2(float(spec[0]), float(spec[1])).rotated(outward), float(spec[2]), str(colours[int(spec[4])]), bool(spec[3]), false)
 		circle.aim_joint = aims and n == 0
 		circle.rest_heading = outward
+		if (piece.get("integrated", []) as Array).has(n):
+			if host == "core": build.piece_lines.append(_line("%sintegrated%d" % [prefix, n], host, id, str(colours[int(spec[4])]), true))
+			else: circle.integrated_host = host
 		_shine(circle, n + 5, build.cluster - 1)
+		_role_shine(circle, "chain" if host.begins_with("c") and host != "core" else "bead", phase + float(n) * 0.13, revision)
 		ids.append(id)
 		build.piece_circles.append(circle)
 	var lines: Array = piece.get("lines", [])
@@ -260,13 +312,13 @@ static func _piece(build: Build, piece_id: String, host: String, prefix: String,
 static func _chain(ship: ShipDefinition, build: Build, chassis: String) -> void:
 	var parent: String = "core"
 	var at: Vector2 = Vector2.ZERO
-	var rest: float = float(ShipGrammar.MOTION.chain_rest_length)
+	var rest: float = ship.chain_spacing
 	for i: int in range(ship.chain_links.size()):
 		var link: SlotDefinition = ship.chain_links[i]
 		if not link.is_occupied(): continue
-		at += Vector2(0, rest + (float(ShipGrammar.CORE_RADII[0]) if i == 0 else 0.0))
+		at += Vector2(0, (ship.chain_head_spacing if ship.chain_head_spacing >= 0.0 else rest + float(ShipGrammar.CORE_RADII[0])) if i == 0 else rest)
 		var id: String = "c%d" % i
-		var root: PartDefinition = _cluster(build, link, id, parent, at, PI, chassis, i)
+		var root: PartDefinition = _cluster(build, link, id, parent, at, PI, chassis, i, ship.geometry_revision, ship.accent_color)
 		# §9.6's travelling wave, as a pure function of the tick: each link swings about the one
 		# before it, 0.85 rad behind it. The swings ACCUMULATE down the chain, so the sideways
 		# amplitude grows from nothing at the head to the mode's full value at the tip.

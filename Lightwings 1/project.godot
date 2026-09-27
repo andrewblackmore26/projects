@@ -36,4 +36,4 @@ project/assembly_name="Lightship"
 
 renderer/rendering_method="mobile"
 viewport/hdr_2d=true
-environment/defaults/default_clear_color=Color(0.0196, 0.0196, 0.0275, 1)
+environment/defaults/default_clear_color=Color(0.019608, 0.019608, 0.027451, 1)

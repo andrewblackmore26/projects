@@ -1,7 +1,6 @@
 extends SceneTree
-## `Elements` is the single source for which elements exist, their wire order and their six ship
-## colours (ship design spec §6.2, Appendix A). This keeps the consumers and the one duplication it
-## still contains (RIM_BY_INDEX, a plain array the canvases index by a bullet's element int) honest.
+## Elements owns wire order and readable projectile colours. VisualStyle owns the quieter ship
+## palette; both retain the same element-to-colour identity.
 const Harness = preload("res://tests/support/harness.gd")
 
 func _initialize() -> void: _run.call_deferred()
@@ -19,9 +18,9 @@ func _run() -> void:
 	for element: String in Elements.INDEX_ORDER:
 		var key: String = Elements.color_key(element)
 		h.check(Elements.ELEMENT_OF_COLOR.get(key, "") == element, "%s -> %s maps back" % [element, key])
-		h.check(ShipCatalog.PALETTE[element] == Elements.RIM[key] and ShipCatalog.FILLS[element] == Elements.FILL[key] and ShipCatalog.LIGHTS[element] == Elements.LIGHT[key], "%s: the catalogue's rim, fill and light are Appendix A's %s" % [element, key])
+		h.check(ShipCatalog.PALETTE[element] == VisualStyle.PALETTE[key] and ShipCatalog.FILLS[element] == VisualStyle.FILLS[key] and ShipCatalog.LIGHTS[element] == Elements.LIGHT[key], "%s retains its %s identity in the restrained ship palette and bright feedback palette" % [element, key])
 	for key: String in Elements.COLOR_KEYS:
-		h.check(ShipCatalog.PALETTE.has(key) and ShipCatalog.PALETTE[key] == Elements.RIM[key] and ShipCatalog.FILLS[key] == Elements.FILL[key] and ShipCatalog.LIGHTS[key] == Elements.LIGHT[key], "Colour key %s resolves in the catalogue palette" % key)
+		h.check(ShipCatalog.PALETTE.has(key) and ShipCatalog.PALETTE[key] == VisualStyle.PALETTE[key] and ShipCatalog.FILLS[key] == VisualStyle.FILLS[key] and ShipCatalog.LIGHTS[key] == Elements.LIGHT[key], "Colour key %s resolves in the shared presentation palette" % key)
 	h.control("a colour key the palette does not have", not ShipCatalog.PALETTE.has("teal"))
 	h.check(Elements.COLOR_KEYS.size() == 6 and not Elements.COLOR_KEY.values().has(Elements.PLAYER_COLOR_KEY), "Six colours, and blue belongs to no element")
 	h.finish(self)

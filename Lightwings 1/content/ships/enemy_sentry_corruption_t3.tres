@@ -1,48 +1,52 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_uy73i"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_dumtx"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_8nkcs"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_y1deu"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_vrm6p"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_c8o5v"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_4p7u1"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_0py7p"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_fcent"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_m5csr"]
 
-[sub_resource type="Resource" id="Resource_xx1ul"]
-script = ExtResource("1_uy73i")
+[sub_resource type="Resource" id="Resource_r2ga6"]
+script = ExtResource("1_c8o5v")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "spore_rack"
 
-[sub_resource type="Resource" id="Resource_dyhag"]
-script = ExtResource("1_uy73i")
+[sub_resource type="Resource" id="Resource_kfr58"]
+script = ExtResource("1_c8o5v")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_005yb"]
-script = ExtResource("1_uy73i")
+[sub_resource type="Resource" id="Resource_flqom"]
+script = ExtResource("1_c8o5v")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "spore_rack"
 
-[sub_resource type="Resource" id="Resource_m6kab"]
-script = ExtResource("1_uy73i")
+[sub_resource type="Resource" id="Resource_4maop"]
+script = ExtResource("1_c8o5v")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_n0egj"]
-script = ExtResource("4_y1deu")
+[sub_resource type="Resource" id="Resource_etcjw"]
+script = ExtResource("4_fcent")
 order = 4
 speed = -0.9234
 phase = 1.284
-slots = Array[ExtResource("1_uy73i")]([SubResource("Resource_xx1ul"), SubResource("Resource_dyhag"), SubResource("Resource_005yb"), SubResource("Resource_m6kab")])
+slots = Array[ExtResource("1_c8o5v")]([SubResource("Resource_r2ga6"), SubResource("Resource_kfr58"), SubResource("Resource_flqom"), SubResource("Resource_4maop")])
 
 [resource]
-script = ExtResource("5_vrm6p")
+script = ExtResource("5_m5csr")
 id = "enemy_sentry_corruption_t3"
 display_name = "Corruption Sentry T3"
 tier = 3
 description = "seed 216322"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "green"
+core_radii = PackedFloat32Array()
 core_weapon = "sac_cluster"
 archetype = "sentry"
-rails = Array[ExtResource("4_y1deu")]([SubResource("Resource_n0egj")])
+rails = Array[ExtResource("4_fcent")]([SubResource("Resource_etcjw")])

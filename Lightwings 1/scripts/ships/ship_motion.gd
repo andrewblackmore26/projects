@@ -45,13 +45,6 @@ class ShipRig extends RefCounted:
 	var authored_hp: PackedFloat32Array = PackedFloat32Array()
 	var groups: Array[GroupDefinition] = []
 	var id_index: Dictionary = {}
-	## Radius of a circle centred on the core that contains every circle at any point in its motion
-	## (rest offset + radius, plus the orbit radius of any group it belongs to). Constant for a hull,
-	## and deliberately NOT shrunk as circles die, so it is always conservative. The broadphase
-	## registers one collider of this size per enemy and only tests individual circles for the few
-	## bullets that reach it - with per-circle hitboxes the grid would otherwise carry 5-10x the
-	## colliders and every bullet would pay for it.
-	var bound_radius: float = 0.0
 	## Ship design spec (schema 4). `legacy` hulls use the v0.3 group evaluator and leave the joint
 	## arrays empty; rail-grammar hulls use forward kinematics (`_step_fk`) and have no groups.
 	var legacy: bool = true
@@ -70,6 +63,10 @@ class ShipRig extends RefCounted:
 	var solid: PackedByteArray = PackedByteArray()
 	## Rig indices of the solid circles other than the core, ascending: what the broadphase walks.
 	var solid_indices: PackedInt32Array = PackedInt32Array()
+	## Main links only, head to tip. Decorations remain ordinary children of their link.
+	var follow_indices: PackedInt32Array = PackedInt32Array()
+	var follow_slot: PackedInt32Array = PackedInt32Array()
+	var follow_head_lobes: PackedInt32Array = PackedInt32Array()
 
 	func has(id: String) -> bool:
 		return id_index.has(id)
@@ -88,11 +85,31 @@ class ShipPose extends RefCounted:
 	## outward". The simulation owns it (S3 slews it toward the gun's aim); step() only reads it.
 	var angle: PackedFloat32Array = PackedFloat32Array()
 	var aim_angle: PackedFloat32Array = PackedFloat32Array()
+	## Historical world positions make a following tail respond to translation and turns.
+	var chain_current: PackedVector2Array = PackedVector2Array()
+	var chain_previous: PackedVector2Array = PackedVector2Array()
+	var chain_tick: int = -1
+	var chain_head: Vector2 = Vector2.ZERO
+	var chain_basis: float = 0.0
+	## Also retain each detailed circle's instantaneous velocity for visual debris.
+	var world_current: PackedVector2Array = PackedVector2Array()
+	var world_previous: PackedVector2Array = PackedVector2Array()
+	var world_velocity: PackedVector2Array = PackedVector2Array()
+	var world_tick: int = -1
+	var world_dt: float = 1.0 / 60.0
 
 	func _init(rig: ShipRig = null) -> void:
 		if rig != null: reset(rig)
 
 	func reset(rig: ShipRig) -> void:
+		chain_current = PackedVector2Array()
+		chain_previous = PackedVector2Array()
+		chain_tick = -1
+		world_tick = -1
+		world_current.resize(rig.rest.size())
+		world_previous.resize(rig.rest.size())
+		world_velocity.resize(rig.rest.size())
+		world_velocity.fill(Vector2.ZERO)
 		angle = PackedFloat32Array()
 		aim_angle = PackedFloat32Array()
 		if not rig.legacy:
@@ -115,7 +132,7 @@ class ShipPose extends RefCounted:
 static func rig_key(ship: ShipDefinition) -> PackedByteArray:
 	var signature: Array = []
 	var fk: bool = ship.schema_version >= FK_SCHEMA
-	if fk: signature.append(["fk", ship.schema_version])
+	if fk: signature.append(["fk", ship.schema_version, ship.archetype, ship.chain_mode, ship.chain_head_lobes])
 	for part: PartDefinition in ship.parts:
 		if part.shape == "circle":
 			signature.append([part.id, part.position, part.radius, part.filled, part.parent_id])
@@ -212,6 +229,18 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 			rig.solid[i] = 1 if joint.solid else 0
 	for i: int in range(1, order.size()):
 		if rig.solid[i] == 1: rig.solid_indices.append(i)
+	rig.follow_slot.resize(order.size())
+	rig.follow_slot.fill(-1)
+	if not rig.legacy and ship.archetype == "chain" and ship.chain_mode == "follow":
+		for link: int in range(ship.chain_links.size()):
+			var index: int = rig.index_of("c%d" % link)
+			if index < 0: continue
+			rig.follow_slot[index] = rig.follow_indices.size()
+			rig.follow_indices.append(index)
+		if ship.chain_head_lobes:
+			for id: String in ["head_lobe0", "head_lobe1"]:
+				var index: int = rig.index_of(id)
+				if index >= 0 and rig.solid[index] == 0 and rig.parent_index[index] == 0: rig.follow_head_lobes.append(index)
 	for i: int in range(order.size()):
 		var mirror_id: String = str(by_id[order[i]].mirror_id)
 		if rig.id_index.has(mirror_id): rig.mirror_index[i] = int(rig.id_index[mirror_id])
@@ -259,25 +288,121 @@ static func _build_rig(ship: ShipDefinition) -> ShipRig:
 		rig.line_from.append(int(rig.id_index[part.from_id]))
 		rig.line_to.append(int(rig.id_index[part.to_id]))
 		rig.line_ids.append(part.id)
-	# Conservative motion-inclusive bound, computed once per hull: a circle can be displaced by its
-	# group's orbit radius (and a chain's drift), so add the largest such displacement rather than
-	# measuring the rest pose alone.
-	for i: int in range(rig.rest.size()):
-		var reach: float = 0.0
-		var group: int = rig.group_index[i]
-		if group >= 0 and group < rig.groups.size():
-			var definition: GroupDefinition = rig.groups[group]
-			reach = absf(definition.orbit_radius) + absf(definition.drift_amp)
-		rig.bound_radius = maxf(rig.bound_radius, rig.rest[i].length() + rig.radius[i] + reach)
 	return rig
 
 ## Writes `pose` in place. Allocates nothing (Vector2/float are value types).
 ## `tick` is the simulation's integer tick (never a wall clock) so replays and
 ## the paused-vs-running renderer cannot disagree with the sim.
-static func step(rig: ShipRig, pose: ShipPose, tick: int) -> void:
+static func step(rig: ShipRig, pose: ShipPose, tick: int, head: Vector2 = Vector2.ZERO, basis: float = 0.0, attached: PackedByteArray = PackedByteArray()) -> void:
 	if pose.local.size() != rig.rest.size(): pose.reset(rig)
 	if rig.legacy: _step_legacy(rig, pose, tick)
-	else: _step_fk(rig, pose, tick)
+	else:
+		if not rig.follow_indices.is_empty(): _follow_chain(rig, pose, tick, head, basis, attached)
+		_step_fk(rig, pose, tick, head, basis, attached)
+	_capture_world(rig, pose, tick, head, basis)
+
+## The HTML reference projects each historical link onto a 30px tether, then adds a tiny
+## perpendicular travelling-wave impulse. Reprojecting after the impulse keeps real collider
+## spacing exact. Run at simulation ticks, never render delta; repeated draws do not advance it.
+static func _follow_chain(rig: ShipRig, pose: ShipPose, tick: int, head: Vector2, basis: float, attached: PackedByteArray) -> void:
+	var count: int = rig.follow_indices.size()
+	if pose.chain_current.size() != count or tick < pose.chain_tick:
+		pose.chain_current.resize(count)
+		pose.chain_previous.resize(count)
+		for slot: int in range(count):
+			var point: Vector2 = head + rig.rest[rig.follow_indices[slot]].rotated(basis)
+			pose.chain_current[slot] = point
+			pose.chain_previous[slot] = point
+		pose.chain_head = head
+		pose.chain_basis = basis
+		pose.chain_tick = tick - 1
+	var elapsed_ticks: int = tick - pose.chain_tick
+	if elapsed_ticks <= 0:
+		# A late impulse (for example a black-hole pull) can move the head again in this tick.
+		# Re-anchor the existing history without advancing the wave or consuming a second tick.
+		if head != pose.chain_head:
+			var anchor: Vector2 = head
+			for slot: int in range(count):
+				var index: int = rig.follow_indices[slot]
+				if not attached.is_empty() and attached[index] == 0: break
+				var rest: Vector2 = rig.rest[index] - rig.rest[rig.parent_index[index]]
+				var direction: Vector2 = pose.chain_current[slot] - anchor
+				if direction.length_squared() < 0.000001: direction = rest.rotated(basis)
+				pose.chain_current[slot] = anchor + direction.normalized() * rest.length()
+				anchor = pose.chain_current[slot]
+		pose.chain_head = head
+		pose.chain_basis = basis
+		return
+	var old_head: Vector2 = pose.chain_head
+	var old_basis: float = pose.chain_basis
+	for substep: int in range(1, elapsed_ticks + 1):
+		var fraction: float = float(substep) / float(elapsed_ticks)
+		var anchor: Vector2 = old_head.lerp(head, fraction)
+		var heading: float = lerp_angle(old_basis, basis, fraction)
+		var time: float = float(pose.chain_tick + substep) / 60.0
+		for slot: int in range(count):
+			var index: int = rig.follow_indices[slot]
+			pose.chain_previous[slot] = pose.chain_current[slot]
+			if not attached.is_empty() and attached[index] == 0: break
+			var rest: Vector2 = rig.rest[index] - rig.rest[rig.parent_index[index]]
+			var direction: Vector2 = pose.chain_current[slot] - anchor
+			if direction.length_squared() < 0.000001: direction = rest.rotated(heading)
+			direction = direction.normalized()
+			var wave: float = sin(time * 3.2 - float(slot) * 0.85) * 11.0 * float(slot) / float(count)
+			var offset: Vector2 = direction * rest.length() + direction.orthogonal() * wave * 0.06
+			pose.chain_current[slot] = anchor + offset.normalized() * rest.length()
+			anchor = pose.chain_current[slot]
+	pose.chain_head = head
+	pose.chain_basis = basis
+	pose.chain_tick = tick
+
+static func _capture_world(rig: ShipRig, pose: ShipPose, tick: int, head: Vector2, basis: float) -> void:
+	var first: bool = pose.world_tick < 0 or tick < pose.world_tick
+	if tick != pose.world_tick:
+		pose.world_dt = 1.0 / 60.0 if first else float(maxi(1, tick - pose.world_tick)) / 60.0
+		for index: int in range(rig.ids.size()): pose.world_previous[index] = pose.world_current[index]
+	for index: int in range(rig.ids.size()):
+		pose.world_current[index] = head + pose.local[index].rotated(basis)
+		if first:
+			pose.world_previous[index] = pose.world_current[index]
+			# A freshly restored chain already has one tick of world history. Preserve that
+			# velocity, including for its nested markings, if it breaks before another tick.
+			var host: int = index
+			while host > 0 and rig.follow_slot[host] < 0: host = rig.parent_index[host]
+			var slot: int = rig.follow_slot[host] if host >= 0 else -1
+			if slot >= 0 and slot < pose.chain_previous.size():
+				pose.world_previous[index] -= pose.chain_current[slot] - pose.chain_previous[slot]
+		pose.world_velocity[index] = (pose.world_current[index] - pose.world_previous[index]) / pose.world_dt
+	pose.world_tick = tick
+
+## Stable IDs keep history independent of rig ordering. Persistence's existing vector codec
+## handles the vectors; restore also accepts JSON arrays for direct fixture/tool round trips.
+static func encode_chain_state(rig: ShipRig, pose: ShipPose) -> Dictionary:
+	if pose == null or pose.chain_current.size() != rig.follow_indices.size() or rig.follow_indices.is_empty(): return {}
+	var links: Dictionary = {}
+	for slot: int in range(rig.follow_indices.size()):
+		links[rig.ids[rig.follow_indices[slot]]] = {"current": pose.chain_current[slot], "previous": pose.chain_previous[slot]}
+	return {"version": 1, "tick": pose.chain_tick, "head": pose.chain_head, "basis": pose.chain_basis, "links": links}
+
+static func _state_vector(value: Variant, fallback: Vector2 = Vector2.ZERO) -> Vector2:
+	if value is Vector2: return value
+	if value is Array and value.size() == 2: return Vector2(float(value[0]), float(value[1]))
+	return fallback
+
+static func restore_chain_state(rig: ShipRig, pose: ShipPose, encoded: Dictionary) -> void:
+	if encoded.is_empty() or int(encoded.get("version", 0)) != 1 or rig.follow_indices.is_empty(): return
+	var links: Dictionary = encoded.get("links", {})
+	for index: int in rig.follow_indices:
+		if not links.has(rig.ids[index]): return # old/changed topology starts cleanly
+	pose.chain_current.resize(rig.follow_indices.size())
+	pose.chain_previous.resize(rig.follow_indices.size())
+	for slot: int in range(rig.follow_indices.size()):
+		var state: Dictionary = links[rig.ids[rig.follow_indices[slot]]]
+		pose.chain_current[slot] = _state_vector(state.get("current"))
+		pose.chain_previous[slot] = _state_vector(state.get("previous"), pose.chain_current[slot])
+	pose.chain_tick = int(encoded.get("tick", -1))
+	pose.chain_head = _state_vector(encoded.get("head"))
+	pose.chain_basis = float(encoded.get("basis", 0.0))
 
 ## Rail-grammar hulls (ship design spec §9). One pass down the DFS order, so a parent is always
 ## posed before its children: a circle's angle is its parent's plus its own spin and bob, and it sits
@@ -286,7 +411,7 @@ static func step(rig: ShipRig, pose: ShipPose, tick: int) -> void:
 ## because there a circle belongs to one group and is posed from rest positions.
 ## Pure in (tick, pose.aim_angle), allocation-free, and it never touches `scale`: nothing in the
 ## new grammar changes a circle's size.
-static func _step_fk(rig: ShipRig, pose: ShipPose, tick: int) -> void:
+static func _step_fk(rig: ShipRig, pose: ShipPose, tick: int, head: Vector2 = Vector2.ZERO, basis: float = 0.0, attached: PackedByteArray = PackedByteArray()) -> void:
 	var t: float = float(tick) / 60.0
 	pose.local[0] = rig.rest[0]
 	pose.angle[0] = 0.0
@@ -294,6 +419,14 @@ static func _step_fk(rig: ShipRig, pose: ShipPose, tick: int) -> void:
 	pose.flare[0] = 0.0
 	for i: int in range(1, rig.rest.size()):
 		var parent: int = rig.parent_index[i]
+		var follow: int = rig.follow_slot[i]
+		if follow >= 0 and follow < pose.chain_current.size():
+			pose.local[i] = (pose.chain_current[follow] - head).rotated(-basis)
+			var rest_offset: Vector2 = rig.rest[i] - rig.rest[parent]
+			pose.angle[i] = (pose.local[i] - pose.local[parent]).angle() - rest_offset.angle()
+			pose.scale[i] = 1.0
+			pose.flare[i] = 0.0
+			continue
 		var turn: float = pose.angle[parent] + rig.spin_speed[i] * t
 		if rig.bob_amp[i] != 0.0: turn += rig.bob_amp[i] * sin(rig.bob_freq[i] * t + rig.bob_phase[i])
 		if rig.aim_joint[i] == 1:
@@ -308,6 +441,16 @@ static func _step_fk(rig: ShipRig, pose: ShipPose, tick: int) -> void:
 		pose.angle[i] = turn
 		pose.scale[i] = 1.0
 		pose.flare[i] = 0.0
+	# Only the two explicitly authored, non-solid reference lobes turn with the tail's
+	# shoulder. Custom circles and the actor's aiming direction are untouched.
+	if not rig.follow_head_lobes.is_empty() and not pose.chain_current.is_empty():
+		var first: int = rig.follow_indices[0]
+		if attached.is_empty() or attached[first] != 0:
+			var authored: Vector2 = rig.rest[first] - rig.rest[rig.parent_index[first]]
+			var turn: float = (pose.chain_current[0] - head).angle() - basis - authored.angle()
+			for index: int in rig.follow_head_lobes:
+				pose.local[index] = pose.local[0] + (rig.rest[index] - rig.rest[0]).rotated(turn)
+				pose.angle[index] = turn
 
 ## v0.3 hulls, unchanged. Deleted with the legacy roster (S12).
 static func _step_legacy(rig: ShipRig, pose: ShipPose, tick: int) -> void:

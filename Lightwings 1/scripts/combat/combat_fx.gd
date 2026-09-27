@@ -35,6 +35,9 @@ enum Kind { RING, DISC, LINE, FRAGMENTS, COLLAR, TEXT }
 ## `drag` (FRAGMENTS, spec Appendix B: 5-7 fragments, 1.4-3.6 px/frame, drag
 ## 0.95), `dark` (COLLAR only - multiplies the playfield instead of adding).
 const TEMPLATES: Dictionary = {
+ "core_fire": {"duration":0.36,"beats":[
+  {"kind":Kind.RING,"delay":0.0,"life":0.36,"r0":17.0,"r1":47.0,"a0":1.0,"a1":0.0,"width":2.4,"light":true},
+ ]},
  # Beat 1 of the spec's three-beat shot (§19.1): "a ring at the emitter
  # snapping outward and fading over ~0.15 s" (Appendix B: 10 -> 23 px).
  # `floor_exempt`: this is explicitly "one beat of a longer shot event" (the
@@ -46,15 +49,15 @@ const TEMPLATES: Dictionary = {
  # `validate_templates()` skips exempted templates; the negative control
  # test sabotages an ordinary (non-exempt) template to prove the floor
  # still holds everywhere it is supposed to.
- "muzzle": {"duration":0.15,"floor_exempt":true,"beats":[
-  {"kind":Kind.RING,"delay":0.0,"life":0.15,"r0":10.0,"r1":23.0,"a0":1.0,"a1":0.0},
+ "muzzle": {"duration":0.185,"floor_exempt":true,"beats":[
+  {"kind":Kind.RING,"delay":0.0,"life":0.185,"r0":10.0,"r1":23.0,"a0":0.9,"a1":0.0,"width":2.4,"light":true},
  ]},
  # Beat 3: two rings at different speeds plus 5-7 decelerating fragments
  # (Appendix B exact numbers).
- "impact": {"duration":0.55,"beats":[
-  {"kind":Kind.RING,"delay":0.0,"life":0.30,"r0":4.0,"r1":30.0,"a0":1.0,"a1":0.0},
-  {"kind":Kind.RING,"delay":0.0,"life":0.30,"r0":4.0,"r1":48.0,"a0":0.5,"a1":0.0},
-  {"kind":Kind.FRAGMENTS,"delay":0.0,"life":0.55,"count_min":5,"count_max":7,"speed_min":1.4,"speed_max":3.6,"drag":0.95},
+ "impact": {"duration":0.476,"beats":[
+  {"kind":Kind.RING,"delay":0.0,"life":0.303,"r0":4.0,"r1":30.0,"a0":1.0,"a1":0.0,"width":2.2,"light":true},
+  {"kind":Kind.RING,"delay":0.0,"life":0.303,"r0":4.0,"r1":48.0,"a0":0.5,"a1":0.0,"width":1.4},
+  {"kind":Kind.FRAGMENTS,"delay":0.0,"life":0.476,"count_min":7,"count_max":7,"speed_min":1.4,"speed_max":3.6,"drag":0.95,"radial":true,"radius":2.2},
  ]},
  # A large hit additionally darkens a collar (§19 "on large hits"); its own
  # template so `_damage_actor`/`_damage_part` can emit it independently of
@@ -95,9 +98,10 @@ const TEMPLATES: Dictionary = {
  # Beam: "impact sparking continuously at the far end" - one small burst per
  # call, thrown by the caller at a throttled rate (see `_beam` in
  # `combat_world.gd`), not a delay chain of its own.
- "beam_spark": {"duration":0.25,"beats":[
-  {"kind":Kind.RING,"delay":0.0,"life":0.25,"r0":3.0,"r1":11.0,"a0":1.0,"a1":0.0},
-  {"kind":Kind.FRAGMENTS,"delay":0.0,"life":0.25,"count_min":3,"count_max":3,"speed_min":0.8,"speed_max":1.6,"drag":0.9},
+ "beam_spark": {"duration":0.476,"beats":[
+  {"kind":Kind.RING,"delay":0.0,"life":0.303,"r0":4.0,"r1":30.0,"a0":1.0,"a1":0.0,"width":2.2,"light":true},
+  {"kind":Kind.RING,"delay":0.0,"life":0.303,"r0":4.0,"r1":48.0,"a0":0.5,"a1":0.0,"width":1.4},
+  {"kind":Kind.FRAGMENTS,"delay":0.0,"life":0.476,"count_min":7,"count_max":7,"speed_min":1.4,"speed_max":3.6,"drag":0.95,"radial":true,"radius":2.2},
  ]},
  # Migrated from the old one-`draw_arc` effect list (unchanged visual role,
  # now on the same choke point and all at/above the 0.25 s floor).
@@ -124,6 +128,9 @@ var drag: PackedFloat32Array = PackedFloat32Array()
 var life: PackedFloat32Array = PackedFloat32Array()
 var delay: PackedFloat32Array = PackedFloat32Array()
 var age: PackedFloat32Array = PackedFloat32Array()
+## Optional explicit emitter binding. Impact positions are never bound.
+var emitter_owner: PackedInt32Array = PackedInt32Array()
+var emitter_part: Array[String] = []
 var text: Array[String] = []
 var active_indices: Array[int] = []
 var free_indices: Array[int] = []
@@ -149,6 +156,9 @@ func _init() -> void:
  life.resize(CAPACITY)
  delay.resize(CAPACITY)
  age.resize(CAPACITY)
+ emitter_owner.resize(CAPACITY)
+ emitter_owner.fill(-1)
+ emitter_part.resize(CAPACITY)
  text.resize(CAPACITY)
  for i: int in range(CAPACITY): color[i]=Color.WHITE
 
@@ -185,13 +195,30 @@ func emit(template_name: String, at: Vector2, tint: Color, rng: RandomNumberGene
    _: _spawn_one(int(beat.get("kind",Kind.RING)),at,at,tint,beat,extra)
 
 func _slot() -> int:
- if not free_indices.is_empty(): return free_indices.pop_back()
+ if not free_indices.is_empty(): return _fresh_binding(free_indices.pop_back())
  if next_unused<CAPACITY:
   var index: int=next_unused
   next_unused+=1
-  return index
+  return _fresh_binding(index)
+ # Keep new rings/cues legible during a flood by retiring an old fragment first.
+ var oldest: int=-1
+ var oldest_age: float=-1.0
+ for slot: int in range(active_indices.size()):
+  var candidate: int=active_indices[slot]
+  if kind[candidate]==Kind.FRAGMENTS and age[candidate]>oldest_age:
+   oldest=slot
+   oldest_age=age[candidate]
+ if oldest>=0:
+  _remove(oldest,active_indices[oldest])
+  dropped_count+=1
+  return _fresh_binding(free_indices.pop_back())
  dropped_count+=1
  return -1
+
+func _fresh_binding(index: int) -> int:
+ emitter_owner[index]=-1
+ emitter_part[index]=""
+ return index
 
 ## `extra.r0`/`extra.r1` (e.g. a destroyed circle's own authored radius, or a
 ## collar's actual hit-radius) override the template's default numbers for
@@ -204,7 +231,7 @@ func _spawn_one(beat_kind: int, at: Vector2, target: Vector2, tint: Color, beat:
  pos[index]=at
  to[index]=target
  vel[index]=Vector2.ZERO
- color[index]=tint
+ color[index]=highlight(tint) if bool(beat.get("light",false)) else tint
  r0[index]=float(extra.get("r0",beat.get("r0",0.0)))
  r1[index]=float(extra.get("r1",beat.get("r1",0.0)))
  a0[index]=float(beat.get("a0",1.0))
@@ -214,6 +241,8 @@ func _spawn_one(beat_kind: int, at: Vector2, target: Vector2, tint: Color, beat:
  life[index]=float(beat.get("life",0.25))
  delay[index]=float(beat.get("delay",0.0))
  age[index]=0.0
+ emitter_owner[index]=int(extra.get("emitter_owner",-1))
+ emitter_part[index]=str(extra.get("emitter_part",""))
  active_indices.append(index)
 
 func _spawn_text(at: Vector2, tint: Color, beat: Dictionary, message: String) -> void:
@@ -239,14 +268,14 @@ func _spawn_fragments(beat: Dictionary, at: Vector2, tint: Color, rng: RandomNum
  for i: int in range(count):
   var index: int=_slot()
   if index<0: return
-  var spread: float = rng.randf_range(-0.9,0.9)
+  var spread: float = TAU*float(i)/float(count)+rng.randf() if bool(beat.get("radial",false)) else rng.randf_range(-0.9,0.9)
   var speed_frames: float = rng.randf_range(float(beat.get("speed_min",1.4)),float(beat.get("speed_max",3.6)))
   kind[index]=Kind.FRAGMENTS
   pos[index]=at
   to[index]=at
   vel[index]=Vector2.from_angle(base_angle+spread)*speed_frames*60.0
   color[index]=tint
-  r0[index]=rng.randf_range(1.5,3.0)
+  r0[index]=float(beat.get("radius",rng.randf_range(1.5,3.0)))
   r1[index]=r0[index]
   a0[index]=1.0
   a1[index]=0.0
@@ -285,6 +314,14 @@ func clear() -> void:
 
 func live_count() -> int: return active_indices.size()
 
+static func highlight(tint: Color) -> Color:
+ if tint.is_equal_approx(LightBulletPool.PULSE_COLOR): return Color("dcf5ff")
+ if tint.is_equal_approx(LightBulletPool.SEEKER_COLOR): return Color("e4d6ff")
+ if tint.is_equal_approx(LightBulletPool.ROCKET_COLOR): return Color("ffc6b5")
+ if tint.is_equal_approx(LightBulletPool.RICOCHET_COLOR): return Color("fff3bd")
+ if tint.is_equal_approx(LightBulletPool.BEAM_COLOR): return LightBulletPool.BEAM_LIGHT
+ return tint.lerp(Color.WHITE,0.73)
+
 ## Below-ship pass: the dark collar only (spec §19 "darken a collar ... below
 ## the playfield value"). Drawn from `CombatWorld._draw()` (z_index 0).
 func draw_below(canvas: CanvasItem) -> void:
@@ -314,7 +351,7 @@ func draw_above(canvas: CanvasItem, font: Font) -> void:
   match beat_kind:
    Kind.RING:
     var radius: float=lerpf(r0[index],r1[index],t)
-    if radius>0.5: canvas.draw_arc(pos[index],radius,0,TAU,24,tint*1.6,1.5,true)
+    if radius>0.5: canvas.draw_arc(pos[index],radius,0,TAU,48,tint,width[index],true)
    Kind.DISC:
     var radius: float=lerpf(r0[index],r1[index],t)
     if radius>0.3: canvas.draw_circle(pos[index],radius,tint)

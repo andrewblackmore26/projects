@@ -1,48 +1,52 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_75ck3"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ette1"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_qpf88"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_4ls3l"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_jpx7b"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_qv56c"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_otw1m"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_v665d"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ibspp"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_cwe8d"]
 
-[sub_resource type="Resource" id="Resource_q7wwj"]
-script = ExtResource("1_75ck3")
+[sub_resource type="Resource" id="Resource_jqt5e"]
+script = ExtResource("1_qv56c")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
 
-[sub_resource type="Resource" id="Resource_xpivq"]
-script = ExtResource("1_75ck3")
+[sub_resource type="Resource" id="Resource_o1a68"]
+script = ExtResource("1_qv56c")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_hvh40"]
-script = ExtResource("1_75ck3")
+[sub_resource type="Resource" id="Resource_ottxe"]
+script = ExtResource("1_qv56c")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
 
-[sub_resource type="Resource" id="Resource_q1gfe"]
-script = ExtResource("1_75ck3")
+[sub_resource type="Resource" id="Resource_rsj4c"]
+script = ExtResource("1_qv56c")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_dt1vi"]
-script = ExtResource("4_4ls3l")
+[sub_resource type="Resource" id="Resource_jn513"]
+script = ExtResource("4_ibspp")
 order = 4
 speed = -0.8347
 phase = 0.1808
-slots = Array[ExtResource("1_75ck3")]([SubResource("Resource_q7wwj"), SubResource("Resource_xpivq"), SubResource("Resource_hvh40"), SubResource("Resource_q1gfe")])
+slots = Array[ExtResource("1_qv56c")]([SubResource("Resource_jqt5e"), SubResource("Resource_o1a68"), SubResource("Resource_ottxe"), SubResource("Resource_rsj4c")])
 
 [resource]
-script = ExtResource("5_jpx7b")
+script = ExtResource("5_cwe8d")
 id = "enemy_sentry_corruption_t4"
 display_name = "Corruption Sentry T4"
 tier = 4
 description = "seed 216323"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "green"
+core_radii = PackedFloat32Array()
 core_weapon = "bloom_pod"
 archetype = "sentry"
-rails = Array[ExtResource("4_4ls3l")]([SubResource("Resource_dt1vi")])
+rails = Array[ExtResource("4_ibspp")]([SubResource("Resource_jn513")])

@@ -91,9 +91,11 @@ func _run() -> void:
 	h.control("a rail phase nudged by 0.01 rad", _bytes(moved) != _bytes(elite))
 	var fat: ShipDefinition = _load("boss")
 	for rail: RailDefinition in fat.rails:
+		rail.order = 8
+		while rail.slots.size() < 8: rail.slots.append(rail.slots[-1].duplicate())
 		for slot: SlotDefinition in rail.slots:
 			if slot.type == "hub":
 				slot.pods = 4
 				slot.set_piece = "burst_ring"
-	h.control("a boss with four pods and a five-circle piece on every hub (%d circles)" % int(ShipCompiler.budget(fat).circles), not ShipCatalog.validate(fat).is_empty())
+	h.control("an eight-slot boss with four pods on every hub (%d circles)" % int(ShipCompiler.budget(fat).circles), int(ShipCompiler.budget(fat).circles) > ShipGrammar.MAX_CIRCLES and not ShipCatalog.validate(fat).is_empty())
 	h.finish(self)

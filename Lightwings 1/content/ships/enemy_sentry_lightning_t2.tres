@@ -1,49 +1,53 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_64tmj"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_dxy0j"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_vo72q"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ilfin"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_frmpc"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_10a2g"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_oft5j"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_7bqb4"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_mb3kn"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_y1dhr"]
 
-[sub_resource type="Resource" id="Resource_las5w"]
-script = ExtResource("1_64tmj")
+[sub_resource type="Resource" id="Resource_unh1m"]
+script = ExtResource("1_10a2g")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 
-[sub_resource type="Resource" id="Resource_pnd0s"]
-script = ExtResource("1_64tmj")
+[sub_resource type="Resource" id="Resource_lx2ai"]
+script = ExtResource("1_10a2g")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_072ei"]
-script = ExtResource("1_64tmj")
+[sub_resource type="Resource" id="Resource_2ys2u"]
+script = ExtResource("1_10a2g")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 
-[sub_resource type="Resource" id="Resource_qtvv8"]
-script = ExtResource("1_64tmj")
+[sub_resource type="Resource" id="Resource_7rex5"]
+script = ExtResource("1_10a2g")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_xbgou"]
-script = ExtResource("4_ilfin")
+[sub_resource type="Resource" id="Resource_dmc08"]
+script = ExtResource("4_mb3kn")
 order = 4
 speed = -0.8505
 phase = 1.4498
-slots = Array[ExtResource("1_64tmj")]([SubResource("Resource_las5w"), SubResource("Resource_pnd0s"), SubResource("Resource_072ei"), SubResource("Resource_qtvv8")])
+slots = Array[ExtResource("1_10a2g")]([SubResource("Resource_unh1m"), SubResource("Resource_lx2ai"), SubResource("Resource_2ys2u"), SubResource("Resource_7rex5")])
 
 [resource]
-script = ExtResource("5_frmpc")
+script = ExtResource("5_y1dhr")
 id = "enemy_sentry_lightning_t2"
 display_name = "Lightning Sentry T2"
 element = "lightning"
 tier = 2
 description = "seed 54608"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "yellow"
+core_radii = PackedFloat32Array()
 core_weapon = "wedge_pair"
 archetype = "sentry"
-rails = Array[ExtResource("4_ilfin")]([SubResource("Resource_xbgou")])
+rails = Array[ExtResource("4_mb3kn")]([SubResource("Resource_dmc08")])

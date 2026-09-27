@@ -17,7 +17,7 @@ const ACTOR_ALLOW: Array = [
  "desired","desired_aim","age","dead","invulnerable","reward_remaining","reward_damage",
  "reward_unpaid_limb","_reward_split","cooldowns","shield","blockers","blocker_hits",
  "orbit_stock","orbit_cd","slow","stored","stolen","infected","infection_damage",
- "infection_owner","infection_faction","charge","hull_id","beam_contact","core_id"
+ "infection_owner","infection_faction","charge","hull_id","beam_contact","core_id","part_seed"
 ]
 const PARTS_VERSION: int = 1
 
@@ -40,7 +40,30 @@ static func encode_parts(actor: Dictionary) -> Dictionary:
   aim[id] = json_value(actor.part_aim[i])
   attached[id] = bool(actor.part_attached[i])
   share[id] = float(actor.part_reward_share[i]) if i < actor.part_reward_share.size() else 0.0
- return {"version": PARTS_VERSION, "hp": hp, "max_hp": max_hp, "cd": cd, "egg_cd": egg_cd, "aim": aim, "attached": attached, "reward_share": share}
+ var definition: ShipDefinition = actor.get("definition")
+ return {"version": PARTS_VERSION, "geometry_revision": definition.geometry_revision if definition != null else 1, "hp": hp, "max_hp": max_hp, "cd": cd, "egg_cd": egg_cd, "aim": aim, "attached": attached, "reward_share": share}
+
+## Lossless revision-1 pod consolidation. Detached shares have already been paid; only attached
+## sources contribute HP/rewards. Leave actor-level reward pools alone, and never revive a host.
+static func migrate_parts(encoded: Dictionary, definition: ShipDefinition) -> Dictionary:
+ var result: Dictionary = encoded.duplicate(true)
+ if encoded.is_empty() or int(encoded.get("geometry_revision", 1)) >= definition.geometry_revision: return result
+ var hp: Dictionary = result.get("hp", {})
+ var maximum: Dictionary = result.get("max_hp", {})
+ var attached: Dictionary = result.get("attached", {})
+ var share: Dictionary = result.get("reward_share", {})
+ for source: String in definition.removed_part_map:
+  var target: String = str(definition.removed_part_map[source])
+  if not maximum.has(source): continue
+  maximum[target] = float(maximum.get(target, 0.0)) + float(maximum[source])
+  var alive: bool = bool(attached.get(source, false)) and bool(attached.get(target, false))
+  if alive:
+   hp[target] = float(hp.get(target, 0.0)) + maxf(0.0, float(hp.get(source, 0.0)))
+   share[target] = float(share.get(target, 0.0)) + float(share.get(source, 0.0))
+  for key: String in ["hp", "max_hp", "cd", "egg_cd", "aim", "attached", "reward_share"]:
+   if result.has(key): (result[key] as Dictionary).erase(source)
+ result.geometry_revision = definition.geometry_revision
+ return result
 
 ## Applied AFTER `_configure_actor` has rebuilt the packed arrays from the
 ## (possibly different) restored/edited ShipDefinition, so this only
@@ -49,6 +72,7 @@ static func encode_parts(actor: Dictionary) -> Dictionary:
 static func apply_parts(world: Node, actor: Dictionary, encoded: Dictionary) -> void:
  var rig: ShipMotion.ShipRig = actor.get("rig")
  if rig == null or encoded.is_empty(): return
+ encoded = migrate_parts(encoded, actor.definition)
  var hp: Dictionary = encoded.get("hp", {})
  var max_hp: Dictionary = encoded.get("max_hp", {})
  var cd: Dictionary = encoded.get("cd", {})
@@ -68,6 +92,13 @@ static func apply_parts(world: Node, actor: Dictionary, encoded: Dictionary) -> 
  actor.part_hp[0] = float(actor.hp)
  actor.part_max_hp[0] = float(actor.max_hp)
  actor.part_attached[0] = 1
+ # New glyph circles inherit the restored host's visibility. A saved dead hub must never grow
+ # fresh decorations when a weapon's drawing changes between versions.
+ for i: int in range(1, rig.ids.size()):
+  var parent: int = rig.parent_index[i]
+  if parent >= 0 and not bool(actor.part_attached[parent]):
+   actor.part_attached[i] = 0
+   actor.part_hp[i] = 0.0
  world._rebuild_part_views(actor)
 
 static func actor_snapshot(world: Node, actor: Dictionary) -> Dictionary:
@@ -75,6 +106,12 @@ static func actor_snapshot(world: Node, actor: Dictionary) -> Dictionary:
  for key: String in ACTOR_ALLOW:
   if actor.has(key): copy[key] = actor[key]
  copy.parts = encode_parts(actor)
+ copy.hull_definition = ShipCatalog.encode_definition(actor.get("definition"))
+ var rig: ShipMotion.ShipRig = actor.get("rig")
+ var pose: ShipMotion.ShipPose = actor.get("pose")
+ if rig != null and pose != null:
+  var chain: Dictionary = ShipMotion.encode_chain_state(rig, pose)
+  if not chain.is_empty(): copy.chain_motion = chain
  return json_value(copy)
 static func drone_snapshots(world: Node) -> Array:
  var result: Array=[]
@@ -96,10 +133,13 @@ static func restore_encounter(world: Node, data: Dictionary) -> void:
   var parts: Dictionary=actor.get("parts",{})
   actor.erase("parts")
   actor.renderer=null
-  var definition: ShipDefinition=ShipCatalog.get_ship(str(actor.get("hull_id","")))
+  var definition: ShipDefinition=ShipCatalog.get_ship_revision(str(actor.get("hull_id","")), int(parts.get("geometry_revision", 1)), actor.get("hull_definition", {}))
   if definition==null: continue
   world._configure_actor(actor,definition,false)
   apply_parts(world,actor,parts)
+  _restore_chain(world, actor, actor.get("chain_motion", {}))
+  actor.erase("hull_definition")
+  actor.erase("chain_motion")
   world.enemies.append(actor)
   world.actors_by_id[int(actor.id)]=actor
   world.next_actor_id=maxi(world.next_actor_id,int(actor.id)+1)
@@ -130,7 +170,10 @@ static func restore(world: Node, data: Dictionary) -> void:
  world.max_player_tier=clampi(int(data.get("max_player_tier",GameTuning.MAX_TIER)),1,GameTuning.MAX_TIER)
  var pos: Array=data.get("position",[896,560])
  world.setup_player("neutral",1,float(data.get("light_total",40.0)),[],Vector2(float(pos[0]),float(pos[1])))
+ world.tick=int(data.get("tick",0))
+ world.elapsed=float(data.get("elapsed",0.0))
  world.set_player_hull(str(data.get("hull_id","player_seed")))
+ world.hull_id=str(data.get("hull_id","player_seed"))
  world.hull_history.assign(data.get("hull_history",["player_seed"]))
  world.absorption=data.get("absorption",{}).duplicate(true)
  var restored: Dictionary=decode_value(data.get("player",{}))
@@ -138,8 +181,13 @@ static func restore(world: Node, data: Dictionary) -> void:
  restored.erase("parts")
  for key: String in restored:
   if key in ACTOR_ALLOW: world.player[key]=restored[key]
- world._configure_actor(world.player,ShipCatalog.get_ship(world.hull_id),false)
+ var player_definition: ShipDefinition = ShipCatalog.get_ship_revision(world.hull_id, int(player_parts.get("geometry_revision", 1)), restored.get("hull_definition", {}))
+ if player_definition == null:
+  push_error("Saved player geometry is unavailable: %s revision %d" % [world.hull_id, int(player_parts.get("geometry_revision", 1))])
+  return
+ world._configure_actor(world.player,player_definition,false)
  apply_parts(world,world.player,player_parts)
+ _restore_chain(world, world.player, restored.get("chain_motion", {}))
  world.light_total=float(data.get("light_total",40.0))
  world.player.hp=world.light_total
  world.player_position=world.player.pos
@@ -192,6 +240,16 @@ static func restore(world: Node, data: Dictionary) -> void:
  # taken past commit, pushing the player out along the exit direction into
  # a phantom warp instead of ever reaching `_warp_arrive()`.
  world._warp_swap_done=not (world.warp_phase==world.WARP_NONE or world.warp_phase==world.WARP_PUSH)
+static func _restore_chain(world: Node, actor: Dictionary, encoded: Dictionary) -> void:
+ var rig: ShipMotion.ShipRig = actor.get("rig")
+ var pose: ShipMotion.ShipPose = actor.get("pose")
+ if rig == null or pose == null or encoded.is_empty(): return
+ ShipMotion.restore_chain_state(rig, pose, decode_value(encoded))
+ # Cached encounters remain frozen while absent. Resume their saved shape at the live clock.
+ pose.chain_tick = world.tick
+ ShipMotion.step(rig, pose, world.tick, Vector2(actor.pos), Vector2(actor.aim).angle() + PI * 0.5, actor.part_attached)
+ world._rebuild_part_views(actor)
+
 static func json_value(value: Variant) -> Variant:
  if value is Vector2: return {"$v2":[value.x,value.y]}
  if value is Vector2i: return {"$v2i":[value.x,value.y]}

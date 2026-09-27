@@ -15,34 +15,43 @@ var _weapon_label: Label
 var _motion_label: Label
 var _scrub: HSlider
 var _rig: ShipMotion.ShipRig
+var _stage: Control
+var _silhouette_stage: Control
 
 func _ready() -> void:
+	theme = UiKit.make_theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var columns: HBoxContainer = HBoxContainer.new()
 	columns.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(columns)
+	var left_scroll := ScrollContainer.new()
+	left_scroll.custom_minimum_size.x = 480
+	left_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.add_child(left_scroll)
 	var left: VBoxContainer = VBoxContainer.new()
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	columns.add_child(left)
-	var stage: Control = Control.new()
-	stage.custom_minimum_size = Vector2(480, 360)
-	left.add_child(stage)
+	left_scroll.add_child(left)
+	_stage = Control.new()
+	_stage.custom_minimum_size = Vector2(480, 360)
+	left.add_child(_stage)
 	_renderer = ShipRenderer.new()
 	_renderer.position = Vector2(240, 180)
 	_renderer.visual_scale = 3.0
-	stage.add_child(_renderer)
+	_stage.add_child(_renderer)
+	_stage.resized.connect(_fit_previews)
 	_overlay = GalleryDetachOverlay.new()
 	_overlay.target = _renderer
 	_renderer.add_child(_overlay)
-	var silhouette_row: HBoxContainer = HBoxContainer.new()
+	var silhouette_row := VBoxContainer.new()
 	left.add_child(silhouette_row)
-	var silhouette_stage: Control = Control.new()
-	silhouette_stage.custom_minimum_size = Vector2(160, 120)
-	silhouette_row.add_child(silhouette_stage)
+	_silhouette_stage = Control.new()
+	_silhouette_stage.custom_minimum_size = Vector2(160, 120)
+	silhouette_row.add_child(_silhouette_stage)
 	_silhouette = ShipRenderer.new()
 	_silhouette.position = Vector2(80, 60)
 	_silhouette.visual_scale = 0.6561
-	silhouette_stage.add_child(_silhouette)
+	_silhouette_stage.add_child(_silhouette)
+	_silhouette_stage.resized.connect(_fit_previews)
 	silhouette_row.add_child(_label("Silhouette check (minimum zoom 0.6561)"))
 	var motion_box: VBoxContainer = VBoxContainer.new()
 	left.add_child(motion_box)
@@ -95,6 +104,9 @@ func set_entry(new_entry: Dictionary) -> void:
 	if ship == null: return
 	_renderer.set_ship(ship)
 	_silhouette.set_ship(ship)
+	var diameter: float = ceilf(ShipPreview.animated_radius(ship)*0.6561*2.0+24.0)
+	_silhouette_stage.custom_minimum_size = Vector2(maxf(160,diameter),maxf(120,diameter))
+	_fit_previews()
 	_overlay.clear()
 	_rig = ShipMotion.get_rig(ship)
 	_scrub.value = 0
@@ -103,6 +115,13 @@ func set_entry(new_entry: Dictionary) -> void:
 	_build_tree(ship)
 	_build_weapons(ship)
 	_motion_label.text = "Rail speeds: %s" % ", ".join(_rail_speed_strings(ship))
+
+func _fit_previews() -> void:
+	if _renderer == null or _renderer.definition == null or _silhouette == null: return
+	var radius: float = ShipPreview.animated_radius(_renderer.definition)
+	_renderer.position = _stage.size*0.5
+	_renderer.visual_scale = minf(3.0,maxf(1.0,minf(_stage.size.x,_stage.size.y)*0.5-20.0)/radius)
+	_silhouette.position = _silhouette_stage.size*0.5
 
 func _rail_speed_strings(ship: ShipDefinition) -> Array[String]:
 	var result: Array[String] = []

@@ -1,52 +1,61 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_fhsmi"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_onos3"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_5aitc"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_r2wfl"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_u1ymy"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_bg3rs"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_m65mj"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_wg5od"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_1v14u"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_2wooi"]
 
-[sub_resource type="Resource" id="Resource_0kh4u"]
-script = ExtResource("1_fhsmi")
+[sub_resource type="Resource" id="Resource_l486f"]
+script = ExtResource("1_bg3rs")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "lens_stack"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_lhkln"]
-script = ExtResource("1_fhsmi")
+[sub_resource type="Resource" id="Resource_b4v67"]
+script = ExtResource("1_bg3rs")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "halo_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_0j7jy"]
-script = ExtResource("1_fhsmi")
+[sub_resource type="Resource" id="Resource_pq6tu"]
+script = ExtResource("1_bg3rs")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "shell_pair"
 mount = "secondary_1"
 
-[sub_resource type="Resource" id="Resource_n6ey6"]
-script = ExtResource("1_fhsmi")
+[sub_resource type="Resource" id="Resource_m5yc6"]
+script = ExtResource("1_bg3rs")
 type = "hub"
-pods = 4
+pods = 3
+pod_spacing = 1.3
+pod_hp_radius = 9.333333333333334
 set_piece = "halo_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_i2d08"]
-script = ExtResource("4_r2wfl")
+[sub_resource type="Resource" id="Resource_flccd"]
+script = ExtResource("4_1v14u")
 order = 4
-slots = Array[ExtResource("1_fhsmi")]([SubResource("Resource_0kh4u"), SubResource("Resource_lhkln"), SubResource("Resource_0j7jy"), SubResource("Resource_n6ey6")])
+slots = Array[ExtResource("1_bg3rs")]([SubResource("Resource_l486f"), SubResource("Resource_b4v67"), SubResource("Resource_pq6tu"), SubResource("Resource_m5yc6")])
 
 [resource]
-script = ExtResource("5_u1ymy")
+script = ExtResource("5_2wooi")
 id = "player_plasma_t2_heavy"
 display_name = "Plasma T2 Heavy"
 element = "plasma"
 tier = 2
 description = "seed 576657"
 schema_version = 4
+geometry_revision = 3
 role = "heavy"
 family = "heavy"
 speed = 200.0
@@ -57,4 +66,5 @@ hp_buffer = 1.3
 damage_multiplier = 1.15
 chassis_color = "blue"
 accent_color = "violet"
-rails = Array[ExtResource("4_r2wfl")]([SubResource("Resource_i2d08")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_1v14u")]([SubResource("Resource_flccd")])

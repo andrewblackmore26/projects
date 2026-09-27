@@ -9,8 +9,8 @@ const ELEMENTS: Array[String] = Elements.INDEX_ORDER
 const SHAPES: Array[String] = ["circle", "line"]
 const FAMILIES: Array[String] = ["compact", "standard_a", "standard_b", "heavy"]
 const SYMMETRIES: Array[String] = ["bilateral", "radial", "none"]
-const PALETTE: Dictionary = {"blue": Color("6fd3ff"), "player": Color("6fd3ff"), "player_blue": Color("6fd3ff"), "fire": Color("ff5436"), "lightning": Color("ffd23f"), "corruption": Color("45e06a"), "plasma": Color("a97dff"), "violet": Color("a97dff"), "void": Color("9aa3b3"), "silver": Color("9aa3b3"), "gold": Color("ffd23f"), "yellow": Color("ffd23f"), "red": Color("ff5436"), "white": Color.WHITE, "neutral": Color("9aa3b3"), "green": Color("45e06a"), "black": Color.BLACK}
-const FILLS: Dictionary = {"blue": Color("08233a"), "player": Color("08233a"), "player_blue": Color("08233a"), "fire": Color("2a0b08"), "lightning": Color("2a2206"), "corruption": Color("062a12"), "plasma": Color("1d1233"), "violet": Color("1d1233"), "void": Color.BLACK, "silver": Color.BLACK, "gold": Color.BLACK, "yellow": Color("2a2206"), "red": Color("2a0b08"), "white": Color("191919"), "neutral": Color("101015"), "green": Color("062a12"), "black": Color.BLACK}
+const PALETTE: Dictionary = VisualStyle.PALETTE
+const FILLS: Dictionary = VisualStyle.FILLS
 const LIGHTS: Dictionary = {"blue": Color("dcf5ff"), "player": Color("dcf5ff"), "player_blue": Color("dcf5ff"), "fire": Color("ffc6b5"), "lightning": Color("fff3bd"), "corruption": Color("caffd5"), "plasma": Color("e4d6ff"), "violet": Color("e4d6ff"), "void": Color.WHITE, "silver": Color.WHITE, "gold": Color("fff3bd"), "yellow": Color("fff3bd"), "red": Color("ffc6b5"), "white": Color.WHITE, "neutral": Color.WHITE, "green": Color("caffd5"), "black": Color.BLACK}
 # Retained for descriptive legacy consumers; gameplay uses mounted_components().
 const NAMES: Dictionary = {"fire": ["Ember", "Flare", "Stoker", "Furnace", "Sunburst", "Cataclysm"], "lightning": ["Spark", "Arc", "Fork", "Surge", "Tempest", "Maelstrom"], "void": ["Null", "Eclipse", "Umbra", "Horizon", "Singularity", "Oblivion"], "corruption": ["Glitch", "Worm", "Trojan", "Rootkit", "Botnet", "Leviathan"], "plasma": ["Ion", "Orbit", "Corona", "Pulsar", "Quasar", "Supernova"]}
@@ -21,6 +21,79 @@ static func get_color(role: String) -> Color:
 
 static var _templates: Dictionary = {}
 static var _listings: Dictionary = {}
+static var _revision_archives: Dictionary = {}
+const DEFINITION_STATS: Array[String] = ["element", "speed", "turn_rate", "accel", "drag", "hp_buffer", "damage_multiplier", "magnet_radius", "motion_signature"]
+
+static func encode_definition(ship: ShipDefinition) -> Dictionary:
+	if ship == null: return {}
+	if not ship.is_rail_hull():
+		var parts: Array = []
+		var groups: Array = []
+		for part: PartDefinition in ship.parts: parts.append(_stored_fields(part))
+		for group: GroupDefinition in ship.groups: groups.append(_stored_fields(group))
+		return {"legacy": _stored_fields(ship), "parts": parts, "groups": groups}
+	var stats: Dictionary = {}
+	for key: String in DEFINITION_STATS: stats[key] = ship.get(key)
+	return {"grammar": JSON.parse_string(ShipAuthoring.to_json(ship)), "stats": stats}
+
+static func decode_definition(encoded: Dictionary) -> ShipDefinition:
+	if encoded.get("legacy") is Dictionary:
+		var legacy: ShipDefinition = ShipDefinition.new()
+		_apply_stored_fields(legacy, encoded.legacy)
+		if legacy.schema_version != 3: return null
+		for fields: Dictionary in encoded.get("parts", []):
+			var part: PartDefinition = PartDefinition.new()
+			_apply_stored_fields(part, fields)
+			legacy.parts.append(part)
+		for fields: Dictionary in encoded.get("groups", []):
+			var group: GroupDefinition = GroupDefinition.new()
+			_apply_stored_fields(group, fields)
+			legacy.groups.append(group)
+		if not validate(legacy).is_empty(): return null
+		return legacy
+	if not encoded.get("grammar") is Dictionary: return null
+	var errors: PackedStringArray = PackedStringArray()
+	var ship: ShipDefinition = ShipGrammar.from_dict(encoded.grammar, errors)
+	if not errors.is_empty() or not ShipGrammar.validate(ship).is_empty(): return null
+	for key: String in DEFINITION_STATS:
+		if (encoded.get("stats", {}) as Dictionary).has(key): ship.set(key, encoded.stats[key])
+	refresh(ship)
+	return ship
+
+static func _stored_fields(resource: Resource) -> Dictionary:
+	var result: Dictionary = {}
+	for property: Dictionary in resource.get_property_list():
+		var name: String = str(property.name)
+		if int(property.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE == 0 or int(property.usage) & PROPERTY_USAGE_STORAGE == 0: continue
+		if name in ["parts", "groups", "rails", "chain_links"]: continue
+		result[name] = resource.get(name)
+	return result
+
+static func _apply_stored_fields(resource: Resource, fields: Dictionary) -> void:
+	var allowed: Dictionary = _stored_fields(resource)
+	for key: String in fields:
+		if not allowed.has(key): continue
+		var value: Variant = fields[key]
+		if allowed[key] is Array:
+			var typed: Array = allowed[key].duplicate()
+			typed.assign(value)
+			resource.set(key, typed)
+		elif allowed[key] is PackedFloat32Array: resource.set(key, PackedFloat32Array(value))
+		else: resource.set(key, value)
+
+## Loading an existing actor resolves its authored anatomy, never today's spawn geometry.
+static func get_ship_revision(id: String, revision: int, encoded: Dictionary = {}) -> ShipDefinition:
+	if not encoded.is_empty():
+		var saved: ShipDefinition = decode_definition(encoded)
+		if saved != null and saved.id == id and saved.geometry_revision == revision: return saved
+	var current: ShipDefinition = get_ship(id)
+	if current != null and current.geometry_revision == revision: return current
+	if revision in [1, 2]:
+		if not _revision_archives.has(revision):
+			var value: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://content/ship_geometry_v%d.json" % revision))
+			_revision_archives[revision] = value if value is Dictionary else {}
+		return decode_definition((_revision_archives[revision] as Dictionary).get(id, {}))
+	return null
 
 static func invalidate(_id: String = "") -> void:
 	# Editor mutations explicitly invalidate, including multiple saves per second.

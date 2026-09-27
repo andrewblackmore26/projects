@@ -43,15 +43,9 @@ const THEME_WORDS: Dictionary = {
 	"gravity": ["pull_cage", "collapse_cage", "iris_ring"], "missile": ["fin_trio", "v_rack"], "pulse": ["halo_node", "flare_ring"],
 }
 
-## Circle-count targets for §13.2's "within ±20 % of the archetype's target". MEASURED: the median
-## `ShipCompiler.budget().circles` of 20 unpinned seeds per archetype (tests/ship_recipe_test.gd
-## prints them); restate these from that printout whenever the fill rules change.
-const CIRCLE_TARGET: Dictionary = {"drone": 8, "sentry": 19, "radial_elite": 26, "heavy_elite": 57, "irregular_elite": 68, "chain": 16, "boss": 99}
-## Set pieces run from 2 to 5 circles, so a free draw lands outside the ±20 % band fairly often
-## (measured on the first run: sentry 17-24 about 19, radial elite 23-32 about 26, irregular elite
-## 52-87 about 68). The recipe therefore AIMS: it re-draws, from the same RNG stream so it stays
-## deterministic, until the count is in the band or this many draws are spent.
-const MAX_DRAWS: int = 24
+## Upper clutter limits, never filling targets. Sparse designs are valid; generation never
+## redraws or adds circles to hit a minimum count. The global shader cap remains 128.
+const CIRCLE_LIMITS: Dictionary = {"drone": 12, "sentry": 28, "radial_elite": 40, "heavy_elite": 84, "irregular_elite": 128, "chain": 40, "boss": 128}
 
 static func generate(params: Dictionary) -> ShipDefinition:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -59,17 +53,10 @@ static func generate(params: Dictionary) -> ShipDefinition:
 	var faction: String = str(params.get("faction", "enemy"))
 	var pins: Dictionary = params.get("pins", {})
 	var errors: PackedStringArray = PackedStringArray()
-	var ship: ShipDefinition = null
-	for draw: int in range(MAX_DRAWS):
-		var data: Dictionary = _player(params, rng) if faction == "player" else _enemy(params, rng)
-		# Pins win, key by key: a pinned `rails` replaces the generated rails outright.
-		for key: String in pins: data[key] = pins[key]
-		errors = PackedStringArray()
-		ship = ShipGrammar.from_dict(data, errors)
-		var target: int = int(CIRCLE_TARGET.get(ship.archetype, 0))
-		# A player hull, a pinned structure and an archetype with no target are taken as drawn.
-		if faction == "player" or pins.has("rails") or target == 0: break
-		if absf(float(int(ShipCompiler.budget(ship).circles) - target)) <= float(target) * 0.2: break
+	var data: Dictionary = _player(params, rng) if faction == "player" else _enemy(params, rng)
+	for key: String in pins: data[key] = pins[key]
+	var ship: ShipDefinition = ShipGrammar.from_dict(data, errors)
+	if not pins.has("rails"): living_geometry(ship)
 	ship.element = str(params.get("element", ship.element))
 	ship.role = str(params.get("role", "standard"))
 	ship.family = str(params.get("family", "standard_a"))
@@ -79,12 +66,99 @@ static func generate(params: Dictionary) -> ShipDefinition:
 	ship.description = str(params.get("description", "%s, seed %d" % [str(params.get("theme", "")), int(rng.seed)] if str(params.get("theme", "")) != "" else "seed %d" % int(rng.seed)))
 	return ship
 
+## Revision 2 keeps every slot and weapon identity. Removed pods become armour on their own
+## cluster root, split into fixed and tier-scaled units so spawned tier substitutions stay exact.
+static func clean_geometry(ship: ShipDefinition) -> void:
+	if ship.geometry_revision >= 2: return
+	for r: int in range(ship.rails.size()):
+		for j: int in range(ship.rails[r].slots.size()):
+			_clean_slot(ship, ship.rails[r].slots[j], "r%ds%d" % [r + 1, j])
+	for i: int in range(ship.chain_links.size()): _clean_slot(ship, ship.chain_links[i], "c%d" % i)
+	ship.geometry_revision = 2
+	ship.parts = []
+	ship.compile_key = ""
+
+static func _clean_slot(ship: ShipDefinition, slot: SlotDefinition, id: String) -> void:
+	if slot.type != "hub": return
+	var redundant: bool = slot.set_piece == "" and slot.mount == "" and slot.feature == ""
+	var retained: int = 0 if redundant else mini(slot.pods, 2)
+	var removed: int = slot.pods - retained
+	if removed > 0 or redundant:
+		if slot.hp_radius < 0.0:
+			slot.hp_fixed = slot.hp if slot.hp > 0.0 else 0.0
+			slot.hp_radius = 0.0 if slot.hp > 0.0 else float(ShipGrammar.LADDER.hub)
+		slot.hp_radius += float(removed) * float(ShipGrammar.LADDER.pod)
+		for p: int in range(retained, slot.pods): ship.removed_part_map["%sp%d" % [id, p]] = id
+	slot.pods = retained
+	if redundant:
+		slot.type = "node"
+		slot.node_radius = int(ShipGrammar.LADDER.pod)
+		slot.bob_amp = 0.0 # retains the former hub's orbital motion
+	elif ship.faction == "player" and ship.family == "heavy":
+		slot.pod_spacing = 1.5
+
+## New spawns use the original authored branches and complete weapon motifs. Three-pod fans
+## divide the old fan's armour coefficient, so every actual spawn tier keeps its exact budget.
+## Existing actors resolve their revision through ShipCatalog and never call this conversion.
+static func living_geometry(ship: ShipDefinition) -> void:
+	if ship.geometry_revision >= 3: return
+	for rail: RailDefinition in ship.rails:
+		for slot: SlotDefinition in rail.slots: _living_slot(ship, slot)
+	if ship.archetype == "radial_elite" and ship.core_depth == 3: ship.core_radii = PackedFloat32Array([34.0, 17.0])
+	if ship.archetype == "chain": _living_chain(ship)
+	ship.geometry_revision = 3
+	ship.removed_part_map.clear()
+	ship.parts = []
+	ship.compile_key = ""
+
+static func _living_slot(ship: ShipDefinition, slot: SlotDefinition) -> void:
+	if slot.type != "hub": return
+	var old_pod_radius: float = slot.pod_hp_radius if slot.pod_hp_radius >= 0.0 else float(ShipGrammar.LADDER.pod)
+	slot.pod_hp_radius = old_pod_radius * float(slot.pods) / 3.0
+	slot.pods = 3
+	if ship.faction == "player" and ship.family == "heavy": slot.pod_spacing = 1.3
+
+static func _living_chain(ship: ShipDefinition) -> void:
+	var node_fixed: float = 0.0
+	var node_radius: float = 0.0
+	for link: SlotDefinition in ship.chain_links:
+		if link.type == "node":
+			node_fixed += link.hp_fixed if link.hp_radius >= 0.0 else link.hp
+			node_radius += link.hp_radius if link.hp_radius >= 0.0 else (float(link.node_radius) if link.hp <= 0.0 else 0.0)
+		elif link.type == "hub":
+			_living_slot(ship, link)
+			if link.hp_radius < 0.0:
+				link.hp_fixed = link.hp
+				link.hp_radius = 15.0 if link.hp <= 0.0 else 0.0
+	while ship.chain_links.size() < 9:
+		var link: SlotDefinition = SlotDefinition.new()
+		link.type = "node"
+		link.node_radius = 7
+		ship.chain_links.append(link)
+	var weight: float = 0.0
+	for i: int in range(ship.chain_links.size()):
+		var link: SlotDefinition = ship.chain_links[i]
+		link.radius_override = maxf(4.0, 16.0 - float(i) * 1.1)
+		if link.type == "node": weight += link.radius_override
+		if i % 3 == 1: link.mark_radius = link.radius_override * 0.3
+	for link: SlotDefinition in ship.chain_links:
+		if link.type != "node": continue
+		link.hp_fixed = node_fixed * link.radius_override / weight
+		link.hp_radius = node_radius * link.radius_override / weight
+	ship.chain_mode = "follow"
+	ship.chain_spacing = 30.0
+	ship.chain_head_spacing = 30.0
+	ship.chain_head_lobes = true
+	# Head circles preserve the original monochrome faction identity and all weapon colours.
+	ship.core_depth = 3
+	ship.core_radii = PackedFloat32Array([22.0, 9.0])
+
 ## §13.2. Validator errors first (they are most of the list), then the four extras it does not own.
 static func style_check(ship: ShipDefinition) -> PackedStringArray:
 	var problems: PackedStringArray = ShipGrammar.validate(ship)
-	var target: int = int(CIRCLE_TARGET.get(ship.archetype, 0))
+	var limit: int = int(CIRCLE_LIMITS.get(ship.archetype, ShipGrammar.MAX_CIRCLES))
 	var circles: int = int(ShipCompiler.budget(ship).circles)
-	if target > 0 and absf(float(circles - target)) > float(target) * 0.2: problems.append("STYLE-COUNT: %d circles, the %s target is %d +/- 20 %%" % [circles, ship.archetype, target])
+	if circles > limit: problems.append("STYLE-COUNT: %d circles exceed the %s limit of %d" % [circles, ship.archetype, limit])
 	for rail: RailDefinition in ship.rails:
 		if not rail.reach_ring: problems.append("STYLE-RING: a rail without its reach ring")
 	if ship.core_depth < 2: problems.append("STYLE-DOT: no core dot")

@@ -1,5 +1,11 @@
 # Lightship — ship design spec, with the approved implementation scope
 
+**Presentation revision (2026-09-27):** [Visual redesign](VISUAL_REDESIGN.md) supersedes this
+document's guide-supported spokes and minimum circle-count targets, together with the previous
+redesign's dim palette and blanket simplification. The HTML references restore bright travelling
+rim lights, intricate connected anatomy and following chains. Orbit guides never provide structural connectivity. The original
+specification below remains as historical context for the unchanged gameplay systems.
+
 This file is the supplied ship design spec **v2, verbatim** (from the line `# Lightship — ship design
 spec v2` down), preceded by the scope that was approved on 2026-09-21 before any code was written. v2
 replaced v1 in full on the same day, before any v1 code existed; the decisions below were made against

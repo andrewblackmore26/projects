@@ -15,6 +15,8 @@ extends RefCounted
 ## yellow + red example.
 
 const STAGING_ROOT: String = "res://content/ships_next"
+const GEOMETRY_BASELINE: String = "res://content/ship_geometry_v1.json"
+static var _geometry_baseline: Dictionary = {}
 const RING: Array[String] = ["lightning", "fire", "corruption", "void", "plasma"]
 
 static func accent_for(element: String, archetype: String) -> String:
@@ -59,7 +61,25 @@ static func _seed(id: String) -> int:
 	return int(id.hash() % 1000000) + 1
 
 static func build(entry: Dictionary) -> ShipDefinition:
-	return ShipRecipe.generate(entry)
+	var ship: ShipDefinition = baseline_ship(str(entry.id))
+	if ship == null: return ShipRecipe.generate(entry)
+	ShipRecipe.living_geometry(ship)
+	return ship
+
+## Pinned authored inputs preserve the reviewed roster, including edits made before the redesign.
+static func baseline_entries() -> Dictionary:
+	if _geometry_baseline.is_empty():
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(GEOMETRY_BASELINE))
+		if parsed is Dictionary: _geometry_baseline = parsed
+	return _geometry_baseline
+
+static func baseline_ship(id: String) -> ShipDefinition:
+	var source: Dictionary = baseline_entries().get(id, {})
+	if source.is_empty(): return null
+	var errors: PackedStringArray = PackedStringArray()
+	var ship: ShipDefinition = ShipGrammar.from_dict(source.grammar, errors)
+	for key: String in source.stats: ship.set(key, source.stats[key])
+	return ship
 
 ## Writes every hull into `root` as its grammar alone, and deletes `.tres` files the manifest does
 ## not name. Returns {written, removed, failures}.

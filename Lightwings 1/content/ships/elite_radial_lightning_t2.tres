@@ -1,75 +1,79 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_lfo3x"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_430np"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_4xu5v"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_8bnwu"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_i6gma"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_la4cw"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_upibv"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_of1d7"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_dev8r"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_6im3n"]
 
-[sub_resource type="Resource" id="Resource_oaxwt"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_oev8w"]
+script = ExtResource("1_la4cw")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_s83ac"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_gecue"]
+script = ExtResource("1_la4cw")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_rjaik"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_m055e"]
+script = ExtResource("1_la4cw")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_v0yr3"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_jymmx"]
+script = ExtResource("1_la4cw")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_xoj27"]
-script = ExtResource("4_8bnwu")
+[sub_resource type="Resource" id="Resource_pllll"]
+script = ExtResource("4_dev8r")
 order = 4
 speed = -1.0499
 phase = 0.2516
-slots = Array[ExtResource("1_lfo3x")]([SubResource("Resource_oaxwt"), SubResource("Resource_s83ac"), SubResource("Resource_rjaik"), SubResource("Resource_v0yr3")])
+slots = Array[ExtResource("1_la4cw")]([SubResource("Resource_oev8w"), SubResource("Resource_gecue"), SubResource("Resource_m055e"), SubResource("Resource_jymmx")])
 
-[sub_resource type="Resource" id="Resource_xe8o1"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_ho2u4"]
+script = ExtResource("1_la4cw")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 hp = 60.0
 
-[sub_resource type="Resource" id="Resource_qia48"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_5yda4"]
+script = ExtResource("1_la4cw")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 hp = 60.0
 
-[sub_resource type="Resource" id="Resource_qpotj"]
-script = ExtResource("1_lfo3x")
+[sub_resource type="Resource" id="Resource_6f73y"]
+script = ExtResource("1_la4cw")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 hp = 60.0
 
-[sub_resource type="Resource" id="Resource_3g5rm"]
-script = ExtResource("4_8bnwu")
+[sub_resource type="Resource" id="Resource_u6kxy"]
+script = ExtResource("4_dev8r")
 radius = 96
 speed = 0.4442
 phase = 0.499
 pump_phase = 0.9
-slots = Array[ExtResource("1_lfo3x")]([SubResource("Resource_xe8o1"), SubResource("Resource_qia48"), SubResource("Resource_qpotj")])
+slots = Array[ExtResource("1_la4cw")]([SubResource("Resource_ho2u4"), SubResource("Resource_5yda4"), SubResource("Resource_6f73y")])
 
 [resource]
-script = ExtResource("5_i6gma")
+script = ExtResource("5_6im3n")
 id = "elite_radial_lightning_t2"
 display_name = "Lightning Radial Elite T2"
 element = "lightning"
 tier = 2
 description = "seed 7213"
 schema_version = 4
+geometry_revision = 3
 faction = "elite"
 role = "heavy"
 family = "heavy"
@@ -82,6 +86,7 @@ damage_multiplier = 1.15
 chassis_color = "yellow"
 accent_color = "red"
 core_depth = 3
+core_radii = PackedFloat32Array(34, 17)
 core_weapon = "vent_fan"
 archetype = "radial_elite"
-rails = Array[ExtResource("4_8bnwu")]([SubResource("Resource_xoj27"), SubResource("Resource_3g5rm")])
+rails = Array[ExtResource("4_dev8r")]([SubResource("Resource_pllll"), SubResource("Resource_u6kxy")])

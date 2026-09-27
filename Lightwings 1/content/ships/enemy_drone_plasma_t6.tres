@@ -1,40 +1,42 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_8bq0n"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_6l1x0"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_04si5"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_13cca"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_0bv2l"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_ohe7x"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_4un5c"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_13hah"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_wm46f"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_bwo3h"]
 
-[sub_resource type="Resource" id="Resource_ukwf6"]
-script = ExtResource("1_8bq0n")
+[sub_resource type="Resource" id="Resource_8u4r5"]
+script = ExtResource("1_ohe7x")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_nxihw"]
-script = ExtResource("1_8bq0n")
+[sub_resource type="Resource" id="Resource_a6v6x"]
+script = ExtResource("1_ohe7x")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_0vax2"]
-script = ExtResource("1_8bq0n")
+[sub_resource type="Resource" id="Resource_1ydx2"]
+script = ExtResource("1_ohe7x")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_rn5g8"]
-script = ExtResource("4_13cca")
+[sub_resource type="Resource" id="Resource_qul1n"]
+script = ExtResource("4_wm46f")
 speed = -0.8332
 phase = 2.0883
-slots = Array[ExtResource("1_8bq0n")]([SubResource("Resource_ukwf6"), SubResource("Resource_nxihw"), SubResource("Resource_0vax2")])
+slots = Array[ExtResource("1_ohe7x")]([SubResource("Resource_8u4r5"), SubResource("Resource_a6v6x"), SubResource("Resource_1ydx2")])
 
 [resource]
-script = ExtResource("5_0bv2l")
+script = ExtResource("5_bwo3h")
 id = "enemy_drone_plasma_t6"
 display_name = "Plasma Drone T6"
 element = "plasma"
 tier = 6
 description = "seed 465345"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "violet"
+core_radii = PackedFloat32Array()
 core_weapon = "spin_ring"
 archetype = "drone"
-rails = Array[ExtResource("4_13cca")]([SubResource("Resource_rn5g8")])
+rails = Array[ExtResource("4_wm46f")]([SubResource("Resource_qul1n")])

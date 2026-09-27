@@ -19,9 +19,11 @@ var _name_label: Label
 var _meta_label: Label
 var _swatches: HBoxContainer
 var _pieces_label: Label
+var _stage_size: Vector2 = STAGE_SIZE
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(240, 220)
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var layout: VBoxContainer = VBoxContainer.new()
 	add_child(layout)
 	_stage = Control.new()
@@ -30,6 +32,7 @@ func _ready() -> void:
 	layout.add_child(_stage)
 	_renderer = ShipRenderer.new()
 	_stage.add_child(_renderer)
+	_stage.resized.connect(func() -> void: _renderer.position = _stage.size*0.5)
 	var header: HBoxContainer = HBoxContainer.new()
 	layout.add_child(header)
 	_mark = Label.new()
@@ -63,7 +66,12 @@ func _ready() -> void:
 func set_entry(new_entry: Dictionary, true_scale: bool) -> void:
 	entry = new_entry
 	if _renderer == null: return # set before _ready
-	_renderer.position = STAGE_SIZE * 0.5
+	_stage_size = STAGE_SIZE
+	if true_scale and entry.get("ship") != null:
+		var diameter: float = ceilf(ShipPreview.animated_radius(entry.ship) * TRUE_SCALE_PX_PER_UNIT * 2.0 + 24.0)
+		_stage_size = Vector2(maxf(STAGE_SIZE.x,diameter),maxf(STAGE_SIZE.y,diameter))
+	_stage.custom_minimum_size = _stage_size
+	_renderer.position = _stage.size * 0.5
 	if entry.get("ship") == null:
 		_renderer.definition = null
 		_renderer.visible = false
@@ -74,7 +82,7 @@ func set_entry(new_entry: Dictionary, true_scale: bool) -> void:
 	_apply_labels()
 
 func _scale_for(current: Dictionary, true_scale: bool) -> float:
-	var footprint: float = maxf(1.0, float(current.get("footprint", 48.0)))
+	var footprint: float = ShipPreview.animated_radius(current.ship)*2.0 if current.get("ship") != null else maxf(1.0,float(current.get("footprint",48.0)))
 	if true_scale: return TRUE_SCALE_PX_PER_UNIT
 	# Off: uniform tile size, each ship scaled to fit the stage.
 	return clampf((minf(STAGE_SIZE.x, STAGE_SIZE.y) * 0.85) / footprint, 0.05, 4.0)

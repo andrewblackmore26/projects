@@ -1,51 +1,56 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_k7kyu"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_au1xt"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_kqe2x"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_iwwup"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_gtavl"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_ggeuq"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_dx5wi"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ujbea"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_exoq3"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_riwy3"]
 
-[sub_resource type="Resource" id="Resource_i7xc1"]
-script = ExtResource("1_k7kyu")
+[sub_resource type="Resource" id="Resource_62343"]
+script = ExtResource("1_ggeuq")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "split_lance"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_32f0n"]
-script = ExtResource("1_k7kyu")
+[sub_resource type="Resource" id="Resource_0cjq3"]
+script = ExtResource("1_ggeuq")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "burst_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_cjnel"]
-script = ExtResource("1_k7kyu")
+[sub_resource type="Resource" id="Resource_g7ttg"]
+script = ExtResource("1_ggeuq")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_v305m"]
-script = ExtResource("1_k7kyu")
+[sub_resource type="Resource" id="Resource_1glbw"]
+script = ExtResource("1_ggeuq")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "burst_ring"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_b2d6t"]
-script = ExtResource("4_iwwup")
+[sub_resource type="Resource" id="Resource_8arw6"]
+script = ExtResource("4_exoq3")
 order = 4
-slots = Array[ExtResource("1_k7kyu")]([SubResource("Resource_i7xc1"), SubResource("Resource_32f0n"), SubResource("Resource_cjnel"), SubResource("Resource_v305m")])
+slots = Array[ExtResource("1_ggeuq")]([SubResource("Resource_62343"), SubResource("Resource_0cjq3"), SubResource("Resource_g7ttg"), SubResource("Resource_1glbw")])
 
 [resource]
-script = ExtResource("5_gtavl")
+script = ExtResource("5_riwy3")
 id = "player_fire_t2_standard_a"
 display_name = "Fire T2 Standard A"
 element = "fire"
 tier = 2
 description = "seed 307085"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 chassis_color = "blue"
 accent_color = "red"
-rails = Array[ExtResource("4_iwwup")]([SubResource("Resource_b2d6t")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_exoq3")]([SubResource("Resource_8arw6")])

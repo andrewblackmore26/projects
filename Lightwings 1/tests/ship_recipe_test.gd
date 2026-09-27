@@ -38,9 +38,9 @@ func _run() -> void:
 						slots += 1
 						if slot.type == "stub": stubs += 1
 				stub_shares.append(float(stubs) / float(slots))
-		print("recipe %-16s circles min %d median %d max %d (target %d)" % [archetype, counts.min(), _median(counts), counts.max(), int(ShipRecipe.CIRCLE_TARGET[archetype])])
+		print("recipe %-16s circles min %d median %d max %d (limit %d)" % [archetype, counts.min(), _median(counts), counts.max(), int(ShipRecipe.CIRCLE_LIMITS[archetype])])
 		h.check(failures.is_empty(), "%d seeds of %s pass validate, style check and warnings unedited (%s)" % [SEEDS, archetype, "; ".join(failures.slice(0, 3))])
-		h.check(_median(counts) == int(ShipRecipe.CIRCLE_TARGET[archetype]), "%s: CIRCLE_TARGET is the measured median (%d vs %d)" % [archetype, int(ShipRecipe.CIRCLE_TARGET[archetype]), _median(counts)])
+		h.check(counts.max() <= int(ShipRecipe.CIRCLE_LIMITS[archetype]), "%s stays below its clutter limit without a minimum fill requirement" % archetype)
 		if archetype == "irregular_elite":
 			h.check(stub_shares.min() >= 0.10 - 0.0001 and stub_shares.max() <= 0.25 + 0.0001, "Irregular elites turn 10-25 %% of their slots to stubs (%.3f..%.3f)" % [stub_shares.min(), stub_shares.max()])
 
@@ -66,7 +66,7 @@ func _run() -> void:
 				var shape: Array = []
 				for rail: RailDefinition in ship.rails:
 					var row: Array = [rail.order, rail.speed == 0.0]
-					for slot: SlotDefinition in rail.slots: row.append("%s%d" % [slot.type, slot.pods])
+					for slot: SlotDefinition in rail.slots: row.append("%s%d/%.2f" % [slot.type, slot.pods, slot.pod_spacing])
 					shape.append(row)
 				var key: String = "%s_t%d" % [element, tier]
 				if not shapes.has(key):
@@ -98,10 +98,15 @@ func _run() -> void:
 	# One control per style rule: break a generated ship and the check must name that rule.
 	var subject: ShipDefinition = ShipRecipe.generate(_params("radial_elite", PAIRS[0], 3))
 	h.check(ShipRecipe.style_check(subject).is_empty(), "The control subject passes before it is broken")
-	_control(h, subject, "STYLE-COUNT", "every hub stripped to one pod and no piece", func(s: ShipDefinition) -> void:
+	var sparse: ShipDefinition = subject.duplicate(true)
+	for slot: SlotDefinition in sparse.rails[1].slots: slot.pods = 1
+	h.check(ShipRecipe.style_check(sparse).is_empty(), "A sparse design is accepted without adding circles to meet a target")
+	_control(h, subject, "STYLE-COUNT", "eight outer hubs with four pods exceed the radial budget", func(s: ShipDefinition) -> void:
+		s.rails[1].order = 8
+		while s.rails[1].slots.size() < 8: s.rails[1].slots.append(s.rails[1].slots[0].duplicate())
 		for slot: SlotDefinition in s.rails[1].slots:
-			slot.pods = 1
-			slot.set_piece = "")
+			slot.pods = 4
+			slot.set_piece = "v_rack")
 	_control(h, subject, "STYLE-RING", "a rail's reach ring switched off", func(s: ShipDefinition) -> void: s.rails[0].reach_ring = false)
 	_control(h, subject, "COLOUR-GATE", "a third colour's piece mounted", func(s: ShipDefinition) -> void: s.rails[1].slots[0].set_piece = "halo_node")
 	_control(h, subject, "RAIL-ORDER-ADJ", "two adjacent rails of one order", func(s: ShipDefinition) -> void:

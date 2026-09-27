@@ -31,9 +31,10 @@ var _compare_window: Window
 var _coverage_window: Window
 
 func _ready() -> void:
+	theme = UiKit.make_theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background: ColorRect = ColorRect.new()
-	background.color = Color("050507")
+	background.color = VisualStyle.BG
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 	var layout: VBoxContainer = VBoxContainer.new()
@@ -129,6 +130,7 @@ func _apply_catalog_root_from_args() -> void:
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--catalog-root="): ShipCatalog.catalog_root = argument.trim_prefix("--catalog-root=")
 		if argument == "--true-scale": _true_scale = true
+	_true_scale_toggle.set_pressed_no_signal(_true_scale)
 
 func _selected(picker: OptionButton) -> String:
 	var text: String = picker.get_item_text(picker.selected)
@@ -161,6 +163,7 @@ func _poll_reload() -> void:
 	if current != _signature: _rescan()
 
 func _rebuild_tiles() -> void:
+	_grid.columns = 2 if _true_scale else 3
 	for tile: GalleryTile in _tiles: tile.queue_free()
 	_tiles.clear()
 	for entry: Dictionary in _filtered:
@@ -286,9 +289,12 @@ func _handle_export_args() -> void:
 ## three rendered frames to wake and draw before it is read.
 func _export_contact_sheet(path: String) -> void:
 	var area: Rect2i = Rect2i(_scroll.get_global_rect())
+	var sample: Image = get_viewport().get_texture().get_image()
+	var image_scale: Vector2 = Vector2(sample.get_size()) / get_viewport_rect().size
+	var pixel_area := Rect2i(Vector2(area.position)*image_scale,Vector2(area.size)*image_scale)
 	var content: int = int(_grid.size.y)
 	var page: int = maxi(1, area.size.y)
-	var sheet: Image = Image.create(area.size.x, maxi(page, content), false, Image.FORMAT_RGB8)
+	var sheet: Image = Image.create(pixel_area.size.x, ceili(maxi(page,content)*image_scale.y), false, Image.FORMAT_RGB8)
 	var offset: int = 0
 	while offset < content:
 		_scroll.scroll_vertical = offset
@@ -297,10 +303,11 @@ func _export_contact_sheet(path: String) -> void:
 			await RenderingServer.frame_post_draw
 		# The container clamps the last page, so read back where it really scrolled to.
 		var actual: int = _scroll.scroll_vertical
-		var frame: Image = get_viewport().get_texture().get_image().get_region(area)
+		var frame: Image = get_viewport().get_texture().get_image().get_region(pixel_area)
 		_linear_to_srgb_per_pixel(frame)
 		frame.convert(Image.FORMAT_RGB8)
-		sheet.blit_rect(frame, Rect2i(0, 0, area.size.x, mini(page, content - actual)), Vector2i(0, actual))
+		var remaining_pixels: int = mini(frame.get_height(),sheet.get_height()-roundi(actual*image_scale.y))
+		sheet.blit_rect(frame, Rect2i(0,0,frame.get_width(),remaining_pixels), Vector2i(0,roundi(actual*image_scale.y)))
 		offset += page
 	_scroll.scroll_vertical = 0
 	var result: Error = sheet.save_png(path)

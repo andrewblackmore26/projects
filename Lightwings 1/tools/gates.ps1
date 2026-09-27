@@ -20,7 +20,7 @@ function Invoke-Script([string]$name, [string]$scriptArguments, [int]$timeoutSec
     $outFile = Join-Path $logDir "$name.out.txt"; $errFile = Join-Path $logDir "$name.err.txt"
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $process = Start-Process -FilePath 'powershell.exe' -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File ' + $scriptArguments) `
-        -NoNewWindow -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+        -WindowStyle Hidden -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
     $null = $process.Handle
     $timedOut = -not $process.WaitForExit($timeoutSec * 1000)
     if ($timedOut) { & taskkill.exe /PID $process.Id /T /F | Out-Null; $code = -1 } else { $process.WaitForExit(); $code = $process.ExitCode }

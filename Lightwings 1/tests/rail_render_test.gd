@@ -71,7 +71,7 @@ func _run() -> void:
 	var rail: Dictionary = _ring(drone, 52.0)
 	var rim: Dictionary = _ring(drone, 34.0)
 	print("rail ring: lit fraction %.3f peak %.3f | core rim: lit fraction %.3f peak %.3f" % [rail.fraction, rail.peak, rim.fraction, rim.peak])
-	_check(float(rail.fraction) > 0.20 and float(rail.fraction) < 0.55, "A rail is dashed: %.3f of its circumference is lit (2 on / 5 off is 0.29, plus three nodes and anti-aliasing)" % float(rail.fraction))
+	_check(float(rail.fraction) > 0.20 and float(rail.fraction) < 0.50, "A guide uses the reference dash pattern: %.3f lit (2 on / 5 off, with three attached nodes)" % float(rail.fraction))
 	_check(float(rim.fraction) > 0.95, "A core rim is solid: %.3f lit" % float(rim.fraction))
 	var hidden: Image = await _render(_load("drone"), func(s: ShipDefinition) -> void:
 		for part: PartDefinition in s.parts:

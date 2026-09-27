@@ -1,0 +1,84 @@
+{
+	"schema_version": 4,
+	"geometry_revision": 3,
+	"id": "living_orbiting_elite",
+	"name": "Orbiting elite reference",
+	"faction": "elite",
+	"archetype": "radial_elite",
+	"tier": 4,
+	"role": "heavy",
+	"family": "heavy",
+	"chassis_color": "yellow",
+	"accent_color": "red",
+	"core_depth": 3,
+	"core_radii": [
+		34,
+		17
+	],
+	"core_dot_radius": 4.4,
+	"core_weapon": "v_rack",
+	"rails": [
+		{
+			"radius": 52,
+			"order": 4,
+			"speed": -0.95,
+			"phase": 2.0707963267948966,
+			"pump_phase": 0,
+			"pump_amp": 0,
+			"slots": [
+				{
+					"type": "node",
+					"radius": 7,
+					"bob_amp": 0,
+					"phase_offset": 0
+				},
+				{
+					"type": "node",
+					"radius": 7,
+					"bob_amp": 0,
+					"phase_offset": 0.0192036732051033
+				},
+				{
+					"type": "node",
+					"radius": 7,
+					"bob_amp": 0,
+					"phase_offset": -0.0015926535897929917
+				},
+				{
+					"type": "node",
+					"radius": 7,
+					"bob_amp": 0,
+					"phase_offset": -0.012388980384689496
+				}
+			]
+		},
+		{
+			"radius": 96,
+			"order": 3,
+			"speed": 0.42,
+			"phase": 1.5707963267948966,
+			"pump_phase": 0,
+			"pump_amp": 0.03,
+			"slots": [
+				{
+					"type": "hub",
+					"pods": 3,
+					"set_piece": "v_rack",
+					"phase_offset": 0
+				},
+				{
+					"type": "hub",
+					"pods": 3,
+					"set_piece": "v_rack",
+					"phase_offset": -0.004395102393195405
+				},
+				{
+					"type": "hub",
+					"pods": 3,
+					"set_piece": "v_rack",
+					"phase_offset": 0.0012097952136098655
+				}
+			]
+		}
+	]
+}

@@ -22,11 +22,11 @@ void fragment() {
 	vec2 q = UV * 2.0 - 1.0;
 	float r = length(q);
 	float mode = parameters.x;
-	float aa = max(fwidth(r), 0.02);
+	float aa = clamp(fwidth(r) * 0.5, 0.02, 0.25);
 	float coverage;
 	if (mode < 0.5) {
 		float half_width = max(parameters.y, aa);
-		float dist = abs(r - 1.0);
+		float dist = abs(r - parameters.z);
 		coverage = 1.0 - smoothstep(half_width - aa, half_width + aa, dist);
 	} else {
 		coverage = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);

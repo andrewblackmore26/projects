@@ -148,7 +148,7 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 	else:
 		for i: int in range(circles.size()): _bake_circle(ship, circles[i], i)
 		for part: PartDefinition in lines: _bake_line(ship, part)
-	# A rail hull's dot pulses to 1.22x (spec §9.5); its quad is baked to hold the peak, and the
+	# A rail hull's dot pulses to the shared style's peak; its quad is baked to hold it, and the
 	# renderer tells the shader that extent (`core_quad`).
 	_append_core(core_quad_radius(ship))
 	var arrays: Array = []
@@ -169,7 +169,7 @@ func _build_geometry(ship: ShipDefinition) -> ArrayMesh:
 
 ## The radius the core quad is baked for: the dot's peak on a rail hull, its plain radius on a v0.3 one.
 static func core_quad_radius(ship: ShipDefinition) -> float:
-	return ship.core_radius * (1.0 + float(ShipGrammar.MOTION.core_pulse_amp)) if ship.is_rail_hull() else ship.core_radius
+	return ship.core_radius * (1.0 + VisualStyle.CORE_PULSE) if ship.is_rail_hull() else ship.core_radius
 
 ## A part's palette key. v0.3 hulls say "chassis" and mean the player's blue or their element; a
 ## rail hull's parts already carry an absolute key (blue, red, yellow, green, violet, silver).
@@ -189,9 +189,9 @@ func _bake_circle(ship: ShipDefinition, part: PartDefinition, i: int) -> void:
 	if ship.element == "void" and not ship.is_rail_hull(): fill = Color.BLACK
 	var light: Color = ShipCatalog.LIGHTS.get(role, Color.WHITE)
 	# Custom attributes do not receive Godot's automatic sRGB conversion.
-	light = light.srgb_to_linear() * 1.8
+	light = light.srgb_to_linear()
 	var style: float = 1.0 if part.dashed or part.layer == 0 else 3.0 if not part.filled else 0.0
-	# Rail hulls: 4 = thin passive ring, 5 = rail dash (2 on / 5 off at 28 %); neither carries a shine.
+	# Rail hulls: 4 = passive marking, 5 = faint dotted orbit guide; neither carries a shine.
 	if part.style >= 0: style = float(part.style)
 	parameters[i] = Vector4(maxf(0.05, part.light_period), part.light_phase, distances[-1], style)
 	if part.layer != 0 and part.shape == "circle" and part.filled and part.style < 4:
@@ -282,6 +282,3 @@ func _append_core(radius: float) -> void:
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_vertex(corner * (radius + 0.75), Color.WHITE, corner, Vector2.ZERO, 0, -2.0)
 	indices.append_array(PackedInt32Array([base, base + 1, base + 2, base + 1, base + 3, base + 2]))
-
-
-

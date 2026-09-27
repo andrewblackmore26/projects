@@ -1,71 +1,77 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_33noc"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_vt4ed"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ctyrd"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_i8gn0"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_kwseq"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_vorko"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_wkgjh"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_137rr"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_ppuhj"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_00tla"]
 
-[sub_resource type="Resource" id="Resource_dlmbw"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_730nr"]
+script = ExtResource("1_vorko")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "wedge_pair"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_aay1p"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_e7x1g"]
+script = ExtResource("1_vorko")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_bexlc"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_gjeku"]
+script = ExtResource("1_vorko")
 type = "node"
 
-[sub_resource type="Resource" id="Resource_fwte1"]
-script = ExtResource("4_i8gn0")
-slots = Array[ExtResource("1_33noc")]([SubResource("Resource_dlmbw"), SubResource("Resource_aay1p"), SubResource("Resource_bexlc")])
+[sub_resource type="Resource" id="Resource_2nsln"]
+script = ExtResource("4_ppuhj")
+slots = Array[ExtResource("1_vorko")]([SubResource("Resource_730nr"), SubResource("Resource_e7x1g"), SubResource("Resource_gjeku")])
 
-[sub_resource type="Resource" id="Resource_j7b8y"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_r2nmk"]
+script = ExtResource("1_vorko")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_vvj0v"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_vvc8x"]
+script = ExtResource("1_vorko")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 
-[sub_resource type="Resource" id="Resource_gquax"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_18oha"]
+script = ExtResource("1_vorko")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 
-[sub_resource type="Resource" id="Resource_8c3w2"]
-script = ExtResource("1_33noc")
+[sub_resource type="Resource" id="Resource_a5ebf"]
+script = ExtResource("1_vorko")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_xsrf4"]
-script = ExtResource("4_i8gn0")
+[sub_resource type="Resource" id="Resource_m33dr"]
+script = ExtResource("4_ppuhj")
 radius = 96
 order = 4
 speed = 0.3893
 phase = 0.7854
 pump_phase = 0.9
-slots = Array[ExtResource("1_33noc")]([SubResource("Resource_j7b8y"), SubResource("Resource_vvj0v"), SubResource("Resource_gquax"), SubResource("Resource_8c3w2")])
+slots = Array[ExtResource("1_vorko")]([SubResource("Resource_r2nmk"), SubResource("Resource_vvc8x"), SubResource("Resource_18oha"), SubResource("Resource_a5ebf")])
 
 [resource]
-script = ExtResource("5_kwseq")
+script = ExtResource("5_00tla")
 id = "player_lightning_t4_compact"
 display_name = "Lightning T4 Compact"
 element = "lightning"
 tier = 4
 description = "seed 732547"
 schema_version = 4
+geometry_revision = 3
 role = "compact"
 family = "compact"
 speed = 300.0
@@ -77,4 +83,5 @@ passives = Array[String](["magnet"])
 chassis_color = "blue"
 accent_color = "yellow"
 core_depth = 3
-rails = Array[ExtResource("4_i8gn0")]([SubResource("Resource_fwte1"), SubResource("Resource_xsrf4")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_ppuhj")]([SubResource("Resource_2nsln"), SubResource("Resource_m33dr")])

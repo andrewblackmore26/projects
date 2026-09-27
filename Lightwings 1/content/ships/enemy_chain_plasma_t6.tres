@@ -1,47 +1,96 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_c80ka"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_fxkx4"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_aekur"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_xkyhn"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_e1tpr"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_6blxn"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_niv0j"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_n3226"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_0ffa5"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_dg1gq"]
 
-[sub_resource type="Resource" id="Resource_42ppq"]
-script = ExtResource("1_c80ka")
+[sub_resource type="Resource" id="Resource_bjxiv"]
+script = ExtResource("1_6blxn")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 16.0
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_g64oy"]
-script = ExtResource("1_c80ka")
+[sub_resource type="Resource" id="Resource_c4wwe"]
+script = ExtResource("1_6blxn")
 type = "node"
 node_radius = 7
+radius_override = 14.9
+mark_radius = 4.47
+hp_radius = 3.595174262734584
 
-[sub_resource type="Resource" id="Resource_l7fw3"]
-script = ExtResource("1_c80ka")
+[sub_resource type="Resource" id="Resource_roede"]
+script = ExtResource("1_6blxn")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 13.8
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_v8bgm"]
-script = ExtResource("1_c80ka")
+[sub_resource type="Resource" id="Resource_41tva"]
+script = ExtResource("1_6blxn")
 type = "node"
 node_radius = 7
+radius_override = 12.7
+hp_radius = 3.0643431635388736
 
-[sub_resource type="Resource" id="Resource_qbvbc"]
-script = ExtResource("1_c80ka")
+[sub_resource type="Resource" id="Resource_g8crh"]
+script = ExtResource("1_6blxn")
 type = "node"
+radius_override = 11.6
+mark_radius = 3.48
+hp_radius = 2.7989276139410184
+
+[sub_resource type="Resource" id="Resource_k546p"]
+script = ExtResource("1_6blxn")
+type = "node"
+node_radius = 7
+radius_override = 10.5
+hp_radius = 2.5335120643431632
+
+[sub_resource type="Resource" id="Resource_fr5st"]
+script = ExtResource("1_6blxn")
+type = "node"
+node_radius = 7
+radius_override = 9.399999999999999
+hp_radius = 2.268096514745308
+
+[sub_resource type="Resource" id="Resource_kigvu"]
+script = ExtResource("1_6blxn")
+type = "node"
+node_radius = 7
+radius_override = 8.299999999999999
+mark_radius = 2.4899999999999998
+hp_radius = 2.0026809651474524
+
+[sub_resource type="Resource" id="Resource_lw0vl"]
+script = ExtResource("1_6blxn")
+type = "node"
+node_radius = 7
+radius_override = 7.199999999999999
+hp_radius = 1.7372654155495977
 
 [resource]
-script = ExtResource("5_e1tpr")
+script = ExtResource("5_dg1gq")
 id = "enemy_chain_plasma_t6"
 display_name = "Plasma Chain T6"
 element = "plasma"
 tier = 6
 description = "seed 285388"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "violet"
+core_depth = 3
+core_radii = PackedFloat32Array(22, 9)
+chain_head_lobes = true
+chain_head_spacing = 30.0
 archetype = "chain"
-chain_links = Array[ExtResource("1_c80ka")]([SubResource("Resource_42ppq"), SubResource("Resource_g64oy"), SubResource("Resource_l7fw3"), SubResource("Resource_v8bgm"), SubResource("Resource_qbvbc")])
+chain_links = Array[ExtResource("1_6blxn")]([SubResource("Resource_bjxiv"), SubResource("Resource_c4wwe"), SubResource("Resource_roede"), SubResource("Resource_41tva"), SubResource("Resource_g8crh"), SubResource("Resource_k546p"), SubResource("Resource_fr5st"), SubResource("Resource_kigvu"), SubResource("Resource_lw0vl")])
+chain_mode = "follow"

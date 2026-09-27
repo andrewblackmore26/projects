@@ -1,46 +1,95 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_77qp3"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_knp3r"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ds53h"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_bfxyy"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_wvb45"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_nkhul"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_en873"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_qy7ig"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_m5b70"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_s1l8v"]
 
-[sub_resource type="Resource" id="Resource_4vvrl"]
-script = ExtResource("1_77qp3")
+[sub_resource type="Resource" id="Resource_nxrrv"]
+script = ExtResource("1_nkhul")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 16.0
+pod_hp_radius = 4.666666666666667
 set_piece = "bloom_pod"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_f5ss5"]
-script = ExtResource("1_77qp3")
+[sub_resource type="Resource" id="Resource_lfx83"]
+script = ExtResource("1_nkhul")
 type = "node"
 node_radius = 7
+radius_override = 14.9
+mark_radius = 4.47
+hp_radius = 3.595174262734584
 
-[sub_resource type="Resource" id="Resource_25q0g"]
-script = ExtResource("1_77qp3")
+[sub_resource type="Resource" id="Resource_mf6pi"]
+script = ExtResource("1_nkhul")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 13.8
+pod_hp_radius = 4.666666666666667
 set_piece = "sac_cluster"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_7q853"]
-script = ExtResource("1_77qp3")
+[sub_resource type="Resource" id="Resource_7k5wd"]
+script = ExtResource("1_nkhul")
 type = "node"
 node_radius = 7
+radius_override = 12.7
+hp_radius = 3.0643431635388736
 
-[sub_resource type="Resource" id="Resource_aaf4t"]
-script = ExtResource("1_77qp3")
+[sub_resource type="Resource" id="Resource_hmpey"]
+script = ExtResource("1_nkhul")
 type = "node"
+radius_override = 11.6
+mark_radius = 3.48
+hp_radius = 2.7989276139410184
+
+[sub_resource type="Resource" id="Resource_4nyed"]
+script = ExtResource("1_nkhul")
+type = "node"
+node_radius = 7
+radius_override = 10.5
+hp_radius = 2.5335120643431632
+
+[sub_resource type="Resource" id="Resource_akf5s"]
+script = ExtResource("1_nkhul")
+type = "node"
+node_radius = 7
+radius_override = 9.399999999999999
+hp_radius = 2.268096514745308
+
+[sub_resource type="Resource" id="Resource_6c2aa"]
+script = ExtResource("1_nkhul")
+type = "node"
+node_radius = 7
+radius_override = 8.299999999999999
+mark_radius = 2.4899999999999998
+hp_radius = 2.0026809651474524
+
+[sub_resource type="Resource" id="Resource_m2fes"]
+script = ExtResource("1_nkhul")
+type = "node"
+node_radius = 7
+radius_override = 7.199999999999999
+hp_radius = 1.7372654155495977
 
 [resource]
-script = ExtResource("5_wvb45")
+script = ExtResource("5_s1l8v")
 id = "enemy_chain_corruption_t4"
 display_name = "Corruption Chain T4"
 tier = 4
 description = "seed 815329"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "green"
+core_depth = 3
+core_radii = PackedFloat32Array(22, 9)
+chain_head_lobes = true
+chain_head_spacing = 30.0
 archetype = "chain"
-chain_links = Array[ExtResource("1_77qp3")]([SubResource("Resource_4vvrl"), SubResource("Resource_f5ss5"), SubResource("Resource_25q0g"), SubResource("Resource_7q853"), SubResource("Resource_aaf4t")])
+chain_links = Array[ExtResource("1_nkhul")]([SubResource("Resource_nxrrv"), SubResource("Resource_lfx83"), SubResource("Resource_mf6pi"), SubResource("Resource_7k5wd"), SubResource("Resource_hmpey"), SubResource("Resource_4nyed"), SubResource("Resource_akf5s"), SubResource("Resource_6c2aa"), SubResource("Resource_m2fes")])
+chain_mode = "follow"

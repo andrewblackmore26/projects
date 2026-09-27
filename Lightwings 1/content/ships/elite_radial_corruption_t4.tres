@@ -1,74 +1,78 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_wf825"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_4lpm4"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_fwxls"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_5ahib"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_umryn"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_1aiti"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_x4hlo"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_d2du4"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_56akb"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_8qinu"]
 
-[sub_resource type="Resource" id="Resource_x6rpt"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_g7pnf"]
+script = ExtResource("1_1aiti")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_upud1"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_f51cy"]
+script = ExtResource("1_1aiti")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_2tbty"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_ko3oo"]
+script = ExtResource("1_1aiti")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_py6pr"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_0o3mo"]
+script = ExtResource("1_1aiti")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_ii70y"]
-script = ExtResource("4_5ahib")
+[sub_resource type="Resource" id="Resource_udtod"]
+script = ExtResource("4_56akb")
 order = 4
 speed = -1.0026
 phase = 0.4889
-slots = Array[ExtResource("1_wf825")]([SubResource("Resource_x6rpt"), SubResource("Resource_upud1"), SubResource("Resource_2tbty"), SubResource("Resource_py6pr")])
+slots = Array[ExtResource("1_1aiti")]([SubResource("Resource_g7pnf"), SubResource("Resource_f51cy"), SubResource("Resource_ko3oo"), SubResource("Resource_0o3mo")])
 
-[sub_resource type="Resource" id="Resource_ch7qj"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_d6l1c"]
+script = ExtResource("1_1aiti")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "sac_cluster"
 hp = 80.0
 
-[sub_resource type="Resource" id="Resource_0ip4t"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_uxl7c"]
+script = ExtResource("1_1aiti")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "sac_cluster"
 hp = 80.0
 
-[sub_resource type="Resource" id="Resource_cedfn"]
-script = ExtResource("1_wf825")
+[sub_resource type="Resource" id="Resource_wpecm"]
+script = ExtResource("1_1aiti")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "sac_cluster"
 hp = 80.0
 
-[sub_resource type="Resource" id="Resource_qd620"]
-script = ExtResource("4_5ahib")
+[sub_resource type="Resource" id="Resource_cc60j"]
+script = ExtResource("4_56akb")
 radius = 96
 speed = 0.4281
 phase = 0.0132
 pump_phase = 0.9
-slots = Array[ExtResource("1_wf825")]([SubResource("Resource_ch7qj"), SubResource("Resource_0ip4t"), SubResource("Resource_cedfn")])
+slots = Array[ExtResource("1_1aiti")]([SubResource("Resource_d6l1c"), SubResource("Resource_uxl7c"), SubResource("Resource_wpecm")])
 
 [resource]
-script = ExtResource("5_umryn")
+script = ExtResource("5_8qinu")
 id = "elite_radial_corruption_t4"
 display_name = "Corruption Radial Elite T4"
 tier = 4
 description = "seed 502592"
 schema_version = 4
+geometry_revision = 3
 faction = "elite"
 role = "heavy"
 family = "heavy"
@@ -81,6 +85,7 @@ damage_multiplier = 1.15
 chassis_color = "green"
 accent_color = "silver"
 core_depth = 3
+core_radii = PackedFloat32Array(34, 17)
 core_weapon = "well_cup"
 archetype = "radial_elite"
-rails = Array[ExtResource("4_5ahib")]([SubResource("Resource_ii70y"), SubResource("Resource_qd620")])
+rails = Array[ExtResource("4_56akb")]([SubResource("Resource_udtod"), SubResource("Resource_cc60j")])

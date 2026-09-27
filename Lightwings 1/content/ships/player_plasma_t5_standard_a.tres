@@ -1,119 +1,128 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_lepj4"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ocwfy"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_rythv"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_xdjly"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_pl5d3"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_p3x5k"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_tq55i"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_c5814"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_48ahs"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_6iw4j"]
 
-[sub_resource type="Resource" id="Resource_irfn6"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_8ci3m"]
+script = ExtResource("1_p3x5k")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_6dcen"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_ryv8s"]
+script = ExtResource("1_p3x5k")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_y2euq"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_yxhe0"]
+script = ExtResource("1_p3x5k")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_hf5x6"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_lgyaq"]
+script = ExtResource("1_p3x5k")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_f1kk1"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_6nl7v"]
+script = ExtResource("1_p3x5k")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_yi0d4"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_8558d"]
+script = ExtResource("1_p3x5k")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_4hsqw"]
-script = ExtResource("4_xdjly")
+[sub_resource type="Resource" id="Resource_1k8wq"]
+script = ExtResource("4_48ahs")
 order = 6
 speed = -1.0565
 phase = 0.5236
-slots = Array[ExtResource("1_lepj4")]([SubResource("Resource_irfn6"), SubResource("Resource_6dcen"), SubResource("Resource_y2euq"), SubResource("Resource_hf5x6"), SubResource("Resource_f1kk1"), SubResource("Resource_yi0d4")])
+slots = Array[ExtResource("1_p3x5k")]([SubResource("Resource_8ci3m"), SubResource("Resource_ryv8s"), SubResource("Resource_yxhe0"), SubResource("Resource_lgyaq"), SubResource("Resource_6nl7v"), SubResource("Resource_8558d")])
 
-[sub_resource type="Resource" id="Resource_axmwk"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_vtmor"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_is0tp"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_6irl4"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "phase_pair"
 mount = "secondary_1"
 
-[sub_resource type="Resource" id="Resource_eump4"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_blgnh"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "phase_pair"
 mount = "secondary_1"
 
-[sub_resource type="Resource" id="Resource_sriw2"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_72mw8"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "halo_node"
 mount = "secondary_0"
 
-[sub_resource type="Resource" id="Resource_l88m2"]
-script = ExtResource("4_xdjly")
+[sub_resource type="Resource" id="Resource_8t4cj"]
+script = ExtResource("4_48ahs")
 radius = 96
 order = 4
 speed = 0.3697
 phase = 0.7854
 pump_phase = 0.9
-slots = Array[ExtResource("1_lepj4")]([SubResource("Resource_axmwk"), SubResource("Resource_is0tp"), SubResource("Resource_eump4"), SubResource("Resource_sriw2")])
+slots = Array[ExtResource("1_p3x5k")]([SubResource("Resource_vtmor"), SubResource("Resource_6irl4"), SubResource("Resource_blgnh"), SubResource("Resource_72mw8")])
 
-[sub_resource type="Resource" id="Resource_m3o82"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_jiugq"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "spin_ring"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_6v4jd"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_p0va3"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 
-[sub_resource type="Resource" id="Resource_ej2m5"]
-script = ExtResource("1_lepj4")
+[sub_resource type="Resource" id="Resource_jhxp5"]
+script = ExtResource("1_p3x5k")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 
-[sub_resource type="Resource" id="Resource_d3twh"]
-script = ExtResource("4_xdjly")
+[sub_resource type="Resource" id="Resource_wgbya"]
+script = ExtResource("4_48ahs")
 radius = 140
 pump_phase = 1.8
-slots = Array[ExtResource("1_lepj4")]([SubResource("Resource_m3o82"), SubResource("Resource_6v4jd"), SubResource("Resource_ej2m5")])
+slots = Array[ExtResource("1_p3x5k")]([SubResource("Resource_jiugq"), SubResource("Resource_p0va3"), SubResource("Resource_jhxp5")])
 
 [resource]
-script = ExtResource("5_pl5d3")
+script = ExtResource("5_6iw4j")
 id = "player_plasma_t5_standard_a"
 display_name = "Plasma T5 Standard A"
 element = "plasma"
 tier = 5
 description = "seed 995080"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 passives = Array[String](["forcefield"])
 chassis_color = "blue"
 accent_color = "violet"
 core_depth = 4
-rails = Array[ExtResource("4_xdjly")]([SubResource("Resource_4hsqw"), SubResource("Resource_l88m2"), SubResource("Resource_d3twh")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_48ahs")]([SubResource("Resource_1k8wq"), SubResource("Resource_8t4cj"), SubResource("Resource_wgbya")])

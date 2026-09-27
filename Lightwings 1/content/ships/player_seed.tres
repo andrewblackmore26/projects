@@ -1,39 +1,42 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_rwxjk"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_i0cd2"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_2ly1g"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_v5rup"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_pxanm"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_4hc4b"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_oc23g"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_d3ut2"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_yqox8"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_86xy5"]
 
-[sub_resource type="Resource" id="Resource_o8w61"]
-script = ExtResource("1_rwxjk")
+[sub_resource type="Resource" id="Resource_85dls"]
+script = ExtResource("1_4hc4b")
 type = "hub"
-pods = 2
+pods = 3
+pod_hp_radius = 4.666666666666667
 set_piece = "twin_barrel"
 mount = "primary"
 
-[sub_resource type="Resource" id="Resource_v0jxp"]
-script = ExtResource("1_rwxjk")
+[sub_resource type="Resource" id="Resource_6h4wn"]
+script = ExtResource("1_4hc4b")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_6rl37"]
-script = ExtResource("1_rwxjk")
+[sub_resource type="Resource" id="Resource_2cfp5"]
+script = ExtResource("1_4hc4b")
 type = "node"
 node_radius = 7
 
-[sub_resource type="Resource" id="Resource_mrf1e"]
-script = ExtResource("4_v5rup")
-slots = Array[ExtResource("1_rwxjk")]([SubResource("Resource_o8w61"), SubResource("Resource_v0jxp"), SubResource("Resource_6rl37")])
+[sub_resource type="Resource" id="Resource_dtopc"]
+script = ExtResource("4_yqox8")
+slots = Array[ExtResource("1_4hc4b")]([SubResource("Resource_85dls"), SubResource("Resource_6h4wn"), SubResource("Resource_2cfp5")])
 
 [resource]
-script = ExtResource("5_pxanm")
+script = ExtResource("5_86xy5")
 id = "player_seed"
 display_name = "Lumen"
 element = "neutral"
 description = "seed 257683"
 schema_version = 4
+geometry_revision = 3
 speed = 240.0
 chassis_color = "blue"
-rails = Array[ExtResource("4_v5rup")]([SubResource("Resource_mrf1e")])
+core_radii = PackedFloat32Array()
+rails = Array[ExtResource("4_yqox8")]([SubResource("Resource_dtopc")])

@@ -1,47 +1,96 @@
 [gd_resource type="Resource" script_class="ShipDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_fcybu"]
-[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_ql86o"]
-[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_y6doq"]
-[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_1pby0"]
-[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_ityt1"]
+[ext_resource type="Script" path="res://scripts/data/slot_definition.gd" id="1_s6q0c"]
+[ext_resource type="Script" path="res://scripts/data/group_definition.gd" id="2_lrc8x"]
+[ext_resource type="Script" path="res://scripts/data/part_definition.gd" id="3_ghc3d"]
+[ext_resource type="Script" path="res://scripts/data/rail_definition.gd" id="4_heade"]
+[ext_resource type="Script" path="res://scripts/data/ship_definition.gd" id="5_k7g45"]
 
-[sub_resource type="Resource" id="Resource_rqypp"]
-script = ExtResource("1_fcybu")
+[sub_resource type="Resource" id="Resource_7h7rg"]
+script = ExtResource("1_s6q0c")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 16.0
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_mgceq"]
-script = ExtResource("1_fcybu")
+[sub_resource type="Resource" id="Resource_12xsu"]
+script = ExtResource("1_s6q0c")
 type = "node"
 node_radius = 7
+radius_override = 14.9
+mark_radius = 4.47
+hp_radius = 3.595174262734584
 
-[sub_resource type="Resource" id="Resource_fr42s"]
-script = ExtResource("1_fcybu")
+[sub_resource type="Resource" id="Resource_fk3i0"]
+script = ExtResource("1_s6q0c")
 type = "hub"
-pods = 2
+pods = 3
+radius_override = 13.8
+pod_hp_radius = 4.666666666666667
 set_piece = "hook_node"
+hp_radius = 15.0
 
-[sub_resource type="Resource" id="Resource_n5ip8"]
-script = ExtResource("1_fcybu")
+[sub_resource type="Resource" id="Resource_6pw70"]
+script = ExtResource("1_s6q0c")
 type = "node"
 node_radius = 7
+radius_override = 12.7
+hp_radius = 3.0643431635388736
 
-[sub_resource type="Resource" id="Resource_kdh4j"]
-script = ExtResource("1_fcybu")
+[sub_resource type="Resource" id="Resource_u05dn"]
+script = ExtResource("1_s6q0c")
 type = "node"
+radius_override = 11.6
+mark_radius = 3.48
+hp_radius = 2.7989276139410184
+
+[sub_resource type="Resource" id="Resource_mlud6"]
+script = ExtResource("1_s6q0c")
+type = "node"
+node_radius = 7
+radius_override = 10.5
+hp_radius = 2.5335120643431632
+
+[sub_resource type="Resource" id="Resource_4iphp"]
+script = ExtResource("1_s6q0c")
+type = "node"
+node_radius = 7
+radius_override = 9.399999999999999
+hp_radius = 2.268096514745308
+
+[sub_resource type="Resource" id="Resource_hjwv1"]
+script = ExtResource("1_s6q0c")
+type = "node"
+node_radius = 7
+radius_override = 8.299999999999999
+mark_radius = 2.4899999999999998
+hp_radius = 2.0026809651474524
+
+[sub_resource type="Resource" id="Resource_nhvi5"]
+script = ExtResource("1_s6q0c")
+type = "node"
+node_radius = 7
+radius_override = 7.199999999999999
+hp_radius = 1.7372654155495977
 
 [resource]
-script = ExtResource("5_ityt1")
+script = ExtResource("5_k7g45")
 id = "enemy_chain_lightning_t2"
 display_name = "Lightning Chain T2"
 element = "lightning"
 tier = 2
 description = "seed 844782"
 schema_version = 4
+geometry_revision = 3
 faction = "enemy"
 speed = 240.0
 chassis_color = "yellow"
+core_depth = 3
+core_radii = PackedFloat32Array(22, 9)
+chain_head_lobes = true
+chain_head_spacing = 30.0
 archetype = "chain"
-chain_links = Array[ExtResource("1_fcybu")]([SubResource("Resource_rqypp"), SubResource("Resource_mgceq"), SubResource("Resource_fr42s"), SubResource("Resource_n5ip8"), SubResource("Resource_kdh4j")])
+chain_links = Array[ExtResource("1_s6q0c")]([SubResource("Resource_7h7rg"), SubResource("Resource_12xsu"), SubResource("Resource_fk3i0"), SubResource("Resource_6pw70"), SubResource("Resource_u05dn"), SubResource("Resource_mlud6"), SubResource("Resource_4iphp"), SubResource("Resource_hjwv1"), SubResource("Resource_nhvi5")])
+chain_mode = "follow"

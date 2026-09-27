@@ -107,8 +107,90 @@ static func ids() -> Array[String]:
 static func has(id: String) -> bool:
 	return PIECES.has(id)
 
-static func get_piece(id: String) -> Dictionary:
-	return PIECES.get(id, {})
+## Deliberately small silhouettes. Muzzles and weapon identities remain authored values.
+const CLEAN_BEADS: Dictionary = {
+	"twin_barrel": [2, 3], "lens_stack": [0, 2], "vent_fan": [1, 3],
+	"drop_cradle": [0, 1], "burst_ring": [1, 2], "coil_pair": [0, 1],
+	"wedge_pair": [1, 2], "sac_cluster": [0, 1], "bloom_pod": [1, 2],
+	"spore_rack": [0, 2], "spin_ring": [1, 2], "well_cup": [1, 3],
+	"iris_ring": [1, 2], "pull_cage": [0, 2], "fin_trio": [0, 2],
+	"storm_crown": [1, 3], "coil_array": [2, 3], "split_lance": [1, 2],
+	"shell_ring": [1, 2], "web_node": [0, 2], "collapse_cage": [0, 1],
+	"flare_ring": [1, 2], "mesh_node": [0, 1], "prism_stack": [1, 2],
+}
+static var _clean: Dictionary = {}
+static var _connected_legacy: Dictionary = {}
+
+static func for_revision(id: String, revision: int) -> Dictionary:
+	if revision == 2: return get_piece(id, true)
+	if revision >= 3 and id == "v_rack":
+		var piece: Dictionary = (PIECES[id] as Dictionary).duplicate(true)
+		piece.circles = [[0, -22, 5, true, 1]]
+		piece.lines = [[HUB, 0, 1]]
+		return piece
+	return get_piece(id, false)
+
+static func get_piece(id: String, compact: bool = true) -> Dictionary:
+	if not PIECES.has(id): return {}
+	if not compact: return _legacy_piece(id)
+	if _clean.has(id): return _clean[id]
+	var piece: Dictionary = (PIECES[id] as Dictionary).duplicate(true)
+	# The traced V-rack remains the reference motif.
+	if id == "v_rack":
+		_clean[id] = piece
+		return piece
+	var source: Array = piece.circles
+	var chosen: Array = CLEAN_BEADS.get(id, range(source.size()))
+	var circles: Array = []
+	var lines: Array = []
+	var integrated: Array = []
+	for index: int in chosen:
+		var bead: Array = source[index].duplicate()
+		var at: Vector2 = Vector2(float(bead[0]), float(bead[1]))
+		var n: int = circles.size()
+		circles.append(bead)
+		if at.is_zero_approx(): integrated.append(n)
+		else: lines.append([HUB, n, 1 if (piece.colours as Array).size() > 1 else 0])
+	piece.circles = circles
+	piece.lines = lines
+	piece.integrated = integrated
+	_clean[id] = piece
+	return piece
+
+## Existing authored hulls retain every bead and original line. Repair only disconnected
+## components, with one host pin per component; nested central marks attach explicitly.
+static func _legacy_piece(id: String) -> Dictionary:
+	if _connected_legacy.has(id): return _connected_legacy[id]
+	var piece: Dictionary = (PIECES[id] as Dictionary).duplicate(true)
+	var links: Dictionary = {HUB: []}
+	var integrated: Array = []
+	for i: int in range((piece.circles as Array).size()):
+		links[i] = []
+		var bead: Array = piece.circles[i]
+		if is_zero_approx(float(bead[0])) and is_zero_approx(float(bead[1])):
+			integrated.append(i)
+			links[HUB].append(i)
+			links[i].append(HUB)
+	for line: Array in piece.lines:
+		links[int(line[0])].append(int(line[1]))
+		links[int(line[1])].append(int(line[0]))
+	var reached: Dictionary = {}
+	_reach(HUB, links, reached)
+	for i: int in range((piece.circles as Array).size()):
+		if reached.has(i): continue
+		(piece.lines as Array).append([HUB, i, 1 if (piece.colours as Array).size() > 1 else 0])
+		_reach(i, links, reached)
+	piece.integrated = integrated
+	_connected_legacy[id] = piece
+	return piece
+
+static func _reach(start: int, links: Dictionary, reached: Dictionary) -> void:
+	var pending: Array[int] = [start]
+	while not pending.is_empty():
+		var at: int = pending.pop_back()
+		if reached.has(at): continue
+		reached[at] = true
+		for adjacent: int in links[at]: pending.append(adjacent)
 
 static func colours_of(id: String) -> Array:
 	return get_piece(id).get("colours", [])
