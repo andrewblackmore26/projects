@@ -1,3 +1,69 @@
+# Modernization — build plan (M0–M19)
+
+Approved 2026-09-27. Full plan with rationale: `C:\Users\admin\.claude\plans\there-are-starting-to-federated-bird.md`.
+Goal: fluid, fast, modern. Whole node border is an exit to the nearest neighbour.
+
+**User decisions (2026-09-27):**
+- Open lattice with **8 neighbours**, maze removed.
+- **Aggressive** pace.
+- P11 **absorbed**.
+- Work on **`main`** and push to origin `main` after each phase. Origin is now `andrewblackmore26/projects`.
+- No mid-build stops.
+
+Commits: `Lightship v0.3 M<n>: <clause>, and <finding>`, path-scoped. Gates: `-Quick` every phase; full `-GPU` at M3, M6, M9, M13, M14, M16, M18; `-Exports` at M19.
+Numbers marked *(h)* are hypotheses until measured.
+
+- [x] **M0** Checkpoint and one branch. Details:
+  - Dirty tree gated (`-Quick` 4/4, 937 s) and committed `539a947`.
+  - `main` fast-forwarded; P11a merged `0cb33de` (feel 24/24, movement 29/29, console 34/34, trace identical).
+  - Push URL fixed; origin moved; pushed.
+  - GitHub push protection blocked a 2021 commit's npm test key: bypass recorded as `used_in_tests`.
+  - Worktree retired.
+- [x] M0 baselines (all at `0cb33de`):
+  - **Rendered frame, 30 s at 2000 bullets:** mean 7.86 ms, p95 17.91 ms. Budget 14 / 26 ms.
+  - **Death → flying:** median 558 ms, max 683 ms, 20 seeds.
+  - **First evolution:** novice median 17.8 s, max 68.2 s; perfect median 11.0 s, max 47.0 s.
+  - **Pusher vs camper light/min (median):** 24.4 vs 6.4.
+  - **Node crossing:** 7.4 s (P11a probe).
+  - **Warp locked:** 1.05 s measured, plus a 0.30 s press, so rim → control is about 1.35 s.
+  - **Launch → control:** 2 clicks on a fresh profile, 1 with a save; no intro. There is no timed instrument; M15 adds one.
+  - **Evolution-open latency:** not instrumented. M12 measures it.
+  - **Rim dwell:** NOT measurable yet, because every bot travels by teleport (`_enter_sector` + `entry_position`). M18 gives bots a real rim route and measures it then; there is no before-number, and that is said plainly.
+  - **Captures:** `artifacts/baseline_m0/` holds 16 `*_refresh` PNGs at 1280×800 and 1920×1080, from today's presentation work.
+- [ ] **M1** Sim seams (trace identical). Items:
+  - `run_controller.gd` extraction.
+  - `sim_q` 1/720 s clock.
+  - Time-scale broker and `request_hitstop`.
+  - `_grant_invulnerability` choke point.
+  - `feel_event` signal.
+  - `arena.set_exits` / `sealed`.
+- [ ] **M2** Screen seam (tests byte-identical, captures 0 px diff). Items:
+  - `ScreenRouter`.
+  - `scripts/ui/screens/*`, `hud/*`.
+  - Forwarders.
+- [ ] **M3** Open 8-neighbour lattice + whole-rim exits (trace re-recorded; full gates). Items:
+  - `neighbours_of`, `nearest_bearing`, `arc_of`, `entry_point`, `entry_velocity`.
+  - Rim polyline.
+  - Bots via `neighbours_of`.
+- [ ] **M4** Tokens, `.tres` theme, fonts (Exo 2, Inter, JetBrains Mono; OFL)
+- [ ] **M5** `UiMotion`, transitions, blurred backdrop over live game
+- [ ] **M6** Aspect "expand", anchors, UI scale, viewport matrix (full gates)
+- [ ] **M7** Exponential movement, dash, rim once-per-contact, trail caps, pickup speed (trace re-recorded)
+- [ ] **M8** Enemy speed ratios, seeker weave × dt (trace re-recorded)
+- [ ] **M9** Warp PRESS 12 / BREAK 4 / WARP 18 / ARRIVAL 12 ticks; approach velocity kept; snapshot v4 (trace re-recorded; full gates)
+- [ ] **M10** Camera rig, shake, hitstop values, `feel_event` emit sites, `cam`
+- [ ] **M11** Input prompts (Kenney CC0), floating HUD: light bar with ghost, combo, boss bar, ability dock
+- [ ] **M12** Evolution in slow-motion (0.25); death → playing < 0.5 s (trace re-recorded)
+- [ ] **M13** Waves, rim spawn telegraphs, origin training wave, economy (trace re-recorded; full gates)
+- [ ] **M14** Map + minimap as 8-way lattice (full gates)
+- [ ] **M15** Title, level select, pause, options (display/accessibility/audio buses), level complete, dialogue, toasts
+- [ ] **M16** Feel director, post shader, flash budget, damage numbers, boss intro, rumble (full gates)
+- [ ] **M17** Audio buses, Kenney CC0 SFX + upgraded procedural, adaptive music
+- [ ] **M18** Bots route through the rim and fire secondaries; acceptance at the new pace (full gates)
+- [ ] **M19** Adversarial review, captures at 4 sizes, `-GPU -Exports`, `docs/ACCEPTANCE_HUMAN.md`
+
+---
+
 # Lightship v0.2 → v0.3 — build plan
 
 ## Review — living ships, 2026-09-27
@@ -407,6 +473,10 @@ Carried forward for the review pass (found while verifying earlier phases, none 
 
 # Camera and movement — build plan (P11)
 
+> **Superseded 2026-09-27 by `# Modernization — build plan (M0–M19)` at the top of this file.** P11a was
+> merged onto `main` in M0; P11b→M7, P11c→M8, P11g→M9, P11e/f/h→M10. The worktree is retired. The
+> checklist below is history.
+
 Spec: `docs/LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md` (verbatim, under the scope approved 2026-09-21). It
 supersedes v0.3 §13 and the camera behaviour of §11/§12. Same house rules and the same judge.
 Commits: `Lightship v0.3 P11<x>: <clause>`, path-scoped to `Lightwings 1`.
@@ -744,6 +814,11 @@ mount. `SetPieceCatalog.legal_for(chassis, accent)` is the single colour gate. O
 ---
 
 # Improvements spec — build plan (phases I0–I4)
+
+> **Superseded 2026-09-27 by the modernization plan (M0–M19).** I1 (exit from the rim) → M3, which goes
+> further: the maze is removed and every rim point exits to the nearest of 8 neighbours. I2 → M9 (+ M10,
+> M17 for camera and audio). I3's impact parity is folded into M16's feel rendering. I4's Arc Tether rows
+> stay with the S-phases; its bot-secondaries fix → M18. Nothing below was started.
 
 Spec: `LIGHTSHIP_IMPROVEMENTS_SPEC.md` (supplied 2026-09-21; saved to `docs/` in I0). It supersedes V3 §12,
 the membrane rules in §11 and the laser-prong entries in §15/§16/appendix B. **Plan written 2026-09-21,

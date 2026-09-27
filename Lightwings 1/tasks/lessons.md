@@ -129,3 +129,9 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
   `--headless --import`; never share `.godot/` with a session that is running Godot. Remove the
   junction with `cmd /c rmdir` BEFORE removing the worktree: a recursive delete through a junction
   can empty its target.
+- **The branch and push target is `main`** (user correction, 2026-09-27: "I should be on main branch
+  and everything should be pushing to main"). The long-lived `lightship-v0.3` and `lightship-p11`
+  branches were a mistake, and so was origin's push URL (`next-news`). Before planning any push,
+  run `git remote -v` and `git rev-list --count origin/main..main`. Also check that unpushed
+  history can be pushed at all: the first push surfaced a 2021 commit carrying `node_modules`
+  test keys, which GitHub push protection rejects. Commit to `main` and push after every phase.
