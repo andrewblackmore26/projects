@@ -158,6 +158,9 @@ func _capture(screen: String) -> void:
 	for node: Node in _descendants(root):
 		node.set_process(false)
 		node.set_physics_process(false)
+	# M5: UI tweens are not node processing; let every entrance finish so the capture is the settled
+	# screen (the longest is a STAGGER_MAX delay plus a SLOW rise).
+	await create_timer(UiTokens.STAGGER_MAX + UiTokens.SLOW + 0.2, true, false, true).timeout
 	if screen == shift_screen:
 		for group_node: Control in [app.overlay,app.menu,app.hud]:
 			if not group_node.visible: continue

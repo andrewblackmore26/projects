@@ -9,6 +9,26 @@ func build() -> void:
 	background.color = VisualStyle.BG
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	host.add_child(background)
+	# A faint pool of the player's blue light behind the hero ship. A float texture: 8-bit steps of
+	# a low alpha band visibly in HDR 2D's linear blending.
+	var pool := GradientTexture2D.new()
+	pool.width = 640
+	pool.height = 400
+	pool.use_hdr = true
+	pool.fill = GradientTexture2D.FILL_RADIAL
+	pool.fill_from = Vector2(0.69, 0.5)
+	pool.fill_to = Vector2(1.03, 0.5)
+	pool.gradient = Gradient.new()
+	pool.gradient.set_color(0, Color(UiTokens.PLAYER, 0.035))
+	pool.gradient.set_color(1, Color(UiTokens.PLAYER, 0.0))
+	pool.gradient.add_point(0.45, Color(UiTokens.PLAYER, 0.012))
+	var light_pool := TextureRect.new()
+	light_pool.texture = pool
+	light_pool.stretch_mode = TextureRect.STRETCH_SCALE
+	light_pool.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	light_pool.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	light_pool.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(light_pool)
 	var margin := MarginContainer.new()
 	margin.name = "MenuLayout"
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -22,9 +42,9 @@ func build() -> void:
 	left.custom_minimum_size.x = 430
 	left.add_theme_constant_override("separation", 14)
 	columns.add_child(left)
-	menu_label(left, "AN INSTANCE AWAKENS", 12, GOLD)
-	menu_label(left, "LIGHTSHIP", 62, WHITE)
-	menu_label(left, "Absorb light. Become something new.", 20, MUTED)
+	menu_label(left, "AN INSTANCE AWAKENS", UiTokens.TEXT_XS, GOLD).theme_type_variation = UiTokens.KICKER_LABEL
+	menu_label(left, "LIGHTSHIP", UiTokens.TEXT_3XL, WHITE)
+	menu_label(left, "Absorb light. Become something new.", UiTokens.TEXT_L, MUTED)
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 20
 	left.add_child(gap)
@@ -40,7 +60,8 @@ func build() -> void:
 	var exists: bool = not SaveService.load_snapshot(menu_slot).is_empty() or FileAccess.file_exists(SaveService.snapshot_path(menu_slot))
 	var primary: Button = menu_action(actions,("CONTINUE " if exists else "BEGIN ")+menu_slot.to_upper(),func() -> void: app._continue_game(menu_slot) if exists else app._show_level_select(available_modes[0]))
 	primary.custom_minimum_size.y = 52
-	primary.add_theme_stylebox_override("normal",UiKit.box(Color("292820"),GOLD))
+	primary.theme_type_variation = UiTokens.PRIMARY_BUTTON
+	primary.remove_theme_font_size_override("font_size")
 	if "dev" in available_modes:
 		menu_action(actions,"DEV MODE",app._show_level_select.bind("dev"))
 	if exists and OS.has_feature("demo"):
@@ -68,8 +89,8 @@ func build() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(spacer)
-	menu_label(left,"WASD + MOUSE  /  CONTROLLER",11,MUTED)
-	menu_label(left,"DEMO · LIGHTNING / FIRE · LEVELS 1–2" if OS.has_feature("demo") else "FIVE ELEMENTS · ONE LIVING MACHINE",11,MUTED)
+	menu_label(left,"WASD + MOUSE  /  CONTROLLER",UiTokens.TEXT_XS,MUTED).theme_type_variation = UiTokens.MONO_LABEL
+	menu_label(left,"DEMO · LIGHTNING / FIRE · LEVELS 1–2" if OS.has_feature("demo") else "FIVE ELEMENTS · ONE LIVING MACHINE",UiTokens.TEXT_XS,MUTED).theme_type_variation = UiTokens.KICKER_LABEL
 	var hero := ShipPreview.new()
 	hero.name = "MenuHero"
 	hero.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -80,3 +101,9 @@ func build() -> void:
 	columns.add_child(hero)
 	hero.initialize(ShipCatalog.get_ship("player_lightning_t3_standard_a"),Vector2(560,640),1.8)
 	_focus = primary
+	# The menu is not a router screen (it is built into main.gd's `menu` group), so it runs its own
+	# entrance: the column top to bottom, then the ship.
+	var items: Array = []
+	for node: Node in left.get_children(): items.append(actions.get_children() if node == actions else node)
+	items.append(hero)
+	UiMotion.stagger(items)

@@ -29,7 +29,11 @@ extends RefCounted
 ## - `returns`: closing it (DONE, Escape) returns to the screen below in play, or restores the focus
 ##   it was opened from; every other screen closes the whole stack.
 ## - `sound`: the soundscape context while it is up in play (outside play it is always "menu").
-## - `backdrop`: "opaque" (a full-screen BG rect) for every screen today; M5 adds none/dim/dim_blur.
+## - `backdrop` (M5): what lies between the screen and the game. "opaque" is a full-screen BG
+##   rect; "dim" darkens the game toward the scrim; "dim_blur" blurs and darkens it
+##   (shaders/ui_backdrop.gdshader, which falls back to dim only at blur_lod 0); "none" is nothing.
+##   Pause, Options, Evolution and Map sit over the live game; the others stay opaque until M15.
+##   A dim backdrop fades in over UiTokens.FAST and fades back out when the stack closes.
 ## - `dilation`: sim time scale requested while it is up; 0 = no request (every screen today; M12
 ##   slows the sim under Evolution with it).
 ## - `blocks_hud`: the screen covers the HUD. True for every screen today (the backdrop is opaque);
@@ -37,10 +41,10 @@ extends RefCounted
 
 const DEFAULT_POLICY: Dictionary = {"kind": "", "pauses": true, "escape_closes": true, "freezes_sim": false, "any_input_dismiss": false, "auto_close": 0.0, "input_guard": 0.0, "returns": false, "sound": "pause", "backdrop": "opaque", "dilation": 0.0, "blocks_hud": true}
 const POLICY: Dictionary = {
-	"evolution": {"pauses": true, "escape_closes": true},
-	"map": {"pauses": true, "escape_closes": true},
-	"pause": {"pauses": true, "escape_closes": true},
-	"options": {"pauses": true, "escape_closes": true, "returns": true},
+	"evolution": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur"},
+	"map": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur"},
+	"pause": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur"},
+	"options": {"pauses": true, "escape_closes": true, "returns": true, "backdrop": "dim_blur"},
 	"death": {"pauses": false, "escape_closes": false, "freezes_sim": true, "any_input_dismiss": true, "auto_close": GameTuning.DEATH_CARD_SECONDS, "input_guard": GameTuning.DEATH_INPUT_GUARD_SECONDS},
 	"ending": {"pauses": true, "escape_closes": false},
 	"level_complete": {"kind": "ending", "pauses": true, "escape_closes": false},
@@ -61,6 +65,7 @@ const SCREENS: Dictionary = {
 	"level_select": preload("res://scripts/ui/screens/level_select_screen.gd"),
 }
 const DILATION_REASON: StringName = &"screen"
+const BACKDROP_SHADER: Shader = preload("res://shaders/ui_backdrop.gdshader")
 
 var app: Node
 var host: Control
@@ -70,6 +75,10 @@ var _dilated: bool = false
 ## Screens that have exited, held until idle time: a screen's own button callback (a tab that
 ## closes and reopens Evolution, Options' DONE) is still running when the stack lets go of it.
 var _retired: Array[UiScreen] = []
+## The backdrop kind of the screen that is up ("" when the stack is closed), and the backdrop of a
+## just-closed stack while it fades out (M5).
+var _backdrop_kind: String = ""
+var _ghost: ColorRect
 
 func _init(owner: Node, overlay_host: Control) -> void:
 	app = owner
@@ -133,6 +142,7 @@ func close_all() -> void:
 	stack.clear()
 	UiKit.clear(host)
 	host.visible = false
+	_fade_out_backdrop()
 	app.rebind_action = ""
 	app.get_tree().paused = false
 	if _dilated:
@@ -157,12 +167,19 @@ func _build(entry: Dictionary) -> UiScreen:
 	var current: Dictionary = policy(id)
 	UiKit.clear(host)
 	host.visible = true
-	if str(current.backdrop) == "opaque":
-		var shade := ColorRect.new()
-		shade.color = VisualStyle.BG
-		shade.size = Vector2(1280, 800)
-		shade.mouse_filter = Control.MOUSE_FILTER_STOP
-		host.add_child(shade)
+	# A backdrop that was already up (Options pushed over Pause, or Pause built again when Options
+	# returns) stays at full strength instead of fading in a second time.
+	var continuing: bool = is_instance_valid(_ghost) or not _backdrop_kind.is_empty()
+	if is_instance_valid(_ghost): _ghost.queue_free()
+	_ghost = null
+	_backdrop_kind = str(current.backdrop)
+	var backdrop: ColorRect = make_backdrop(_backdrop_kind)
+	if backdrop != null:
+		backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+		host.add_child(backdrop)
+		if not continuing and _backdrop_kind != "opaque":
+			backdrop.modulate.a = 0.0
+			UiMotion.tween(backdrop).tween_property(backdrop, "modulate:a", 1.0, UiMotion.duration(UiTokens.FAST, true)).set_trans(UiTokens.EASE_IN_TRANS).set_ease(UiTokens.EASE_IN_EASE)
 	app.get_tree().paused = app.mode == "play" and bool(current.pauses)
 	if float(current.dilation) > 0.0:
 		app.run_controller.request_time_scale(DILATION_REASON, float(current.dilation))
@@ -176,6 +193,37 @@ func _build(entry: Dictionary) -> UiScreen:
 	entry.screen = screen
 	screen.request_pop.connect(pop)
 	screen.enter({"app": app, "host": host, "args": entry.args})
+	UiMotion.stagger(screen.motion_items())
 	var focus: Control = screen.default_focus()
 	if focus != null: focus.grab_focus()
 	return screen
+
+## The node behind a screen for a policy `backdrop` kind, full screen, named "Backdrop"; null for
+## "none". dim_blur is shaders/ui_backdrop.gdshader; dim is the same shader at blur_lod 0.
+static func make_backdrop(kind: String) -> ColorRect:
+	if kind == "none" or kind.is_empty(): return null
+	var result := ColorRect.new()
+	result.name = "Backdrop"
+	result.size = Vector2(1280, 800)
+	if kind == "opaque":
+		result.color = VisualStyle.BG
+		return result
+	var material := ShaderMaterial.new()
+	material.shader = BACKDROP_SHADER
+	material.set_shader_parameter("scrim", UiTokens.SCRIM)
+	material.set_shader_parameter("dim", UiTokens.SCRIM_DIM)
+	material.set_shader_parameter("blur_lod", UiTokens.SCRIM_BLUR_LOD if kind == "dim_blur" else 0.0)
+	result.material = material
+	return result
+
+## The backdrop of a stack that just closed, fading out over the resumed game. Pushing a screen in
+## the same frame (pop, then build the screen below) removes it again.
+func _fade_out_backdrop() -> void:
+	var kind: String = _backdrop_kind
+	_backdrop_kind = ""
+	if kind not in ["dim", "dim_blur"] or host.get_parent() == null: return
+	_ghost = make_backdrop(kind)
+	_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.get_parent().add_child(_ghost)
+	host.get_parent().move_child(_ghost, host.get_index())
+	UiMotion.exit(_ghost, true, false)

@@ -37,9 +37,21 @@ func exit() -> void:
 func default_focus() -> Control:
 	return _focus
 
-## A button that clicks through the soundscape, like every button main.gd builds.
+## What enters, in order, when the router builds the screen (UiMotion.stagger): each item a node,
+## or an Array of nodes that enter together. Default: every direct child but the backdrop.
+func motion_items() -> Array:
+	var items: Array = []
+	for child: Node in host.get_children():
+		if child is CanvasItem and child.name != &"Backdrop": items.append(child)
+	return items
+
+## A button that clicks through the soundscape, like every button main.gd builds, and animates
+## hover (which is focus) and press. ui_move/ui_confirm sounds stay silent until M17.
 func button(parent: Node, text: String, rect: Rect2, action: Callable) -> Button:
-	return app.button(parent, text, rect, action)
+	var result: Button = app.button(parent, text, rect, action)
+	UiMotion.hover(result)
+	UiMotion.press(result)
+	return result
 
 static func centered_label(parent: Node, text: String, position: Vector2, size: Vector2, font_size: int, color: Color) -> Label:
 	var result: Label = UiKit.label(parent, text, position, size, font_size, color)
@@ -51,6 +63,7 @@ static func menu_label(parent: Node, text: String, font_size: int, ink: Color) -
 	result.text = text
 	result.add_theme_font_size_override("font_size", font_size)
 	result.add_theme_color_override("font_color", ink)
+	UiKit.type_role(result, font_size)
 	parent.add_child(result)
 	return result
 

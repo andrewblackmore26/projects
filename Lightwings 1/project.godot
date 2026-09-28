@@ -32,6 +32,10 @@ window/stretch/mode="canvas_items"
 
 project/assembly_name="Lightship"
 
+[gui]
+
+theme/custom_font="res://theme/lightship_body_font.tres"
+
 [rendering]
 
 renderer/rendering_method="mobile"

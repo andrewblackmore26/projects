@@ -4,9 +4,23 @@ extends UiScreen
 ## (`settings`, `apply_settings`, `save_settings`), as does the rebind capture in `_input`, which
 ## rebuilds this screen once a binding is taken. DONE pops back to the screen below.
 
+var _tabs: TabContainer
+
+## The title, the tab strip, then the open page's rows one by one, then DONE.
+func motion_items() -> Array:
+	var items: Array = super()
+	var page: Control = _tabs.get_current_tab_control()
+	if page == null or page.get_child_count() == 0: return items
+	var at: int = items.find(_tabs) + 1
+	var result: Array = items.slice(0, at)
+	result.append_array(page.get_child(0).get_children())
+	result.append_array(items.slice(at))
+	return result
+
 func build() -> void:
-	UiKit.label(host,"OPTIONS",Vector2(90,55),Vector2(1100,52),34,WHITE)
+	UiKit.label(host,"OPTIONS",Vector2(90,55),Vector2(1100,52),UiTokens.TEXT_2XL,WHITE)
 	var tabs := TabContainer.new()
+	_tabs = tabs
 	tabs.name = "OptionsTabs"
 	tabs.position = Vector2(90,135)
 	tabs.size = Vector2(1100,530)
@@ -46,7 +60,8 @@ func build() -> void:
 		bind_button.tooltip_text = InputBindings.describe(action)
 		bind_button.custom_minimum_size = Vector2(300,34)
 		bind_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bind_button.add_theme_font_size_override("font_size",12)
+		bind_button.add_theme_font_size_override("font_size",UiTokens.TEXT_XS)
+		bind_button.add_theme_font_override("font",host.get_theme_font("font",UiTokens.MONO_LABEL))
 	if app.platform.online: menu_action(pages.Controls,"STEAM CONTROLLER LAYOUT",func() -> void: app.platform.show_input_bindings())
 	tabs.current_tab = app.options_tab
 	tabs.tab_changed.connect(func(index: int) -> void: app.options_tab = index)
@@ -84,6 +99,7 @@ func _option_slider(parent: Node, title: String, property: String) -> void:
 	parent.add_child(row)
 	var caption: Label = menu_label(row,title,16,WHITE)
 	caption.custom_minimum_size.x = 230
+	caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var slider := HSlider.new()
 	slider.name = property
 	slider.min_value = 0.0
@@ -91,10 +107,12 @@ func _option_slider(parent: Node, title: String, property: String) -> void:
 	slider.step = 0.01
 	slider.value = float(app.settings[property])
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(slider)
 	var value_label: Label = menu_label(row,"%d%%" % roundi(slider.value*100),14,MUTED)
 	value_label.custom_minimum_size.x = 65
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var owner: Node = app
 	slider.value_changed.connect(func(value: float) -> void:
 		owner.settings[property]=value

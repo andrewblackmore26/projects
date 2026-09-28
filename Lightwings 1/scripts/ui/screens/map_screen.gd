@@ -8,12 +8,20 @@ extends UiScreen
 
 var map_detail: Label
 var map_selected: Vector2i
+## The grid's tiles and markers: they enter as one (up to 625 of them).
+var _tiles: Array = []
+
+func motion_items() -> Array:
+	var items: Array = super().filter(func(node: Node) -> bool: return not node in _tiles)
+	items.insert(2, _tiles)
+	return items
 
 func build() -> void:
 	var campaign: CampaignState = app.campaign
-	UiKit.label(host,"THE AI-VERSE",Vector2(85,20),Vector2(620,40),28,WHITE)
+	UiKit.label(host,"THE AI-VERSE",Vector2(85,20),Vector2(620,40),UiTokens.TEXT_XL,WHITE)
 	var model: MinimapModel = MinimapModel.build(campaign)
-	UiKit.label(host,"Boss bearing: %s · %d nodes" % [model.bearing_direction,model.bearing_distance],Vector2(87,58),Vector2(1000,26),16,GOLD)
+	UiKit.label(host,"Boss bearing: %s · %d nodes" % [model.bearing_direction,model.bearing_distance],Vector2(87,58),Vector2(1000,26),UiTokens.TEXT_M,GOLD)
+	var first_tile: int = host.get_child_count()
 	var side: int = model.grid_size()
 	var area: float = 600.0
 	var cell: float = area/float(side)
@@ -33,13 +41,18 @@ func build() -> void:
 		if is_perimeter:
 			fill = Color("0b0d12") if not map_cell.in_bounds else fill
 			border = MUTED
-		tile.add_theme_stylebox_override("normal",UiKit.box(fill,border,3 if is_perimeter else 1))
+		tile.theme_type_variation = UiTokens.TILE_BUTTON
+		var tile_style: StyleBoxFlat = UiKit.glass_box(fill,border,3 if is_perimeter else 1,UiTokens.RADIUS_SMALL)
+		tile_style.shadow_size = 0
+		tile_style.set_content_margin_all(0)
+		tile.add_theme_stylebox_override("normal",tile_style)
 		tile.tooltip_text = sector_description(campaign,map_cell.coord)
 		if map_cell.is_boss: centered_label(host,"◎",at,Vector2(cell,cell),12,GOLD)
 		elif map_cell.current: centered_label(host,"●",at,Vector2(cell,cell),12,WHITE)
-	UiKit.panel(host,Rect2(700,92,480,412),VisualStyle.PANEL,Color("34343b"))
-	map_detail = UiKit.label(host,"",Vector2(725,112),Vector2(430,201),17,WHITE)
-	UiKit.label(host,"● You   ◎ Boss (bearing above, from the first tick)\nDark = unexplored, reveals nothing. Wall border = sealed perimeter.\nLayouts re-roll every life (spec §7).",Vector2(725,330),Vector2(430,140),15,MUTED)
+	_tiles = host.get_children().slice(first_tile)
+	UiKit.glass(host,Rect2(700,92,480,412))
+	map_detail = UiKit.label(host,"",Vector2(725,112),Vector2(430,201),UiTokens.TEXT_M,WHITE)
+	UiKit.label(host,"● You   ◎ Boss (bearing above, from the first tick)\nDark = unexplored, reveals nothing. Wall border = sealed perimeter.\nLayouts re-roll every life (spec §7).",Vector2(725,330),Vector2(430,140),UiTokens.TEXT_S,MUTED)
 	_focus = button(host,"RETURN TO FLIGHT",Rect2(870,721,320,45),app._close_overlay)
 	_select_map_sector(campaign.current_sector)
 
