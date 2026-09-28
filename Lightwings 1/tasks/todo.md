@@ -47,10 +47,18 @@ Numbers marked *(h)* are hypotheses until measured.
   - **Golden trace:** identical on every run.
   - **`-Quick`:** 4/4 in 897 s. Suite 50/50, benchmark 10/10, acceptance 11/0 (752 s).
   - **Deferred.** `tick` still advances +1 per step and is not derived from `sim_q`, because deriving it would change non-60 Hz steps. `sim_q` stays out of the snapshot until M9's bump, to keep the trace digest.
-- [ ] **M2** Screen seam (tests byte-identical, captures 0 px diff). Items:
+- [x] **M2** Screen seam (tests byte-identical, captures 0 px diff). Items:
   - `ScreenRouter`.
   - `scripts/ui/screens/*`, `hud/*`.
   - Forwarders.
+
+  Result:
+  - **Line count:** `main.gd` went from 1502 to 861.
+  - **Captures:** 27 screens diff 0 px before vs after (and 0 px before vs before). The +1 px label control changes 732–22412 px.
+  - **Golden trace:** identical twice.
+  - **`hud_model_test`:** restated to scan `hud/*.gd`, with 2 added presence checks and the last-function slice fixed.
+  - **Gates:** `-Quick` was stopped at the user's request, after self-test, suite (50/50) and benchmark had passed. The acceptance bots did not run.
+  - **User instruction, 2026-09-28:** no more gate runs for now; parallel agents (M3, M4+M5, M10, M11a, M17).
 - [ ] **M3** Open 8-neighbour lattice + whole-rim exits (trace re-recorded; full gates). Items:
   - `neighbours_of`, `nearest_bearing`, `arc_of`, `entry_point`, `entry_velocity`.
   - Rim polyline.

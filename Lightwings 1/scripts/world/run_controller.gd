@@ -1,10 +1,10 @@
 class_name RunController
 extends RefCounted
 ## The run FLOW, extracted from scripts/main.gd (modernization plan M1): starting a run, entering a
-## node, the warp's node swap, death and reboot, the boss-defeated flow and the save hooks. UI
-## construction and the companion lines stay in main.gd (M2 moves the UI;
-## tests/dialogue_coverage_test.gd scans main.gd for every line trigger); this calls back into
-## `app` for both, and
+## node, the warp's node swap, death and reboot, the boss-defeated flow and the save hooks. The
+## companion lines stay in main.gd (tests/dialogue_coverage_test.gd scans main.gd for every line
+## trigger) and the screens live under scripts/ui/ since M2; this calls back into `app` for both,
+## and
 ## main.gd keeps one-line forwarders with the old names, because tests and package_validation.gd
 ## drive the game through `app._new_game`, `app._enter_sector`, `app._reboot` and friends
 ## (tests/facade_contract_test.gd keeps that honest).

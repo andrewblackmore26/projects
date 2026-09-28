@@ -64,10 +64,13 @@ func _run() -> void:
 	# _draw_slot_icons used to `return` early whenever evolution_button.visible
 	# was true, hiding the slot icons exactly when the evolve pill appeared
 	# (spec §24 wants both). Confirmed by source: the guard clause in
-	# scripts/main.gd no longer names evolution_button.visible at all.
-	var source: String = FileAccess.get_file_as_string("res://scripts/main.gd")
+	# scripts/ui/hud/hud.gd (main.gd's until modernization M2 moved the HUD)
+	# no longer names evolution_button.visible at all.
+	var source: String = FileAccess.get_file_as_string("res://scripts/ui/hud/hud.gd")
 	var guard_start: int = source.find("func _draw_slot_icons")
+	h.check(guard_start >= 0, "hud.gd defines _draw_slot_icons (the scan below reads its body)")
 	var guard_end: int = source.find("\nfunc ", guard_start + 1)
+	if guard_end < 0: guard_end = source.length() # the last function in its file
 	var guard_body: String = source.substr(guard_start, guard_end - guard_start)
 	h.check(not guard_body.contains("evolution_button.visible"), "_draw_slot_icons no longer early-returns on the evolve prompt")
 	h.control("reintroducing the early-return text", guard_body.contains("return") and guard_body.contains("is_instance_valid(combat)"))
@@ -81,9 +84,11 @@ func _run() -> void:
 	# instead of a `draw_arc` centred on the player with a level-radius-in-
 	# pixels radius (which is Euclidean, moves with the player, and - for
 	# any level with radius > ~5 - exceeds the 186px panel outright).
-	var minimap_source: String = FileAccess.get_file_as_string("res://scripts/main.gd")
+	var minimap_source: String = FileAccess.get_file_as_string("res://scripts/ui/hud/minimap.gd")
 	var minimap_start: int = minimap_source.find("func _draw_minimap")
+	h.check(minimap_start >= 0, "minimap.gd defines _draw_minimap (the scan below reads its body)")
 	var minimap_end: int = minimap_source.find("\nfunc ", minimap_start + 1)
+	if minimap_end < 0: minimap_end = minimap_source.length() # the last function in its file
 	var minimap_body: String = minimap_source.substr(minimap_start, minimap_end - minimap_start)
 	h.check(minimap_body.contains("CampaignState.ring(map_cell.coord) == model.radius"), "_draw_minimap classifies the perimeter the same way _show_map does (per-cell ring test)")
 	h.check(not minimap_body.contains("draw_arc(center,perimeter_radius"), "_draw_minimap no longer draws a circular arc for the perimeter")

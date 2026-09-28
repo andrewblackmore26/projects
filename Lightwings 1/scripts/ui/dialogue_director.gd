@@ -1,7 +1,7 @@
 ## Extracted from scripts/main.gd (plan P9, tasks/todo.md). Owns the dialogue
 ## QUEUE, the per-id dedupe (`seen_lines`), the "speaks only between fights"
 ## gate, and the static narrative line tables (spec §25). Presentation (the
-## Control/portrait/label building) stays in main.gd's `_update_dialogue`, so
+## Control/portrait/label building) is scripts/ui/dialogue_box.gd, so
 ## this stays a pure, headlessly-testable RefCounted with no scene tree.
 ##
 ## Two lanes, one FIFO queue:

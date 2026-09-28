@@ -36,6 +36,16 @@ static func make_theme() -> Theme:
 	result.set_color("font_placeholder_color", "LineEdit", VisualStyle.MUTED)
 	return result
 
+## Display names of ability ids, as the HUD and the evolution cards print them.
+static func ability_name(id: String) -> String:
+	var definition: AbilityDefinition = AbilityCatalog.get_definition(id)
+	return definition.display_name if definition != null else id.replace("_"," ").capitalize()
+
+static func ability_names(ids: Array) -> String:
+	var names := PackedStringArray()
+	for id: String in ids: names.append(ability_name(id))
+	return ", ".join(names) if not names.is_empty() else "None"
+
 static func group(parent: Node) -> Control:
 	var result := Control.new()
 	result.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
