@@ -132,8 +132,8 @@ func _local_window(origin: Vector2i) -> Array[Vector2i]:
 
 func _check_bearing(h: Harness, campaign: CampaignState, model: MinimapModel, label: String) -> void:
 	var delta: Vector2i = campaign.boss_coord() - campaign.current_sector
-	var expected_distance: int = absi(delta.x) + absi(delta.y)
-	h.check(model.bearing_distance == expected_distance, "Boss bearing distance is Manhattan steps (%s)" % label)
+	var expected_distance: int = maxi(absi(delta.x), absi(delta.y))
+	h.check(model.bearing_distance == expected_distance, "Boss bearing distance is Chebyshev steps on the 8-neighbour lattice (%s)" % label)
 	h.check(model.bearing_direction != "NONE", "Boss bearing direction is present (%s)" % label)
 	if delta.x == 0 and delta.y < 0: h.check(model.bearing_direction == "N", "Cardinal north bearing (%s)" % label)
 	elif delta.x == 0 and delta.y > 0: h.check(model.bearing_direction == "S", "Cardinal south bearing (%s)" % label)

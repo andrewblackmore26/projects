@@ -70,27 +70,31 @@ func _zoom_case() -> void:
 	# Sample near the zoomed centre (screen-space centre moves with the
 	# parent's scale around its origin) - measure at the actual on-screen rim.
 	var width_zoom: float = _measure_rim_width(root.get_texture().get_image(), center * 1.30, radius * 1.30)
-	_check(absf(width_zoom - width_1x) <= 1.0, "Rim stroke width at 1.30x zoom (%.2fpx) equals the width at 1.00x (%.2fpx)" % [width_zoom, width_1x])
+	_check(absf(width_zoom - width_1x) <= WIDTH_TOLERANCE * width_1x, "Rim stroke weight at 1.30x zoom (%.3f) equals the weight at 1.00x (%.3f)" % [width_zoom, width_1x])
 
 	# Negative control: force canvas_scale to 1 while still actually rendered
 	# at 1.30x - the compensation is defeated, so the widths must now differ.
 	backdrop_zoom.canvas_scale_override = 1.0
 	await _frame()
 	var width_broken: float = _measure_rim_width(root.get_texture().get_image(), center * 1.30, radius * 1.30)
-	_control("canvas_scale forced to 1 at real 1.30x zoom", absf(width_broken - width_1x) > 1.0)
+	print("Rim stroke weight: 1.00x %.3f, 1.30x %.3f, 1.30x uncompensated %.3f" % [width_1x, width_zoom, width_broken])
+	_control("canvas_scale forced to 1 at real 1.30x zoom", absf(width_broken - width_1x) > WIDTH_TOLERANCE * width_1x)
 	holder.queue_free()
 	await process_frame
 
-## Scans radially through the rim near angle 0 and counts bright pixels
-## along the scan line, in screen pixels.
+## Scans radially through the rim near angle 0 and integrates brightness
+## along the scan line (modernization M3: the rim is two thin 1.5/1.0 px
+## strokes, too thin for a bright-pixel count to resolve a 1.30x change; the
+## integral scales with stroke width, antialiasing included).
+const WIDTH_TOLERANCE: float = 0.15
 func _measure_rim_width(image: Image, center: Vector2, radius: float) -> float:
-	var count: int = 0
-	for r: int in range(-8, 9):
+	var total: float = 0.0
+	for r: int in range(-12, 13):
 		var p: Vector2i = Vector2i(center + Vector2(radius + r, 0.0))
 		if p.x < 0 or p.y < 0 or p.x >= image.get_width() or p.y >= image.get_height(): continue
 		var pixel: Color = image.get_pixel(p.x, p.y)
-		if pixel.r + pixel.g + pixel.b > 0.2: count += 1
-	return float(count)
+		total += pixel.r + pixel.g + pixel.b
+	return total
 
 func _streak_case() -> void:
 	var center: Vector2 = Vector2(640, 400)

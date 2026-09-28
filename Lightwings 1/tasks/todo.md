@@ -59,24 +59,66 @@ Numbers marked *(h)* are hypotheses until measured.
   - **`hud_model_test`:** restated to scan `hud/*.gd`, with 2 added presence checks and the last-function slice fixed.
   - **Gates:** `-Quick` was stopped at the user's request, after self-test, suite (50/50) and benchmark had passed. The acceptance bots did not run.
   - **User instruction, 2026-09-28:** no more gate runs for now; parallel agents (M3, M4+M5, M10, M11a, M17).
-- [ ] **M3** Open 8-neighbour lattice + whole-rim exits (trace re-recorded; full gates). Items:
+> **Parallel batch, 2026-09-28** (user: "stop doing gates, pump through as much as you can with multiple
+> agents"). M3, M4+M5, M7, M10, M11a, M16 and M17 were built at the same time in one tree. Each was
+> proven by its own targeted tests; there were NO gate runs, and the acceptance bots have not run since M1.
+> One golden trace re-record covers M3, M7 and M10. The first difference was `new_game.snapshot`
+> (M3's sector exits); the final digest is `28cb6e17e18aab56`. Headless suite after the batch: 57 passed, 0 failed.
+> **Owed:** `gates.ps1 -GPU` on the combined tree, including the acceptance bands after the Chebyshev
+> route and the new movement, and the rendered benchmark with the post pass on.
+
+- [x] **M3** Open 8-neighbour lattice + whole-rim exits. Items:
   - `neighbours_of`, `nearest_bearing`, `arc_of`, `entry_point`, `entry_velocity`.
   - Rim polyline.
   - Bots via `neighbours_of`.
-- [ ] **M4** Tokens, `.tres` theme, fonts (Exo 2, Inter, JetBrains Mono; OFL)
-- [ ] **M5** `UiMotion`, transitions, blurred backdrop over live game
+
+  Result:
+  - **Topology:** census 3/5/8 neighbours. BFS distance to the boss is median 9, max 12 (the maze was 14/23).
+  - **Arcs:** interior arcs are 45° ± 1e-6. Bearings are computed with a double-precision `atan2`; float32 was 3.8e-6° off.
+  - **Round trip:** ≤ 0.01 px over 360 angles × 8 directions.
+  - **Engage:** fires at 0.5 outward (control 0.2).
+  - **Rim render:** the pressed arc reads 1.02, against 0.17 at rest and 90° away.
+  - **Saves:** no schema bump; a restored sector re-derives its exits.
+- [x] **M4** Tokens, `.tres` theme, fonts (Exo 2, Inter, JetBrains Mono; OFL). See commit `8d67207`.
+- [x] **M5** `UiMotion`, transitions, blurred backdrop over live game.
+  - The blur works on Mobile: variance 0.0% of baseline, against 58.2% for the blur-0 control.
+  - **Not done:** exit animations (the router clears synchronously), and a reduced-motion toggle in Options (M15).
 - [ ] **M6** Aspect "expand", anchors, UI scale, viewport matrix (full gates)
-- [ ] **M7** Exponential movement, dash, rim once-per-contact, trail caps, pickup speed (trace re-recorded)
+- [x] **M7** Exponential movement, dash, rim once-per-contact, trail caps, pickup speed.
+  - **Handling:** t90 0.167 s, coast 0.400 s, drift 18°. Stable within 0.002 px across 4 tick rates; the Euler control is off by 1.76 px.
+  - **Crossing:** 3.53 s. `AUTHORING_BASE_SPEED` is now 240 because every shipped hull is authored at 240; with 220 the crossing was 3.25 s.
+  - **Dash:** 2.5× for 0.18 s, with a 1.1 s cooldown.
+  - **Rim:** slide holds 0.55 (was 0.21); contact fires once per contact (was 111 times in 2 s).
+  - **Trails:** 180 / 320 / 0 px.
+  - **Pickups:** 598 px/s; they catch a fleeing player in 0.48 s.
+  - **Open:** `rim_contact` and the dash counters are not in `ACTOR_ALLOW`.
 - [ ] **M8** Enemy speed ratios, seeker weave × dt (trace re-recorded)
 - [ ] **M9** Warp PRESS 12 / BREAK 4 / WARP 18 / ARRIVAL 12 ticks; approach velocity kept; snapshot v4 (trace re-recorded; full gates)
-- [ ] **M10** Camera rig, shake, hitstop values, `feel_event` emit sites, `cam`
-- [ ] **M11** Input prompts (Kenney CC0), floating HUD: light bar with ghost, combo, boss bar, ability dock
+- [x] **M10** Camera rig, shake, hitstop values, `feel_event` emit sites, `cam`.
+  - **Camera:** lag 101 px unclamped and 89.6 px on the clamp. Zoom steps 1.00 / 0.96 / 0.93. Tick-rate spread 0.11 px.
+  - **Hitstop:** 4 ticks on a player hit. The boss kill asks for 12 but is capped to 8 by M1's rule (derived from the code, not measured).
+  - **Aim:** error under shake is 0.0000 px; the leak control reads 10.46 px.
+  - **Tests:** camera_rig 23/0 (9 controls), feel_events 23/0 (7 controls).
+  - **Not done:** `warp_*`, `low_light_*` and `boss_engage` emits; the `warp_render_test` rewrite; `screen_shake` / `reduced_motion` as saved settings (M15).
+- [ ] **M11** Input prompts (Kenney CC0), floating HUD: light bar with ghost, combo, boss bar, ability dock.
+  - **Part a DONE:** `input_prompts.gd`, `ability_glyphs.gd`, 61 Kenney glyphs, and HUD slot labels driven by the InputMap. input_prompts_test 131/0 (4 controls).
+  - **Part b OPEN:** the floating HUD itself; the "MAP · TAB" and "EVOLUTION READY · E" labels; the Steam Input device switch.
 - [ ] **M12** Evolution in slow-motion (0.25); death → playing < 0.5 s (trace re-recorded)
 - [ ] **M13** Waves, rim spawn telegraphs, origin training wave, economy (trace re-recorded; full gates)
 - [ ] **M14** Map + minimap as 8-way lattice (full gates)
 - [ ] **M15** Title, level select, pause, options (display/accessibility/audio buses), level complete, dialogue, toasts
-- [ ] **M16** Feel director, post shader, flash budget, damage numbers, boss intro, rumble (full gates)
-- [ ] **M17** Audio buses, Kenney CC0 SFX + upgraded procedural, adaptive music
+- [ ] **M16** Feel director, post shader, flash budget, damage numbers, boss intro, rumble (full gates).
+  - **Done:**
+    - FeelDirector and PostFx on layer 5: vignette corner ratio 0.853 against 1.000 with post off; 3 px aberration.
+    - Flash budget: 20 requests → 3 onsets.
+    - Damage numbers: pop, rise and merge.
+    - Rumble: setting 0 → 0 calls.
+  - **Open:** boss intro card, big-kill slow-motion, settings keys (M15), rendered benchmark with the post pass on.
+- [x] **M17** Audio buses, Kenney CC0 SFX + upgraded procedural, adaptive music.
+  - **Result:** 31 cues, 4 stems, sound_policy 198/0 (12 controls).
+  - **Unverified:** perceptual quality; the reel is in `artifacts/audio-review/`.
+  - **Not wired yet:** gameplay callers of `play_cue`.
+  - **Clash to resolve:** `main.gd` still plays `hurt` alongside FeelDirector.
 - [ ] **M18** Bots route through the rim and fire secondaries; acceptance at the new pace (full gates)
 - [ ] **M19** Adversarial review, captures at 4 sizes, `-GPU -Exports`, `docs/ACCEPTANCE_HUMAN.md`
 

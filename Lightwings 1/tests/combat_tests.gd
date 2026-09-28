@@ -102,11 +102,13 @@ func test_arena_collision() -> void:
  check(not w.arena.contains(w.arena.center+Vector2(w.arena.radius+1,0)),"Circular rim excludes a point just past the radius")
  var clamped: Vector2=w.arena.clamp_point(w.arena.center+Vector2(w.arena.radius+50,0),3)
  check(w.arena.contains(clamped,3),"Clamp of a far point lands inside the wall")
- check(w.arena.exit_direction(w.arena.center+Vector2(w.arena.radius+1,0))==Vector2i.RIGHT,"Only a marked membrane accepts exit")
- check(w.arena.exit_direction(w.arena.center+Vector2.from_angle(PI*0.25)*(w.arena.radius+1))==Vector2i.ZERO,"Wall between membranes prevents exit")
- check(w.arena.entry_position(Vector2i.RIGHT)==w.arena.center-Vector2(w.arena.radius-44.0,0),"East travel enters just inside the west membrane")
- w.arena.exits.assign([Vector2i.LEFT,Vector2i.RIGHT])
- check(w.arena.exit_direction(w.arena.center+Vector2(0,-(w.arena.radius+1)))==Vector2i.ZERO,"Unconnected direction has no exit")
+ check(w.arena.arc_of(0.0)==Vector2i.RIGHT,"The east rim leads east")
+ check(w.arena.arc_of(PI*0.25)==Vector2i(1,1),"The rim between the old membranes now leads to the diagonal neighbour")
+ var entry: Vector2=w.arena.entry_point(Vector2i.RIGHT,w.arena.center+Vector2.from_angle(0.2)*w.arena.radius)
+ check(entry.distance_to(w.arena.center+Vector2.from_angle(PI-0.2)*(w.arena.radius-44.0))<0.01,"East travel 0.2 rad below the bearing enters 0.2 rad below the west bearing, 44 px in")
+ w.arena.sealed=true
+ check(w.arena.arc_of(PI*0.25)==Vector2i.ZERO,"A sealed rim has no exit")
+ w.arena.sealed=false
  w._rebuild_actor_grid()
  var edge: Vector2=w.arena.center+Vector2(w.arena.radius-46.0,0)
  w.bullets.add(edge,Vector2(1000,0),-1,5,3,0,0,0)

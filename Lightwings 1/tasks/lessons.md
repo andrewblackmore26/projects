@@ -147,3 +147,28 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
   A rerun on a quiet machine went 4/4, with acceptance at 752 s against a 790 s baseline. When every
   section slows by one factor, suspect load. Rerun alone and compare with the baseline before
   blaming the change, and do not raise a budget or a timeout to make a loaded run pass.
+
+## Parallel batch M3–M17 (2026-09-28): lessons proposed by the phase agents, kept as written
+
+- **Check a capture against what it built.** A capture in a real window can be hit by the game's own
+  focus-out auto-pause, so one "HUD" capture came back as the Pause screen and the diff read 364931 px.
+  Every capture checks that the screen it grabbed is the one it built.
+- **Guard keyboard-layout calls on headless.** `DisplayServer.keyboard_get_keycode_from_physical`
+  errors on the headless display server (86 errors in one test run). Check
+  `DisplayServer.get_name() != "headless"` first.
+- **The shared golden trace cannot isolate one change while others are also moving the sim.** Put the
+  new behaviour behind a tuning key and run the route in one process three times: off, off again, on.
+  Or prove "trace identical" in a detached worktree at HEAD that holds only your own changes.
+- **HDR captures read back linear.** A GPU capture with `hdr_2d` returns half-float linear pixels
+  (`FORMAT_RGBH`). Check `image.get_format()` before converting colour spaces.
+- **HDR 2D blends in linear light.** A low-alpha overlay or shadow under a translucent fill lifts it
+  far more than its alpha suggests: 7% white turned #0b0d14 into #212225.
+- **Key a variable-font axis by its integer OpenType tag.** A `"wght"` string key is accepted and does
+  nothing. Measure glyph widths at two weights.
+- **Godot WAV loops can click.** `loop_end` = length plays one zero frame, and QOA import breaks loop
+  seams. Measure a loop seam through the engine's own playback.
+- **Check an authoring constant against the data it divides.** The speed base of 220 came from a
+  planning default that no shipped hull uses; the hulls are authored at 240.
+- **A contact detector with a pixel dead band depends on tick rate.** Small steps fall inside the band.
+- **Bright-pixel counts miss a thin stroke's width.** To measure a thin stroke, integrate brightness
+  along the scan line instead of counting bright pixels.

@@ -19,6 +19,8 @@ func _run() -> void:
 	_reduced_warp_timing()
 	_missing_swap_springs_back()
 	_determinism()
+	_engage_threshold()
+	_diagonal_round_trip()
 	await process_frame
 	t.finish(self)
 
@@ -175,3 +177,69 @@ func _determinism() -> void:
 	t.check(a.warp_locked_measured == b.warp_locked_measured, "Two identical warp runs measure byte-identical locked time")
 	release(a)
 	release(b)
+
+## Modernization M3: a rim press engages at input.outward >= 0.5 (raised from 0.2 against
+## accidental exits). One tick from rest just inside the east rim, input at a set outward dot.
+func _engages_at(dot: float, threshold: float) -> bool:
+	var w: CombatWorld = make_world()
+	w.warp_engage_dot = threshold
+	w.player.pos = w.arena.center + Vector2(w.arena.radius - 4.0, 0.0)
+	w.player.vel = Vector2.ZERO
+	w.command.movement = Vector2.from_angle(acos(dot))
+	w._update_player(STEP)
+	var engaged: bool = w.warp_phase == CombatWorld.WARP_PUSH
+	release(w)
+	return engaged
+
+func _engage_threshold() -> void:
+	t.check(not _engages_at(0.45, 0.5), "A rim press at 0.45 outward does not engage")
+	t.check(_engages_at(0.55, 0.5), "A rim press at 0.55 outward engages")
+	t.control("engage threshold back at 0.2 (0.45 outward engages)", _engages_at(0.45, 0.2))
+
+## Presses into the rim at `angle` until the warp commits, then runs the locked window out.
+## Returns the direction the warp committed toward (ZERO if it never did).
+func _warp_through(w: CombatWorld, angle: float) -> Vector2i:
+	var outward: Vector2 = Vector2.from_angle(angle)
+	w.player.pos = w.arena.center + outward * (w.arena.radius - 4.0)
+	w.player.vel = outward * 200.0
+	w.command.movement = outward
+	w.command.aim = outward
+	var ticks: int = 0
+	while not w.warp_locked() and ticks < 60:
+		w._update_player(STEP)
+		ticks += 1
+	var committed: Vector2i = w.warp_direction if w.warp_locked() else Vector2i.ZERO
+	w.command.movement = Vector2.ZERO
+	while w.warp_phase != CombatWorld.WARP_NONE and ticks < 400:
+		w._update_player(STEP)
+		ticks += 1
+	return committed
+
+## Live two-warp diagonal round trip: NE out of the origin, SW back. The swap handler mirrors
+## RunController.on_warp_committed, so a diagonal Vector2i has to survive the signal.
+func _diagonal_round_trip() -> void:
+	var w: CombatWorld = make_world()
+	var campaign := CampaignState.new()
+	w.start_sector(campaign.sector_at(Vector2i.ZERO))
+	w.warp_committed.connect(func(direction: Vector2i) -> void:
+		var destination: Vector2i = campaign.current_sector + direction
+		campaign.on_enter(destination)
+		w.start_sector(campaign.sector_at(destination))
+		w.confirm_warp_swap())
+	var out_dir: Vector2i = _warp_through(w, -PI * 0.25 + 0.1)
+	var after_out: Vector2i = campaign.current_sector
+	var out_inside: bool = w.arena.contains(Vector2(w.player.pos))
+	var out_pos: Vector2 = Vector2(w.player.pos)
+	t.check(out_dir == Vector2i(1, -1) and after_out == Vector2i(1, -1), "Pressing into the NE arc warps to the NE neighbour (committed %s, now at %s)" % [out_dir, after_out])
+	t.check(out_inside, "The NE arrival lands inside the arena (%.1f px from centre, radius %.0f)" % [out_pos.distance_to(w.arena.center), w.arena.radius])
+	var back_dir: Vector2i = _warp_through(w, PI * 0.75 - 0.1)
+	t.check(back_dir == Vector2i(-1, 1) and campaign.current_sector == Vector2i.ZERO, "Pressing into the SW arc returns to the origin (committed %s, now at %s)" % [back_dir, campaign.current_sector])
+	t.check(w.arena.contains(Vector2(w.player.pos)), "The return arrival lands inside the arena")
+	release(w)
+	# Negative control: the same NE press on a rim with only the four cardinal exits (the old maze's
+	# best case) cannot reach the diagonal neighbour.
+	var c: CombatWorld = make_world()
+	c.arena.set_exits([Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP])
+	c.warp_committed.connect(func(_direction: Vector2i) -> void: c.confirm_warp_swap())
+	t.control("cardinal-only exits (the NE press goes E instead)", _warp_through(c, -PI * 0.25 + 0.1) != Vector2i(1, -1))
+	release(c)

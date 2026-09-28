@@ -167,10 +167,16 @@ var ai_firing_disabled: bool = false
 var _pickup_collectors: Array = []
 var _shot_source: Dictionary={"id":-1,"faction":-1,"element":"fire"}
 var _last_dt: float = 1.0/60.0
-## --- Dash (spec §13/§26, plan P6 item 2) ------------------------------
-const DASH_BURST_SECONDS: float = 0.18
-const DASH_COOLDOWN_SECONDS: float = 1.2
-const DASH_SPEED_MULT: float = 3.0
+## --- Movement, dash and rim (camera/movement spec §3-§4, M7) ----------
+## Every number is a `GameTuning.feel` key ("move.*", "dash.*", "rim.*"). The dash's burst and
+## cooldown are integer countdowns in sim_q units (1/720 s) on the player dict (`dash_burst_q`,
+## `dash_cooldown_q`), so they last the same time at 30/60/120/144 Hz.
+## A rim episode ends once the ship is this far clear of the wall, so a slide that touches on
+## alternate ticks is still ONE contact.
+const RIM_RELEASE_PX: float = 4.0
+## Test-only negative control (movement_feel_test): integrate with an explicit Euler step instead
+## of the closed form. Never set by gameplay.
+var movement_euler: bool = false
 ## --- The warp (spec §12, plan P6 item 5) -------------------------------
 ## Phases in order; WARP_FADE replaces ZOOM_IN..ZOOM_OUT wholesale when the
 ## accessibility "reduced warp" option is on (0.25 s fade, no zoom, no streaks).
@@ -190,6 +196,15 @@ var warp_direction: Vector2i = Vector2i.ZERO
 var warp_reduced: bool = false
 var warp_commit_speed: float = 0.0
 var warp_entry_speed: float = 0.0
+## Modernization M3 (whole-rim exits): input.outward a rim press needs to engage (raised from 0.2
+## against accidental exits). A var only so tests/warp_test.gd can build its 0.2 control.
+var warp_engage_dot: float = 0.5
+## Where on the rim, and with what velocity, the warp committed (the arrival reflects both), and
+## the unit heading the locked phases carry the ship along: the travel bearing until arrival, the
+## arrival velocity's heading after it.
+var warp_exit_point: Vector2 = Vector2.ZERO
+var warp_exit_velocity: Vector2 = Vector2.ZERO
+var warp_heading: Vector2 = Vector2.ZERO
 ## Seconds the most recently completed warp actually held control locked for
 ## (zoom-in..zoom-out or the reduced fade) - read by `tests/warp_test.gd`
 ## instead of asserting the constants sum to what the spec says.
@@ -317,6 +332,7 @@ func evolve_hull(id: String) -> bool:
  hull_history.resize(tier)
  hull_history[tier-1]=id
  absorption.clear()
+ feel_event.emit(&"evolved",player.pos,float(tier),0)
  return true
 func evolve_player(element: String, tier: int, _stolen: Array) -> void:
  # Transitional test/editor adapter; production evolution uses evolve_hull.
@@ -803,49 +819,65 @@ func _update_player(dt: float) -> void:
  var locked: bool=warp_locked()
  if locked:
   # Control locked (spec §12 commit..zoom-out): momentum carries straight
-  # through in the travel direction at the speed measured at commit. Position
+  # through along `warp_heading` at the speed measured at commit. Position
   # during the locked phases is owned entirely by `_update_warp` (it must
   # keep moving through the node swap, at a speed `_update_player`'s own
   # arena-relative clamp cannot reason about mid-swap), so nothing else here
   # touches position, aim or firing.
-  player.vel=Vector2(warp_direction).normalized()*warp_commit_speed
+  player.vel=warp_heading*warp_commit_speed
   _finish_follow_motion(player)
   return
  var thrusters: float=1.2 if _has_ability(player,"thrusters") else 1.0
  var input_dir: Vector2=command.movement.limit_length(1.0)
  var warp_scale: float=WARP_PUSH_SPEED_SCALE if warp_phase==WARP_PUSH else 1.0
- var top_speed: float=float(player.speed)*thrusters*warp_scale
- var accel: float=float(player.get("accel",1200.0))*thrusters
- var drag: float=float(player.get("drag",5.0))
- var slow: float=_slow_multiplier(player)
+ var hull_top: float=player_top_speed()
+ var top_speed: float=hull_top*warp_scale*_slow_multiplier(player)
+ var taus: Dictionary=GameTuning.movement_taus(str(player.definition.role) if player.get("definition")!=null else "standard")
  var vel: Vector2=Vector2(player.vel)
- vel+=(accel*input_dir*slow-drag*vel)*dt
- if vel.length()>top_speed*slow: vel=vel.limit_length(maxf(0.001,top_speed*slow))
- vel=_update_dash(dt,input_dir,vel,float(player.speed)*thrusters)
+ var moved: Vector2=Vector2.ZERO
+ # The dash owns the first `dashed` seconds of this tick (all of it mid-burst, a fraction on the
+ # tick the burst runs out); the approach model owns the rest, starting from the dash velocity, so
+ # leaving a dash is the same exponential as any other change of target - no exit snap.
+ var dashed: float=_update_dash(dt,input_dir)
+ if dashed>0.0:
+  vel=Vector2(player.dash_dir)*hull_top*GameTuning.feel("dash.peak_ratio")
+  moved=vel*dashed
+ if dt-dashed>0.000001:
+  var stepped: PackedVector2Array=_movement_step(vel,input_dir*top_speed,dt-dashed,taus,hull_top*GameTuning.feel("move.snap_frac"))
+  vel=stepped[0]
+  moved+=stepped[1]
  player.vel=vel
- var desired: Vector2=Vector2(player.pos)+vel*dt
+ var desired: Vector2=Vector2(player.pos)+moved
  # While pushing into a membrane (spec §12: "the rim arc deforms outward at
  # the contact point"), the rim is soft, not a wall - skip the sealed-wall
  # clamp/friction entirely rather than fighting the 40% speed scale with a
  # second, contradictory resistance. Bounded on its own: PUSH lasts <=0.30s
  # at <=40% top speed, so the overshoot (well under 40px for every current
  # role) stays inside the 80px dead-space margin outside the rim.
+ var touching: bool=false
  if arena.contains(desired,3.0) or warp_phase==WARP_PUSH:
   player.pos=desired
  else:
   var clamped: Vector2=arena.clamp_point(desired,3.0)
-  if clamped.distance_squared_to(desired)>0.01:
+  touching=true
+  # Rim contact (spec §3 "speed x 0.55"): the velocity component INTO the wall is removed. The
+  # tangential rest is scaled ONCE, on the first contact tick of an episode, which is also the
+  # only tick that signals and flashes; while the ship keeps sliding it is capped at the same
+  # fraction of top speed. A per-tick multiplier (x0.9 before M7) made the slide speed depend on
+  # the tick rate and ground a 2 s slide down to 0.21 of cruise. Every clamp is contact: the old
+  # 0.1 px dead band let a slide at 1/144 s skip the cap on ticks whose overshoot was smaller.
+  var normal: Vector2=arena.normal_at(clamped)
+  var into_wall: float=vel.dot(normal)
+  if into_wall>0.0: vel-=normal*into_wall
+  var rim_scale: float=GameTuning.feel("rim.speed_scale")
+  if not bool(player.get("rim_contact",false)):
    boundary_contact.emit(clamped)
    _add_effect("wall",clamped,PLAYER_COLOR,0.2,18.0)
-   # Rim contact (spec §13/plan item 1): remove the velocity component INTO
-   # the wall and scale the tangential component, instead of only clamping
-   # position - so a fast rim graze keeps most of its speed along the wall.
-   var normal: Vector2=arena.normal_at(clamped)
-   var into_wall: float=vel.dot(normal)
-   if into_wall>0.0:
-    vel=(vel-normal*into_wall)*0.9
-    player.vel=vel
+   vel*=rim_scale
+  else: vel=vel.limit_length(rim_scale*top_speed)
+  player.vel=vel
   player.pos=clamped
+ player.rim_contact=touching or (bool(player.get("rim_contact",false)) and not arena.contains(player.pos,3.0+RIM_RELEASE_PX))
  if command.aim.length_squared()>0.01:
   var speed_turn: float=float(player.turn_rate)*thrusters
   player.aim=Vector2.from_angle(rotate_toward(Vector2(player.aim).angle(),command.aim.angle(),speed_turn*dt))
@@ -854,34 +886,69 @@ func _update_player(dt: float) -> void:
  for index: int in range(mini(command.secondaries.size(),player.secondaries.size())):
   if command.secondaries[index]: _use_secondary(player,index)
  _passives(player,dt)
-## Dash (spec §13/§26): 0.18 s burst at 3x top speed along the input
-## direction (falling back to aim, then facing, if there is no input),
-## exits at top speed (so it blends back into the accel/drag model rather
-## than snapping), 1.2 s cooldown measured from the START of the dash.
+## Spec §2: the player's top speed in px/s - `player_top_speed` scaled by the hull's authored speed
+## (220 is the base hull), Thrusters included; slow and the warp push apply on top.
+func player_top_speed() -> float:
+ return GameTuning.hull_top_speed(float(player.get("speed",GameTuning.AUTHORING_BASE_SPEED)))*(1.2 if _has_ability(player,"thrusters") else 1.0)
+## Spec §3 movement, integrated EXACTLY over `dt`, so every timing is the same at any tick rate.
+## With input, the velocity component along the input approaches the target speed with the `accel`
+## time constant while the component across it decays with the slower `drift` one - that lag is
+## the drift that carries the ship wide in a turn. Without input the whole velocity decays with
+## `coast` and snaps to rest below `snap_speed`. Position is the closed-form integral of the same
+## exponentials, not velocity x dt. Returns [velocity, displacement].
+func _movement_step(vel: Vector2, target: Vector2, dt: float, taus: Dictionary, snap_speed: float) -> PackedVector2Array:
+ if target.length_squared()<0.000001:
+  var coast: float=float(taus.coast)
+  var kept: float=1.0-dt/coast if movement_euler else exp(-dt/coast)
+  var moved: Vector2=vel*dt if movement_euler else vel*coast*(1.0-kept)
+  vel*=kept
+  if vel.length()<snap_speed: vel=Vector2.ZERO
+  return PackedVector2Array([vel,moved])
+ var along: Vector2=target.normalized()
+ var goal: float=target.length()
+ var parallel: float=vel.dot(along)
+ var across: Vector2=vel-along*parallel
+ var accel: float=float(taus.accel)
+ var drift: float=float(taus.drift)
+ if movement_euler:
+  var euler_moved: Vector2=vel*dt
+  return PackedVector2Array([along*(parallel+(goal-parallel)*dt/accel)+across*(1.0-dt/drift),euler_moved])
+ var keep_parallel: float=exp(-dt/accel)
+ var keep_across: float=exp(-dt/drift)
+ var displacement: Vector2=along*(goal*dt+(parallel-goal)*accel*(1.0-keep_parallel))+across*drift*(1.0-keep_across)
+ return PackedVector2Array([along*(goal+(parallel-goal)*keep_parallel)+across*keep_across,displacement])
+## Dash (spec §4): a `dash.burst_s` burst at `dash.peak_ratio` x top speed along the input direction
+## (falling back to aim, then facing, if there is no input), `dash.cooldown_s` cooldown measured
+## from the START of the dash. Both are integer sim_q countdowns. Returns the SECONDS of this tick
+## spent in the burst (dt mid-burst, a fraction on the tick it runs out, 0 otherwise); the caller
+## integrates the rest of the tick with the approach model, so the exit decays instead of snapping.
 ## Deliberately touches nothing about `player_invulnerable` - "Not
-## invulnerable" (spec §13) is a property of what this function does NOT do,
+## invulnerable" (spec §4) is a property of what this function does NOT do,
 ## not a flag it clears; `tests/handling_test.gd` proves a bullet on the
 ## core mid-dash still damages, with a forced-invulnerable negative control.
-func _update_dash(dt: float, input_dir: Vector2, vel: Vector2, top_speed: float) -> Vector2:
- player.dash_cooldown=maxf(0.0,float(player.get("dash_cooldown",0.0))-dt)
- var timer: float=float(player.get("dash_timer",0.0))
- if timer>0.0:
-  timer=maxf(0.0,timer-dt)
-  player.dash_timer=timer
-  var dash_dir: Vector2=player.get("dash_dir",Vector2.DOWN)
-  return dash_dir*top_speed if timer<=0.0 else dash_dir*top_speed*DASH_SPEED_MULT
- if bool(command.dash) and float(player.get("dash_cooldown",0.0))<=0.0:
+func _update_dash(dt: float, input_dir: Vector2) -> float:
+ var step_q: int=maxi(1,roundi(dt*SIM_Q_PER_SECOND))
+ player.dash_cooldown_q=maxi(0,int(player.get("dash_cooldown_q",0))-step_q)
+ var burst: int=int(player.get("dash_burst_q",0))
+ if burst<=0 and bool(command.dash) and int(player.dash_cooldown_q)<=0:
   var dir: Vector2=input_dir
   if dir.length_squared()<=0.0001: dir=command.aim
   if dir.length_squared()<=0.0001: dir=Vector2(player.aim)
-  dir=dir.normalized()
-  player.dash_dir=dir
-  player.dash_timer=DASH_BURST_SECONDS
-  player.dash_cooldown=DASH_COOLDOWN_SECONDS
+  player.dash_dir=dir.normalized()
+  burst=maxi(1,roundi(GameTuning.feel("dash.burst_s")*SIM_Q_PER_SECOND))
+  player.dash_cooldown_q=roundi(GameTuning.feel("dash.cooldown_s")*SIM_Q_PER_SECOND)
   _add_effect("dash_ring",player.pos,PLAYER_COLOR,0.2,20.0)
   _trail_kink(0)
-  return dir*top_speed*DASH_SPEED_MULT
- return vel
+  feel_event.emit(&"dash",player.pos,1.0,0)
+ if burst<=0: return 0.0
+ var used: int=mini(burst,step_q)
+ player.dash_burst_q=burst-used
+ return dt*float(used)/float(step_q)
+func dashing() -> bool: return int(player.get("dash_burst_q",0))>0
+## 0 right after a dash, 1 when the next one is ready (the HUD's dash icon).
+func dash_ready_fraction() -> float:
+ var cooldown: int=roundi(GameTuning.feel("dash.cooldown_s")*SIM_Q_PER_SECOND)
+ return 1.0-clampf(float(player.get("dash_cooldown_q",0))/float(maxi(1,cooldown)),0.0,1.0)
 ## --- The warp (spec §12) ------------------------------------------------
 func warp_locked() -> bool: return warp_phase!=WARP_NONE and warp_phase!=WARP_PUSH
 ## Called once per tick from `_update_player`, before the locked check, so
@@ -893,7 +960,6 @@ func _update_warp(dt: float) -> void:
   return
  _warp_timer+=dt
  _warp_locked_accum+=dt
- var direction: Vector2=Vector2(warp_direction).normalized()
  match warp_phase:
   WARP_ZOOM_IN:
    warp_progress=clampf(_warp_timer/WARP_ZOOM_IN_SECONDS,0.0,1.0)
@@ -902,7 +968,7 @@ func _update_warp(dt: float) -> void:
     _warp_timer=0.0
   WARP_TRAVEL:
    warp_progress=clampf(_warp_timer/WARP_TRAVEL_SECONDS,0.0,1.0)
-   player.pos=Vector2(player.pos)+direction*warp_commit_speed*dt
+   player.pos=Vector2(player.pos)+warp_heading*warp_commit_speed*dt
    if _warp_timer>=WARP_TRAVEL_SECONDS:
     if not _warp_swap_done:
      _warp_spring_back()
@@ -912,13 +978,13 @@ func _update_warp(dt: float) -> void:
     _warp_arrive()
   WARP_ARRIVAL:
    warp_progress=clampf(_warp_timer/WARP_ARRIVAL_SECONDS,0.0,1.0)
-   player.pos=Vector2(player.pos)+direction*warp_commit_speed*dt
+   player.pos=Vector2(player.pos)+warp_heading*warp_commit_speed*dt
    if _warp_timer>=WARP_ARRIVAL_SECONDS:
     warp_phase=WARP_ZOOM_OUT
     _warp_timer=0.0
   WARP_ZOOM_OUT:
    warp_progress=clampf(_warp_timer/WARP_ZOOM_OUT_SECONDS,0.0,1.0)
-   player.pos=Vector2(player.pos)+direction*warp_commit_speed*dt
+   player.pos=Vector2(player.pos)+warp_heading*warp_commit_speed*dt
    if _warp_timer>=WARP_ZOOM_OUT_SECONDS: _warp_finish()
   WARP_FADE:
    warp_progress=clampf(_warp_timer/WARP_REDUCED_SECONDS,0.0,1.0)
@@ -928,27 +994,34 @@ func _update_warp(dt: float) -> void:
      return
     _warp_arrive()
     _warp_finish()
-## Places the player just inside the OPPOSITE membrane at entry speed (spec
-## §12: "moving at entry speed, so momentum carries through") - the same
-## `entry_position` the pre-P6 instant cut used, just timed to the end of the
-## travel phase instead of the whole transition.
+## Places the player just inside the far rim at entry speed (spec §12:
+## "moving at entry speed, so momentum carries through"), timed to the end of
+## the travel phase. Modernization M3: the arrival mirrors the exit - the
+## committed rim point reflected (`arena.entry_point`) and the committed
+## velocity kept unless it points more than 60 deg off the travel bearing
+## (`arena.entry_velocity`). Speed stays the committed speed.
 func _warp_arrive() -> void:
  warp_entry_speed=warp_commit_speed
- player.pos=arena.entry_position(warp_direction)
- player.vel=Vector2(warp_direction).normalized()*warp_commit_speed
+ player.pos=arena.entry_point(warp_direction,warp_exit_point)
+ var heading: Vector2=arena.entry_velocity(warp_direction,warp_exit_velocity).normalized()
+ warp_heading=heading if heading.length_squared()>0.5 else Vector2(warp_direction).normalized()
+ player.vel=warp_heading*warp_commit_speed
  warp_arrived.emit()
-## Push accumulation while the player presses into an open membrane arc
-## (spec §12 Push: 0.30 s, resists, ~40% speed, releasing before the
-## threshold springs back). Reads the CURRENT position/input directly so it
-## has no ordering dependency on the accel/drag movement computed afterward.
+## Push accumulation while the player presses into the rim (spec §12 Push:
+## 0.30 s, resists, ~40% speed, releasing before the threshold springs back).
+## Modernization M3: the press may slide along the rim - depth keeps filling
+## while ANY arc engages, and `warp_direction` tracks the arc under the contact
+## point (the predicted destination), so the destination is the arc at the
+## commit tick. Reads the CURRENT position/input directly so it has no
+## ordering dependency on the accel/drag movement computed afterward.
 func _update_warp_push(dt: float) -> void:
  var dir: Vector2i=_warp_engage_direction()
  if warp_phase==WARP_NONE:
   if dir==Vector2i.ZERO: return
   warp_phase=WARP_PUSH
-  warp_direction=dir
   _warp_push_depth=0.0
- if dir==warp_direction and dir!=Vector2i.ZERO:
+ if dir!=Vector2i.ZERO:
+  warp_direction=dir
   _warp_push_depth=minf(WARP_PUSH_SECONDS,_warp_push_depth+dt)
  else:
   _warp_push_depth=maxf(0.0,_warp_push_depth-dt*WARP_PUSH_RELEASE_RATE)
@@ -963,12 +1036,10 @@ func _warp_engage_direction() -> Vector2i:
  var pos: Vector2=Vector2(player.pos)
  var offset: Vector2=pos-arena.center
  var dist: float=offset.length()
- if dist<arena.radius-60.0: return Vector2i.ZERO
- var dir: Vector2i=arena.membrane_at(pos)
- if dir==Vector2i.ZERO: return Vector2i.ZERO
- var outward: Vector2=offset.normalized() if dist>0.001 else Vector2(dir)
- if command.movement.limit_length(1.0).dot(outward)<=0.2: return Vector2i.ZERO
- return dir
+ if dist<arena.radius-60.0 or dist<=0.001: return Vector2i.ZERO
+ var outward: Vector2=offset/dist
+ if command.movement.limit_length(1.0).dot(outward)<warp_engage_dot: return Vector2i.ZERO
+ return arena.arc_of(offset.angle())
 ## Commit (spec §12): control locks, player becomes invulnerable for exactly
 ## the locked window's length (so the EXISTING `player_invulnerable` decay in
 ## `_physics_process` is what ends the lock - no second timer), and every
@@ -981,6 +1052,9 @@ func _warp_commit() -> void:
  _warp_locked_accum=0.0
  _warp_swap_done=false
  warp_commit_speed=Vector2(player.vel).length()
+ warp_exit_point=Vector2(player.pos)
+ warp_exit_velocity=Vector2(player.vel)
+ warp_heading=Vector2(warp_direction).normalized()
  var locked_total: float=WARP_REDUCED_SECONDS if reduced else (WARP_ZOOM_IN_SECONDS+WARP_TRAVEL_SECONDS+WARP_ARRIVAL_SECONDS+WARP_ZOOM_OUT_SECONDS)
  _grant_invulnerability(locked_total,&"warp")
  _discard_enemy_projectiles()
@@ -1010,6 +1084,7 @@ func _warp_spring_back() -> void:
  _warp_swap_done=false
  player_invulnerable=0.0
  warp_commit_speed=0.0
+ warp_heading=Vector2.ZERO
 func _warp_finish() -> void:
  warp_locked_measured=_warp_locked_accum
  warp_phase=WARP_NONE
@@ -1019,6 +1094,7 @@ func _warp_finish() -> void:
  _warp_timer=0.0
  _warp_swap_done=false
  warp_commit_speed=0.0
+ warp_heading=Vector2.ZERO
 ## Trails (spec §13/§19/§23): the player always leaves one, longer at higher
 ## speed (see trail_pool.gd's sampling rule); enemies leave shorter ones and
 ## compete for the 40-trail budget by priority (nearest to the player
@@ -1027,17 +1103,26 @@ func _update_trails(dt: float) -> void:
  if not visuals_enabled: return
  var ribbon: bool=warp_phase==WARP_TRAVEL or warp_phase==WARP_ZOOM_IN
  var player_speed: float=Vector2(player.vel).length()
- var player_width: float=2.6*clampf(player_speed/float(maxf(1.0,player.speed)),0.35,1.0)
+ var player_top: float=maxf(1.0,player_top_speed())
+ var player_width: float=2.6*clampf(player_speed/player_top,0.35,1.0)
  if ribbon: player_width*=1.8
- trail_pool.request(0,player.pos,1.0e9,player_width,PLAYER_COLOR,TrailPool.PLAYER_MAX_POINTS*(3 if ribbon else 1))
+ trail_pool.request(0,player.pos,1.0e9,player_width,PLAYER_COLOR,TrailPool.PLAYER_MAX_POINTS*(3 if ribbon else 1),INF if ribbon else trail_length(player_speed,player_top))
+ var enemy_scale: float=GameTuning.feel("trail.enemy_scale")
  for actor: Dictionary in enemies:
   if bool(actor.dead): continue
   var speed: float=Vector2(actor.vel).length()
   if speed<1.0: continue
   var width: float=1.6*clampf(speed/float(maxf(1.0,actor.speed)),0.3,1.0)
   var priority: float=(500.0 if bool(actor.get("elite",false)) or bool(actor.get("rival",false)) else 100.0)-Vector2(actor.pos).distance_to(player.pos)*0.05
-  trail_pool.request(int(actor.id),actor.pos,priority,width,_actor_color(actor),TrailPool.ENEMY_MAX_POINTS)
+  trail_pool.request(int(actor.id),actor.pos,priority,width,_actor_color(actor),TrailPool.ENEMY_MAX_POINTS,enemy_scale*trail_length(minf(speed,float(actor.speed)),float(actor.speed)))
  trail_pool.update(dt)
+## Spec §5: a trail's arc length for a ship moving at `speed` whose top speed is `top`. 0 at rest,
+## `trail.len_top` at top speed, rising on to `trail.len_dash` at the dash's peak ratio.
+func trail_length(speed: float, top: float) -> float:
+ var ratio: float=speed/maxf(1.0,top)
+ var len_top: float=GameTuning.feel("trail.len_top")
+ if ratio<=1.0: return len_top*ratio
+ return lerpf(len_top,GameTuning.feel("trail.len_dash"),clampf((ratio-1.0)/maxf(0.001,GameTuning.feel("dash.peak_ratio")-1.0),0.0,1.0))
 func _trail_kink(owner_id: int) -> void: trail_pool.kink(owner_id)
 func _tick_cooldowns(actor: Dictionary, dt: float) -> void:
  actor.fire_cd=maxf(0.0,float(actor.fire_cd)-dt)
@@ -1448,6 +1533,9 @@ func _damage_part(actor: Dictionary, index: int, amount: float, source: Dictiona
   for i: int in range(telegraphs.size()-1,-1,-1):
    if int(telegraphs[i].owner)==int(actor.id) and str(telegraphs[i].mount)==str(rig.ids[index]): telegraphs.remove_at(i)
   _add_effect("gun_destroyed",_part_position(actor,index),_actor_color(actor),0.4,float(rig.radius[index]))
+  var part_kind: StringName=&"boss_phase" if bool(actor.rival) and (index in actor.get("sub_core_indices",PackedInt32Array()) or index in actor.get("shield_generator_indices",PackedInt32Array())) else (&"elite_limb" if bool(actor.elite) else &"")
+  if part_kind!=&"": feel_event.emit(part_kind,_part_position(actor,index),amount,int(actor.id))
+  if part_kind!=&"": request_hitstop(GameTuning.hitstop_ticks(part_kind),part_kind)
   _destroy_part(actor,index,source)
   # A boss whose core already sat at 0 hp waiting on its last sub_core (see
   # `_damage_actor`) dies the instant that sub_core does, not on some later
@@ -1633,6 +1721,7 @@ func _update_pace(dt: float) -> void:
  # once it expires the count drains 1 per 0.25s instead of resetting hard.
  if combo_timer>0.0:
   combo_timer=maxf(0.0,combo_timer-dt)
+  if combo_timer<=0.0 and combo_count>0: feel_event.emit(&"combo_break",player.pos,float(combo_count),0)
  elif combo_count>0:
   _combo_drain_accum+=dt
   while _combo_drain_accum>=GameTuning.COMBO_DRAIN_INTERVAL_SECONDS and combo_count>0:
@@ -1967,6 +2056,8 @@ func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_fact
   if player_invulnerable>0.0: return
   light_total=maxf(0.0,light_total-amount/maxf(0.1,float(actor.hp_buffer)))
   actor.hp=light_total
+  feel_event.emit(&"player_hit",actor.pos,amount,0)
+  request_hitstop(GameTuning.hitstop_ticks(&"player_hit"),&"player_hit")
   if light_total<=0.0:
    actor.dead=true
    active=false
@@ -2018,6 +2109,7 @@ func _check_regression() -> void:
   set_player_hull(id,true)
   _grant_invulnerability(GameTuning.RESHAPE_SECONDS+GameTuning.REGRESSION_GRACE,&"regression")
   player_regressed.emit(previous,surviving)
+  feel_event.emit(&"regression",player.pos,float(previous-surviving),0)
 func _boss_shield_active(actor: Dictionary) -> bool:
  var indices: PackedInt32Array=actor.get("shield_generator_indices",PackedInt32Array())
  if indices.is_empty(): return false
@@ -2064,6 +2156,7 @@ func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -99
   decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS
   combo_count=mini(GameTuning.COMBO_MAX_COUNT,combo_count+1)
   combo_timer=GameTuning.COMBO_WINDOW_SECONDS
+  feel_event.emit(&"combo_step",actor.pos,float(combo_count),int(actor.id))
   run_kills+=1
   if not bool(actor.rival): _dead_enemy_records.append({"hull_id":str(actor.get("hull_id","")),"element":str(actor.element),"tier":int(actor.tier),"elite":bool(actor.elite)})
  var pool: float=float(actor.reward_remaining)+float(actor.get("reward_unpaid_limb",0.0))
@@ -2073,6 +2166,9 @@ func _kill_reward(actor: Dictionary, _source_id: int, _source_faction: int = -99
  for size: int in _pickup_sizes(reward):
   _drop_pickup(Vector2(actor.pos)+Vector2.from_angle(_rng.randf()*TAU)*_rng.randf_range(3,30),str(actor.element),size,true)
  _add_effect("death",actor.pos,_actor_color(actor),0.4,35.0)
+ var kill_kind: StringName=&"boss_kill" if bool(actor.rival) else (&"elite_kill" if bool(actor.elite) else &"enemy_kill")
+ feel_event.emit(kill_kind,actor.pos,float(actor.tier),int(actor.id))
+ request_hitstop(GameTuning.hitstop_ticks(kill_kind),kill_kind)
  if bool(actor.rival):
   boss_defeated.emit(str(actor.element))
 ## `size` is one of GameTuning.PICKUP_SIZES (1/5/20). `enemy_source` marks
@@ -2110,6 +2206,9 @@ func _spend_energy(requested: int) -> int:
 func _update_pickups(dt: float) -> void:
  # Eligibility/passives are invariant across pickups for this tick.
  _pickup_collectors.clear()
+ # Light flies to the player faster than the player can flee (M7); enemy collectors keep the floor.
+ var pull_min: float=GameTuning.feel("pickup.pull_min")
+ var player_pull: float=maxf(pull_min,GameTuning.feel("pickup.pull_ratio")*player_top_speed())
  if light_total<GameTuning.capacity(player_tier,max_player_tier) and active:
   player.collect_radius_squared=pow(_magnet_radius(player),2)
   _pickup_collectors.append(player)
@@ -2131,7 +2230,7 @@ func _update_pickups(dt: float) -> void:
   if collector.is_empty():
    pickup.pos=arena.clamp_point(position+Vector2(pickup.vel)*dt,5.0)
    continue
-  position=position.move_toward(collector.pos,dt*330.0)
+  position=position.move_toward(collector.pos,dt*(player_pull if int(collector.id)==0 else pull_min))
   pickup.pos=position
   if position.distance_squared_to(collector.pos)>=196.0: continue
   var consumed: float
@@ -2148,6 +2247,7 @@ func _update_pickups(dt: float) -> void:
   # the pickup into the core as it's consumed" - only on the tick it is
   # actually consumed (consumed>0), not every tick it merely sits in range.
   if consumed>0.0: fx.emit("absorb",position,COLORS[maxi(0,ELEMENTS.find(str(pickup.element)))],_fx_rng,{"to":collector.pos})
+  if consumed>0.0 and int(collector.id)==0: feel_event.emit(&"pickup_collect",position,consumed,0)
   if float(pickup.value)<=0.000001: pickups.remove_at(i)
 func _magnet_radius(actor: Dictionary) -> float:
  return float(actor.magnet_radius)*(1.5 if _has_ability(actor,"magnet") else 1.0)
@@ -2454,7 +2554,7 @@ func _infect(target: Dictionary, source: Dictionary, damage: float, duration: fl
    nearby.infection_faction=int(source.faction)
 
 func _configure_arena_exits() -> void:
- arena.set_exits(sector.get("exits",[Vector2i.LEFT,Vector2i.RIGHT,Vector2i.UP,Vector2i.DOWN]))
+ arena.set_exits(sector.get("exits",CampaignState.NEIGHBOURS))
 
 func _muzzle(actor: Dictionary, mount: String) -> Vector2:
  return _resolve_muzzle(actor,mount).position

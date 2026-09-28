@@ -157,7 +157,7 @@ static func restore_encounter(world: Node, data: Dictionary) -> void:
 static func snapshot(world: Node) -> Dictionary:
  world._flush_debris() # light must not ride along as an object reference; pay it out first (spec item 3)
  var result: Dictionary=encounter_snapshot(world)
- result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"tick":world.tick,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_commit_speed":world.warp_commit_speed,"warp_reduced":world.warp_reduced})
+ result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"tick":world.tick,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_commit_speed":world.warp_commit_speed,"warp_reduced":world.warp_reduced,"warp_exit_point":[world.warp_exit_point.x,world.warp_exit_point.y],"warp_exit_velocity":[world.warp_exit_velocity.x,world.warp_exit_velocity.y],"warp_heading":[world.warp_heading.x,world.warp_heading.y]})
  return result
 static func restore(world: Node, data: Dictionary) -> void:
  # P4a bumped the schema to 3 (per-circle allow-listed state). An older
@@ -225,6 +225,13 @@ static func restore(world: Node, data: Dictionary) -> void:
  world.warp_direction=Vector2i(int(wd[0]),int(wd[1]))
  world.warp_commit_speed=float(data.get("warp_commit_speed",0.0))
  world.warp_reduced=bool(data.get("warp_reduced",false))
+ # Modernization M3: the committed rim point and velocity the arrival reflects, and the locked
+ # phases' heading. A save from before M3 has none of them; it falls back to the zero-offset
+ # arrival along the travel bearing, exactly what that save's warp would have done.
+ var bearing: Vector2=Vector2(world.warp_direction).normalized()
+ world.warp_exit_point=_vector2_field(data,"warp_exit_point",world.arena.center+bearing*world.arena.radius)
+ world.warp_exit_velocity=_vector2_field(data,"warp_exit_velocity",bearing*world.warp_commit_speed)
+ world.warp_heading=_vector2_field(data,"warp_heading",bearing)
  world._warp_timer=0.0
  world._warp_locked_accum=0.0
  world._warp_push_depth=0.0
@@ -240,6 +247,10 @@ static func restore(world: Node, data: Dictionary) -> void:
  # taken past commit, pushing the player out along the exit direction into
  # a phantom warp instead of ever reaching `_warp_arrive()`.
  world._warp_swap_done=not (world.warp_phase==world.WARP_NONE or world.warp_phase==world.WARP_PUSH)
+static func _vector2_field(data: Dictionary, key: String, fallback: Vector2) -> Vector2:
+ var value: Variant=data.get(key)
+ if value is Array and value.size()==2: return Vector2(float(value[0]),float(value[1]))
+ return fallback
 static func _restore_chain(world: Node, actor: Dictionary, encoded: Dictionary) -> void:
  var rig: ShipMotion.ShipRig = actor.get("rig")
  var pose: ShipMotion.ShipPose = actor.get("pose")

@@ -35,7 +35,7 @@ func _bfs_path(campaign: CampaignState, target: Vector2i) -> Array[Vector2i]:
 	while head < queue.size():
 		var current: Vector2i = queue[head]
 		head += 1
-		for dir: Vector2i in campaign.exits_of(current):
+		for dir: Vector2i in campaign.neighbours_of(current):
 			var next: Vector2i = current + dir
 			if not parent.has(next):
 				parent[next] = current
@@ -153,7 +153,7 @@ func _measure_first_evolution() -> Dictionary:
 ## through fresh nodes instead. Both start with identical stats and seeds.
 
 func _camp_coord(campaign: CampaignState) -> Vector2i:
-	var exits: Array[Vector2i] = campaign.exits_of(Vector2i.ZERO)
+	var exits: Array[Vector2i] = campaign.neighbours_of(Vector2i.ZERO)
 	return Vector2i.ZERO+exits[0] if not exits.is_empty() else Vector2i(1,0)
 
 ## Both camper and pusher must be allowed to grow (spec §6/§8) or a pusher
@@ -229,7 +229,7 @@ func _run_pusher(seed_value: int, duration: float) -> Dictionary:
 			var boss: Vector2i = campaign.boss_coord()
 			var best: Vector2i = coord
 			var best_ring: int = -1
-			for dir: Vector2i in campaign.exits_of(coord):
+			for dir: Vector2i in campaign.neighbours_of(coord):
 				var candidate: Vector2i = coord+dir
 				if candidate == boss: continue # keep pushing through regular content, not the (no-respawn) boss
 				var key: String = CampaignState.coord_key(candidate)
@@ -310,7 +310,7 @@ func _measure_death_to_flying() -> Dictionary:
 		app._new_game(false)
 		app.combat.set_physics_process(false)
 		for k: int in range(explored):
-			var dirs: Array[Vector2i] = app.campaign.exits_of(app.campaign.current_sector)
+			var dirs: Array[Vector2i] = app.campaign.neighbours_of(app.campaign.current_sector)
 			if dirs.is_empty(): break
 			app._enter_sector(app.campaign.current_sector+dirs[0],app.combat.arena.entry_position(dirs[0]),false)
 		app.combat.player_invulnerable = 0.0
@@ -397,7 +397,7 @@ func _run_chase(seed_value: int, prefer: bool, cap_seconds: float) -> Dictionary
 ## exit-count histogram, most nodes have >1 exit but a long walk can still
 ## visit every IMMEDIATE neighbour before the frontier moves).
 func _indifferent_step(campaign: CampaignState, coord: Vector2i, visited: Dictionary) -> Vector2i:
-	for dir: Vector2i in campaign.exits_of(coord):
+	for dir: Vector2i in campaign.neighbours_of(coord):
 		var candidate: Vector2i = coord+dir
 		if not visited.has(CampaignState.coord_key(candidate)): return candidate
 	return _bfs_first_hop(campaign,coord,func(c: Vector2i) -> bool: return not visited.has(CampaignState.coord_key(c)))
@@ -417,7 +417,7 @@ func _bfs_first_hop(campaign: CampaignState, coord: Vector2i, predicate: Callabl
 		if current != coord and predicate.call(current):
 			found = current
 			break
-		for dir: Vector2i in campaign.exits_of(current):
+		for dir: Vector2i in campaign.neighbours_of(current):
 			var next: Vector2i = current+dir
 			var key: String = CampaignState.coord_key(next)
 			if not parent.has(key):
@@ -445,7 +445,7 @@ func _chase_step(campaign: CampaignState, coord: Vector2i, visited: Dictionary, 
 			found = current
 			break
 		if CampaignState.ring(current)-CampaignState.ring(coord) >= depth: continue
-		for dir: Vector2i in campaign.exits_of(current):
+		for dir: Vector2i in campaign.neighbours_of(current):
 			var next: Vector2i = current+dir
 			var key: String = CampaignState.coord_key(next)
 			if not parent.has(key):

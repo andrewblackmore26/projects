@@ -56,15 +56,15 @@ static func build(campaign: CampaignState, debug_hide_boss: bool = false) -> Min
 		model.bearing_distance = -1
 	else:
 		var delta: Vector2i = model.boss_coord - model.current_coord
-		# Travel is four-connected, so distance is reported in Manhattan
-		# steps (spec §11: "a node count in Manhattan steps"); the arrow
-		# itself is quantized to eight directions for readability.
-		model.bearing_distance = absi(delta.x) + absi(delta.y)
+		# Travel is eight-connected (modernization M3's open lattice), so the
+		# node count is Chebyshev steps; the arrow itself is quantized to
+		# eight directions for readability.
+		model.bearing_distance = CampaignState.ring(delta)
 		model.bearing_direction = direction_of(delta)
 	return model
 
 ## Screen convention: north is -y (matches Vector2i.UP used throughout
-## CampaignState.DIRECTIONS/exits_of).
+## CampaignState.NEIGHBOURS/neighbours_of).
 static func direction_of(delta: Vector2i) -> String:
 	if delta == Vector2i.ZERO: return "HERE"
 	var angle: float = atan2(float(-delta.y), float(delta.x))

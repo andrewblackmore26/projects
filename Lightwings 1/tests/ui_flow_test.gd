@@ -81,7 +81,11 @@ func _run() -> void:
 	app.combat.command.movement = Vector2.ZERO
 	check(app.campaign.current_sector == Vector2i(2,0),"Uncleared encounter never locks exit (push-and-commit warp completes the transition)")
 	app.compositor._update_camera()
-	check(app.compositor.screen_to_world(Vector2(640,400)).is_equal_approx(app.combat.player_position),"Mouse aim and camera share world transform")
+	# M10: the camera trails the ship (camera_rig.gd), so the ship is no longer pinned to (640,400);
+	# what must hold is that mouse aim inverts the camera's own (shake-free) transform, and that the
+	# ship stays inside the 18% total clamp of the screen centre.
+	var ship_on_screen: Vector2 = app.compositor.world_to_screen(app.combat.player_position)
+	check(app.compositor.screen_to_world(ship_on_screen).is_equal_approx(app.combat.player_position) and ship_on_screen.distance_to(Vector2(640,400)) <= 0.18*640.0+0.01,"Mouse aim and camera share world transform")
 	check(app.compositor.background_viewport.canvas_transform.origin == app.compositor.foreground.position,"HDR and foreground camera transforms match")
 	var snapshot: Dictionary = app.combat.snapshot()
 	app.combat.restore(snapshot)

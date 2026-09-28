@@ -1,13 +1,14 @@
 extends SceneTree
-## P5a: the v0.3 world model (spec §7, §8, §11). Four deliberate mutants
-## (subclasses of CampaignState, each overriding exactly one hash seam) prove
-## every instrument below can actually fail.
+## P5a: the v0.3 world model (spec §7, §8, §11), restated for modernization
+## M3's open 8-neighbour lattice. Four deliberate mutants (subclasses of
+## CampaignState, each overriding exactly one seam) prove every instrument
+## below can actually fail.
 ##
-## Performance note: `exits_of`/`archetype_of`/`element_of` are pure but not
-## cheap (several hash() calls each). `_scan_level` below calls each exactly
-## ONCE per coordinate and caches the result, then every metric is derived
-## from that one cached pass - the first version of this test called
-## `exits_of` from five separate places per coordinate and timed out the
+## Performance note: `archetype_of`/`element_of` are pure but not cheap
+## (several hash() calls each). `_scan_level` below calls each exactly ONCE per
+## coordinate and caches the result, then every metric is derived from that
+## one cached pass - the first version of this test called the (old maze's)
+## exit function from five separate places per coordinate and timed out the
 ## suite's 900s budget on the mutant re-runs; measure the cost of your own
 ## instrument, not just the thing it measures.
 const Harness = preload("res://tests/support/harness.gd")
@@ -30,19 +31,25 @@ class SilentProbe:
 
 ## --- Deliberate mutants (see the P5a task brief) -------------------------
 
-class NoParentMutant extends CampaignState:
-	# Removes the structural parent term: every non-origin cell "parents"
-	# onto the origin regardless of adjacency, so most cells lose their
-	# guaranteed connection. Connectivity should fail.
-	func _parent_of(_coord: Vector2i) -> Vector2i:
-		return Vector2i.ZERO
+class NoDiagonalsMutant extends CampaignState:
+	# Drops the diagonals (the old 4-way lattice): the 3/5/8 neighbour census
+	# and the 45-degree interior arcs should fail.
+	func neighbour_offsets() -> Array[Vector2i]:
+		return [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]
 
-class OrderedPairMutant extends CampaignState:
-	# Hashes the ORDERED pair instead of a canonical/sorted one, so A->B and
-	# B->A can disagree. Exit symmetry should fail.
-	func _pair_hash01(a: Vector2i, b: Vector2i) -> float:
-		var h: int = absi(hash("%d:%d:%d:%d:%d:edge" % [level_seed(), a.x, a.y, b.x, b.y]))
-		return float(h % 100000) / 100000.0
+class UnfilteredMutant extends CampaignState:
+	# Returns every bearing without the in-bounds filter, so a rim angle on an
+	# edge or corner can lead off the level: the "every rim angle maps to an
+	# in-bounds neighbour" check should fail.
+	func neighbours_of(_coord: Vector2i) -> Array[Vector2i]:
+		return NEIGHBOURS
+
+class EmptyCornerMutant extends CampaignState:
+	# A corner that leads nowhere: `neighbour_for_angle` returns ZERO there, so
+	# the "total over every angle" check should fail.
+	func neighbours_of(coord: Vector2i) -> Array[Vector2i]:
+		if absi(coord.x) == level_radius() and absi(coord.y) == level_radius(): return []
+		return super(coord)
 
 class OffByOneBossMutant extends CampaignState:
 	# Boss biased to ring R-1: the perimeter/corner/axis check should fail.
@@ -75,7 +82,7 @@ static func _scan_level(campaign: CampaignState) -> Dictionary:
 	var elements: Dictionary = {}
 	var tiers: Dictionary = {}
 	for coord: Vector2i in coords:
-		exits[coord] = campaign.exits_of(coord)
+		exits[coord] = campaign.neighbours_of(coord)
 		archetypes[coord] = campaign.archetype_of(coord)
 		elements[coord] = campaign.element_of(coord)
 		tiers[coord] = campaign.tier_of(coord)
@@ -97,18 +104,19 @@ static func _fingerprint(campaign: CampaignState) -> String:
 	var r: int = campaign.level_radius()
 	for coord: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(0, 1), Vector2i(r, 0), campaign.boss_coord()]:
 		if not campaign.in_bounds(coord): continue
-		pieces.append("%s:%s:%s:%s" % [Campaign.coord_key(coord), campaign.archetype_of(coord), campaign.element_of(coord), str(campaign.exits_of(coord))])
+		pieces.append("%s:%s:%s" % [Campaign.coord_key(coord), campaign.archetype_of(coord), campaign.element_of(coord)])
 	return "|".join(pieces)
 
 ## --- The full measurement pass -------------------------------------------
 
 func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_count: int, purity_sample: int) -> void:
-	var exit_counts: Dictionary = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
-	var dead_ends: int = 0
+	var exit_counts: Dictionary = {}
+	var census_failures: int = 0
 	var total_nodes: int = 0
 	var symmetry_breaks: int = 0
 	var symmetry_checked: int = 0
 	var connectivity_failures: int = 0
+	var boss_distance_failures: int = 0
 	var boss_ring_failures: int = 0
 	var boss_positions: Dictionary = {}
 	var boss_distances: Array[int] = []
@@ -141,12 +149,17 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 				if campaign.sector_at(coord) != campaign.sector_at(coord): pure_ok = false
 			if campaign.to_dict() != before: pure_ok = false
 
-			# Exits + symmetry + dead ends, from the cached map.
+			# Exits + symmetry + the neighbour census (3 at a corner, 5 on an
+			# edge, 8 inside), from the cached map.
+			var level_r: int = campaign.level_radius()
 			for coord: Vector2i in coords:
 				var here: Array = exits[coord]
-				exit_counts[here.size()] = int(exit_counts[here.size()]) + 1
-				if here.size() <= 1: dead_ends += 1
-				for dir: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN]:
+				exit_counts[here.size()] = int(exit_counts.get(here.size(), 0)) + 1
+				var on_x: bool = absi(coord.x) == level_r
+				var on_y: bool = absi(coord.y) == level_r
+				var expected_count: int = 3 if (on_x and on_y) else (5 if (on_x or on_y) else 8)
+				if here.size() != expected_count: census_failures += 1
+				for dir: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN, Vector2i(1, 1), Vector2i(1, -1)]:
 					var neighbor: Vector2i = coord + dir
 					if not exits.has(neighbor): continue
 					symmetry_checked += 1
@@ -156,7 +169,9 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 
 			for coord: Vector2i in coords:
 				if not reached.has(coord): connectivity_failures += 1
-			if reached.has(boss): boss_distances.append(int(reached[boss]))
+			if reached.has(boss):
+				boss_distances.append(int(reached[boss]))
+				if int(reached[boss]) != Campaign.ring(boss): boss_distance_failures += 1
 			else: connectivity_failures += 1
 
 			var r: int = campaign.level_radius()
@@ -194,11 +209,8 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 	h.check(connectivity_failures == 0, "%s: BFS from the origin reaches every in-bounds node and the boss (%d unreachable)" % [label, connectivity_failures])
 	h.check(boss_ring_failures == 0, "%s: the boss is always on the perimeter ring, never a corner or axis-adjacent (%d failures)" % [label, boss_ring_failures])
 	h.check(boss_positions.size() >= mini(12, seed_count), "%s: boss position varies across seeds (%d distinct positions)" % [label, boss_positions.size()])
-	var below_four: int = int(exit_counts[0]) + int(exit_counts[1]) + int(exit_counts[2]) + int(exit_counts[3])
-	var below_four_share: float = float(below_four) / float(maxi(1, total_nodes))
-	var dead_end_share: float = float(dead_ends) / float(maxi(1, total_nodes))
-	h.check(below_four_share >= 0.25, "%s: >=25%% of nodes have fewer than 4 exits (measured %.3f)" % [label, below_four_share])
-	h.check(dead_end_share >= 0.03 and dead_end_share <= 0.25, "%s: dead-end share is between 3%% and 25%% (measured %.3f)" % [label, dead_end_share])
+	h.check(total_nodes > 0 and census_failures == 0, "%s: every node has 3 neighbours at a corner, 5 on an edge, 8 inside (%d of %d wrong)" % [label, census_failures, total_nodes])
+	h.check(boss_distance_failures == 0, "%s: BFS distance to the boss is its Chebyshev ring (%d mismatches)" % [label, boss_distance_failures])
 	h.check(tier_ok, "%s: tier == 1 + ring/2, clamped to MAX_TIER, on every sampled node" % label)
 	h.check(enemy_count_rising_ok, "%s: enemy count does not fall sharply as ring rises" % label)
 	h.check(element_pool_ok, "%s: every rolled element stays inside the level's revealed prefix" % label)
@@ -207,7 +219,7 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 		var median: int = boss_distances[boss_distances.size() / 2]
 		var maximum: int = boss_distances[boss_distances.size() - 1]
 		print("%s: BFS distance to boss median=%d max=%d (n=%d)" % [label, median, maximum, boss_distances.size()])
-	print("%s: exit-count histogram %s, dead-end share %.3f, <4-exit share %.3f, total nodes %d" % [label, str(exit_counts), dead_end_share, below_four_share, total_nodes])
+	print("%s: neighbour-count histogram %s, total nodes %d" % [label, str(exit_counts), total_nodes])
 	var archetype_ok: bool = true
 	var elite_lair_monotonic: bool = true
 	for level: int in range(1, 6):
@@ -228,6 +240,72 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 	h.check(archetype_ok, "%s: archetype shares per ring band are within +/-0.05 of the table" % label)
 	h.check(elite_lair_monotonic, "%s: elite-lair share is non-decreasing with ring" % label)
 
+## --- Rim bearings (modernization M3): `nearest_bearing`, the one choke point ---
+
+const BEARING_SAMPLES: int = 3600
+
+## Bisects the angle between bearings `a` and `b` (b the next bearing clockwise) where
+## `neighbour_for_angle` stops answering `a`. Precision ~1e-15 rad after 60 halvings.
+static func _boundary(campaign: CampaignState, cell: Vector2i, a: Vector2i, b: Vector2i) -> float:
+	var lo: float = Vector2(a).angle()
+	var hi: float = lo + fposmod(Vector2(b).angle() - lo, TAU)
+	if hi <= lo: hi += TAU
+	for i: int in range(60):
+		var mid: float = (lo + hi) * 0.5
+		if campaign.neighbour_for_angle(cell, mid) == a: lo = mid
+		else: hi = mid
+	return (lo + hi) * 0.5
+
+func _run_bearing_scan(make_campaign: Callable, h: Variant, label: String) -> void:
+	var total_failures: int = 0
+	var order_failures: int = 0
+	var out_of_bounds: int = 0
+	var cells_checked: int = 0
+	var arc_errors: int = 0
+	var worst_arc_error: float = 0.0
+	var arena := CircularArena.new()
+	for level: int in range(1, 6):
+		var campaign: CampaignState = make_campaign.call()
+		campaign.level = level
+		var r: int = campaign.level_radius()
+		var interiors: Array[Vector2i] = [Vector2i.ZERO, Vector2i(1, -2), Vector2i(r - 1, r - 1), Vector2i(-(r - 1), 2)]
+		var edges: Array[Vector2i] = [Vector2i(r, 0), Vector2i(-r, 2), Vector2i(0, r), Vector2i(3, -r), Vector2i(r, r - 1)]
+		var corners: Array[Vector2i] = [Vector2i(r, r), Vector2i(-r, r), Vector2i(-r, -r), Vector2i(r, -r)]
+		for cell: Vector2i in interiors + edges + corners:
+			cells_checked += 1
+			var dirs: Array[Vector2i] = campaign.neighbours_of(cell)
+			var reversed: Array = dirs.duplicate()
+			reversed.reverse()
+			for i: int in range(BEARING_SAMPLES):
+				var angle: float = -PI + TAU * i / BEARING_SAMPLES
+				var bearing: Vector2i = campaign.neighbour_for_angle(cell, angle)
+				if bearing == Vector2i.ZERO: total_failures += 1
+				elif not campaign.in_bounds(cell + bearing): out_of_bounds += 1
+				if CampaignState.nearest_bearing(reversed, angle) != bearing or campaign.neighbour_for_angle(cell, angle) != bearing: order_failures += 1
+		# Interior arcs: 45 degrees each, measured at the bisected boundaries of the choke point
+		# itself, and the arena's arc table (what the renderers draw) must agree with them.
+		for cell: Vector2i in interiors:
+			var sorted: Array[Vector2i] = campaign.neighbours_of(cell).duplicate()
+			sorted.sort_custom(func(p: Vector2i, q: Vector2i) -> bool: return fposmod(Vector2(p).angle(), TAU) < fposmod(Vector2(q).angle(), TAU))
+			var n: int = sorted.size()
+			if n == 0:
+				arc_errors += 1
+				continue
+			arena.set_exits(sorted)
+			for i: int in range(n):
+				var start: float = _boundary(campaign, cell, sorted[(i - 1 + n) % n], sorted[i])
+				var finish: float = _boundary(campaign, cell, sorted[i], sorted[(i + 1) % n])
+				var width_deg: float = rad_to_deg(fposmod(finish - start, TAU))
+				var arc: Dictionary = arena.arc_for(sorted[i])
+				var table_deg: float = rad_to_deg(float(arc.get("to", 0.0)) - float(arc.get("from", 0.0)))
+				var error: float = maxf(absf(width_deg - 45.0), absf(table_deg - 45.0))
+				worst_arc_error = maxf(worst_arc_error, error)
+				if error > 1e-6: arc_errors += 1
+	h.check(total_failures == 0, "%s: nearest_bearing is total - %d angles x %d cells (interior, edge, corner) each map to a bearing (%d misses)" % [label, BEARING_SAMPLES, cells_checked, total_failures])
+	h.check(order_failures == 0, "%s: nearest_bearing is deterministic and independent of input order (%d disagreements)" % [label, order_failures])
+	h.check(out_of_bounds == 0, "%s: on edges and corners every rim angle maps to an in-bounds neighbour (%d out of bounds)" % [label, out_of_bounds])
+	h.check(arc_errors == 0, "%s: every interior arc is 45 deg +/- 1e-6, choke point and arc table alike (worst error %.10f deg)" % [label, worst_arc_error])
+
 func _fresh_seed_identical_count(make_campaign: Callable, seed_count: int) -> int:
 	var identical: int = 0
 	for seed_index: int in range(seed_count):
@@ -245,14 +323,24 @@ func _initialize() -> void:
 	var real_identical: int = _fresh_seed_identical_count(func() -> CampaignState: return Campaign.new(), CHEAP_SEEDS)
 	h.check(real_identical == 0, "Every seed's layout fingerprint differs after death (100%% of %d seeds; %d unchanged)" % [CHEAP_SEEDS, real_identical])
 
-	# --- Deliberate mutants: each must be caught by exactly the check it breaks ---
-	var no_parent_h: SilentProbe = SilentProbe.new()
-	_run_full_scan(func() -> CampaignState: return NoParentMutant.new(), no_parent_h, "no-parent mutant", MUTANT_SEEDS, 0)
-	h.control("no parent term (connectivity)", not no_parent_h.failures.filter(func(m: String) -> bool: return m.contains("BFS from the origin reaches")).is_empty())
+	_run_bearing_scan(func() -> CampaignState: return Campaign.new(), h, "real world")
 
-	var ordered_pair_h: SilentProbe = SilentProbe.new()
-	_run_full_scan(func() -> CampaignState: return OrderedPairMutant.new(), ordered_pair_h, "ordered-pair mutant", MUTANT_SEEDS, 0)
-	h.control("ordered-pair edge hash (symmetry)", not ordered_pair_h.failures.filter(func(m: String) -> bool: return m.contains("every exit is reciprocal")).is_empty())
+	# --- Deliberate mutants: each must be caught by exactly the check it breaks ---
+	var no_diagonals_h: SilentProbe = SilentProbe.new()
+	_run_full_scan(func() -> CampaignState: return NoDiagonalsMutant.new(), no_diagonals_h, "no-diagonals mutant", MUTANT_SEEDS, 0)
+	h.control("NEIGHBOURS without the diagonals (3/5/8 census)", not no_diagonals_h.failures.filter(func(m: String) -> bool: return m.contains("3 neighbours at a corner")).is_empty())
+	h.control("NEIGHBOURS without the diagonals (BFS distance is the Chebyshev ring)", not no_diagonals_h.failures.filter(func(m: String) -> bool: return m.contains("BFS distance to the boss")).is_empty())
+	var no_diagonals_bearing_h: SilentProbe = SilentProbe.new()
+	_run_bearing_scan(func() -> CampaignState: return NoDiagonalsMutant.new(), no_diagonals_bearing_h, "no-diagonals mutant")
+	h.control("NEIGHBOURS without the diagonals (45 deg interior arcs)", not no_diagonals_bearing_h.failures.filter(func(m: String) -> bool: return m.contains("every interior arc is 45 deg")).is_empty())
+
+	var unfiltered_h: SilentProbe = SilentProbe.new()
+	_run_bearing_scan(func() -> CampaignState: return UnfilteredMutant.new(), unfiltered_h, "unfiltered mutant")
+	h.control("nearest bearing not filtered to in-bounds (edge/corner rim angles)", not unfiltered_h.failures.filter(func(m: String) -> bool: return m.contains("maps to an in-bounds neighbour")).is_empty())
+
+	var empty_corner_h: SilentProbe = SilentProbe.new()
+	_run_bearing_scan(func() -> CampaignState: return EmptyCornerMutant.new(), empty_corner_h, "empty-corner mutant")
+	h.control("a corner with no neighbours (nearest_bearing total)", not empty_corner_h.failures.filter(func(m: String) -> bool: return m.contains("nearest_bearing is total")).is_empty())
 
 	var off_by_one_h: SilentProbe = SilentProbe.new()
 	_run_full_scan(func() -> CampaignState: return OffByOneBossMutant.new(), off_by_one_h, "off-by-one boss mutant", MUTANT_SEEDS, 0)

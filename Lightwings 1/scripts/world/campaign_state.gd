@@ -15,14 +15,17 @@ extends RefCounted
 ## (spec §7 "a fresh seed every life"; §11 "deterministic hash of (level
 ## seed, x, y)").
 ##
-## Hash helpers (`level_seed`, `_parent_of`, `_pair_hash01`, `boss_coord`) are
-## ordinary INSTANCE methods, not static, precisely so a test can subclass
-## CampaignState and override exactly one of them to build a deliberate
-## mutant (see tests/world_generation_test.gd).
+## Hash helpers (`level_seed`, `boss_coord`) and the lattice seams
+## (`neighbour_offsets`, `neighbours_of`) are ordinary INSTANCE methods, not
+## static, precisely so a test can subclass CampaignState and override exactly
+## one of them to build a deliberate mutant (see tests/world_generation_test.gd).
 
 const Tuning = preload("res://scripts/data/game_tuning.gd")
 const DEFAULT_CAMPAIGN = preload("res://content/campaign/default_campaign.tres")
-const DIRECTIONS: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
+## Modernization M3: the OPEN 8-neighbour lattice (the maze is gone). Bearing
+## order E, SE, S, SW, W, NW, N, NE with y pointing down, i.e. clockwise on
+## screen; `nearest_bearing` breaks an exact tie toward the LOWER index here.
+const NEIGHBOURS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1)]
 const ELEMENTS: Array[String] = Tuning.ELEMENTS
 const GAMEPLAY_VERSION: int = SchemaVersion.CURRENT
 
@@ -97,9 +100,6 @@ static func key_coord(key: String) -> Vector2i:
 static func ring(coord: Vector2i) -> int:
 	return maxi(absi(coord.x), absi(coord.y))
 
-static func _manhattan(coord: Vector2i) -> int:
-	return absi(coord.x) + absi(coord.y)
-
 func level_radius() -> int:
 	return int(Tuning.LEVEL_RADIUS[clampi(level - 1, 0, Tuning.LEVEL_RADIUS.size() - 1)])
 
@@ -117,59 +117,58 @@ func level_seed() -> int:
 func _hash_cell(x: int, y: int, salt: String) -> int:
 	return absi(hash("%d:%d:%d:%s" % [level_seed(), x, y, salt]))
 
-## --- Membranes (pure function of level_seed, x, y; spec §11) ------------
-## Construction: every non-origin in-bounds cell names exactly one "parent"
-## neighbour whose Manhattan distance to the origin is strictly smaller (a
-## hash choice among the candidates); that edge is ALWAYS open, which makes
-## the origin structurally reachable from every cell without asserting it --
-## Manhattan distance strictly decreases along the parent chain, so it must
-## terminate at the origin. Any other edge opens independently when a hash of
-## the UNORDERED pair falls below EDGE_OPEN_PROBABILITY, which is what keeps
-## the edge symmetric (A->B and B->A always agree) without extra bookkeeping.
+## --- The open lattice (modernization M3; replaces the v0.3 maze) --------
+## Every in-bounds cell connects to every in-bounds cell around it, diagonals
+## included: 8 inside, 5 on an edge, 3 at a corner. The whole rim of a node is
+## an exit, and a rim angle leads to the neighbour whose bearing is nearest
+## (`nearest_bearing`, the one choke point), so the arcs of out-of-bounds
+## bearings fold into their in-bounds neighbours and every rim point exits.
 
-func _parent_candidates(coord: Vector2i) -> Array[Vector2i]:
+## Overridable seam: the candidate offsets before the bounds filter. A mutant
+## that drops the diagonals is expected to fail the 3/5/8 neighbour census.
+func neighbour_offsets() -> Array[Vector2i]:
+	return NEIGHBOURS
+
+## Overridable seam: a mutant that skips the in-bounds filter is expected to
+## fail the "every rim angle maps to an in-bounds neighbour" check.
+func neighbours_of(coord: Vector2i) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	var d: int = _manhattan(coord)
-	for dir: Vector2i in DIRECTIONS:
-		var n: Vector2i = coord + dir
-		if _manhattan(n) < d: result.append(n)
+	if not in_bounds(coord): return result
+	for dir: Vector2i in neighbour_offsets():
+		if in_bounds(coord + dir): result.append(dir)
 	return result
 
-## Overridable seam: a mutant that removes the parent term (e.g. always
-## returns Vector2i.ZERO regardless of adjacency, breaking the "strictly
-## closer" invariant) is expected to fail the BFS-reaches-everyone check.
-func _parent_of(coord: Vector2i) -> Vector2i:
-	if coord == Vector2i.ZERO: return coord
-	var candidates: Array[Vector2i] = _parent_candidates(coord)
-	if candidates.is_empty(): return Vector2i.ZERO
-	var choice: int = _hash_cell(coord.x, coord.y, "parent") % candidates.size()
-	return candidates[choice]
+## The ONE rule that turns a rim angle into a bearing: the direction in `dirs`
+## with the smallest absolute angular difference to `angle` (radians, y down).
+## An exact tie goes to the lower index in NEIGHBOURS, whatever order `dirs`
+## arrives in. Returns ZERO only when `dirs` is empty.
+static func nearest_bearing(dirs: Array, angle: float) -> Vector2i:
+	var best: Vector2i = Vector2i.ZERO
+	var best_diff: float = INF
+	var best_rank: int = 1 << 30
+	for entry: Variant in dirs:
+		var dir: Vector2i = entry
+		if dir == Vector2i.ZERO: continue
+		var diff: float = absf(angle_difference(bearing_angle(dir), angle))
+		var rank: int = NEIGHBOURS.find(dir)
+		if rank < 0: rank = NEIGHBOURS.size()
+		if diff < best_diff or (diff == best_diff and rank < best_rank):
+			best = dir
+			best_diff = diff
+			best_rank = rank
+	return best
 
-## Overridable seam: a mutant that hashes the ORDERED pair (a,b) instead of a
-## canonical/sorted pair is expected to fail the exit-symmetry check.
-func _pair_hash01(a: Vector2i, b: Vector2i) -> float:
-	var lo: Vector2i = a
-	var hi: Vector2i = b
-	if hi.x < lo.x or (hi.x == lo.x and hi.y < lo.y):
-		lo = b
-		hi = a
-	var h: int = absi(hash("%d:%d:%d:%d:%d:edge" % [level_seed(), lo.x, lo.y, hi.x, hi.y]))
-	return float(h % 100000) / 100000.0
+## A bearing's angle in double precision (Vector2.angle() is float32, ~6e-6 deg off at 45 deg).
+static func bearing_angle(dir: Vector2i) -> float:
+	return atan2(float(dir.y), float(dir.x))
 
-func _is_edge_open(coord: Vector2i, neighbor: Vector2i) -> bool:
-	if not in_bounds(coord) or not in_bounds(neighbor): return false
-	if neighbor == _parent_of(coord) or coord == _parent_of(neighbor): return true
-	return _pair_hash01(coord, neighbor) < Tuning.EDGE_OPEN_PROBABILITY
-
-func exits_of(coord: Vector2i) -> Array[Vector2i]:
-	var result: Array[Vector2i] = []
-	for dir: Vector2i in DIRECTIONS:
-		if _is_edge_open(coord, coord + dir): result.append(dir)
-	return result
+func neighbour_for_angle(coord: Vector2i, angle: float) -> Vector2i:
+	return nearest_bearing(neighbours_of(coord), angle)
 
 ## --- The boss cell (spec §11: "sits on the perimeter... never a corner or
-## adjacent to an axis" -- those are the forced single-exit highways this
-## construction always produces). ----------------------------------------
+## adjacent to an axis"). The rule predates the open lattice, where it no
+## longer guards against single-exit highways; it is kept unchanged so boss
+## placement stays stable per seed across the maze -> lattice change. -----
 
 func _boss_candidates() -> Array[Vector2i]:
 	var r: int = level_radius()
@@ -306,7 +305,7 @@ func sector_at(coord: Vector2i, now: float = 0.0) -> Dictionary:
 	var result: Dictionary = {
 		"coord": coord, "id": key, "in_bounds": bounded, "ring": ring(coord), "tier": tier,
 		"element": element, "archetype": archetype, "kind": kind,
-		"exits": exits_of(coord) if bounded else [],
+		"exits": neighbours_of(coord),
 		"encounter_seed": roll, "encounter_epoch": epoch,
 		"pool_size": int(pool.size), "pool_remaining": pool.remaining,
 		"resource_budget": int(roundi(pool.remaining)),
@@ -330,11 +329,9 @@ func sector_at(coord: Vector2i, now: float = 0.0) -> Dictionary:
 ## --- Mutating world/travel API -------------------------------------------
 
 func can_enter(from: Vector2i, to: Vector2i, _light: float = 0) -> Dictionary:
-	var adjacent: bool = absi(from.x - to.x) + absi(from.y - to.y) == 1
-	if not adjacent: return {"allowed": false, "reason": "Nodes must share an edge"}
-	if not in_bounds(to): return {"allowed": false, "reason": "The perimeter is sealed"}
-	var direction: Vector2i = to - from
-	return {"allowed": direction in exits_of(from), "reason": "" if direction in exits_of(from) else "No membrane in that direction"}
+	if ring(to - from) != 1: return {"allowed": false, "reason": "Nodes must be neighbours"}
+	if not in_bounds(from) or not in_bounds(to): return {"allowed": false, "reason": "The perimeter is sealed"}
+	return {"allowed": true, "reason": ""}
 
 func discover(coord: Vector2i) -> void:
 	var key: String = coord_key(coord)

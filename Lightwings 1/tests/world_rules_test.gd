@@ -29,14 +29,16 @@ func _test_world() -> void:
 		expect(descriptor == second.sector_at(coord), "Seed and coordinate determine node independent of exploration")
 		expect(descriptor.tier >= 1 and descriptor.tier <= GameTuning.MAX_TIER, "Ring-derived tier stays within supported roster")
 	expect(first.to_dict() == initial, "Reading procedural nodes does not inflate profile")
-	expect(not first.can_enter(Vector2i.ZERO, Vector2i.ONE, 0).allowed, "Travel requires an actual cardinal edge")
+	expect(first.can_enter(Vector2i.ZERO, Vector2i.ONE, 0).allowed, "A diagonal neighbour is enterable (open 8-neighbour lattice)")
+	expect(not first.can_enter(Vector2i.ZERO, Vector2i(2, 1), 0).allowed, "Travel requires Chebyshev adjacency (a knight's move is not a neighbour)")
+	expect(not first.can_enter(Vector2i(6, 6), Vector2i(7, 7), 0).allowed, "The perimeter is sealed: no neighbour beyond the level radius")
 	expect(first.sector_at(Vector2i(6, 0)).tier >= first.sector_at(Vector2i(1, 0)).tier, "Outward travel does not decrease difficulty tier")
 	expect(not first.in_bounds(Vector2i(7, 0)) and first.in_bounds(Vector2i(6, 0)), "L1's bounded disc is exactly radius 6 (spec preamble)")
 	expect(Campaign.valid_key("-10,24") and not Campaign.valid_key("01,0") and not Campaign.valid_key("garbage"), "Coordinate persistence uses canonical signed integer keys")
 	expect(Campaign.ring(Vector2i(-4, 3)) == 4, "Ring is Chebyshev distance, not Euclidean")
 	var boss: Vector2i = first.boss_coord()
 	expect(Campaign.ring(boss) == first.level_radius(), "Boss sits on the level's perimeter ring")
-	expect(first.exits_of(boss).size() >= 1, "The boss node is never sealed shut on every side")
+	expect(first.neighbours_of(boss).size() == 5, "The boss node (perimeter, never a corner) opens onto its 5 in-bounds neighbours")
 
 func _test_progression() -> void:
 	var campaign: CampaignState = Campaign.new()

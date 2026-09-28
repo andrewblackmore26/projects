@@ -1,14 +1,25 @@
 class_name ArenaBackdrop
 extends Node2D
 ## Shared world camera: traces drift at 0.15x/0.35x while the rim stays fixed.
-## Node geometry per spec v3 §11: a circular rim, up to four brighter membrane
-## arcs where the sector has an exit, ~80 px of dead space beyond the rim.
+## Node geometry per spec v3 §11 and modernization M3: a circular rim that is
+## ALL exit (every arc leads to the nearest neighbour), ~80 px of dead space
+## beyond it. Calm at rest; while the player presses into it, the predicted
+## destination arc brightens around the contact point.
 var world: CombatWorld
 var flashes: Array[Dictionary] = []
 var dead_zone_clip_enabled: bool = true # Test-only knob for the dead-zone negative control.
 var canvas_scale_override: float = -1.0 # Test-only knob: forces canvas_scale to a fixed value instead of reading the live transform.
-const WALL_COLOR: Color = Color("747e8c")
-const MEMBRANE_COLOR: Color = Color("bfe3ff")
+## Test-only knob for the rim-render negative controls: added to the highlight's centre angle
+## (PI/2 puts it on the wrong arc); `highlight_enabled = false` removes it.
+var highlight_offset: float = 0.0
+var highlight_enabled: bool = true
+const RIM_COLOR: Color = Color("747e8c")
+const HIGHLIGHT_COLOR: Color = Color("dff1ff")
+const RIM_SEGMENTS: int = 240
+## Half-width (radians) of the press highlight's cosine falloff around the contact angle.
+const HIGHLIGHT_HALF_WIDTH: float = 0.55
+## The inner of the rim's two thin strokes (lessons: a thick bright ring blooms inward).
+const INNER_STROKE_INSET: float = 4.0
 
 func _ready() -> void:
 	z_index = -20
@@ -55,19 +66,71 @@ func _draw() -> void:
 			draw_line(a,b,ink,1.0/canvas_scale,true)
 			draw_line(b,c,ink,1.0/canvas_scale,true)
 			draw_circle(a,1.2/canvas_scale,ink)
-	draw_arc(center,world.arena.radius,0,TAU,64,WALL_COLOR,1.5/canvas_scale,true)
-	for direction: Vector2i in world.arena.exits:
-		var mid: float = world.arena.direction_angle(direction)
-		var half: float = world.arena.membrane_half_angle
-		# Push (spec §12): "the arc brightens as push depth builds" - only the
-		# arc the player is actually pressing into.
-		var brighten: float = world.warp_progress if world.warp_phase==CombatWorld.WARP_PUSH and direction==world.warp_direction else 0.0
-		draw_arc(center,world.arena.radius,mid-half,mid+half,16,MEMBRANE_COLOR.lerp(Color.WHITE,brighten*0.6),(3.5+brighten*3.5)/canvas_scale,true)
+	_draw_rim(center,canvas_scale)
 	for flash: Dictionary in flashes:
 		var ink: Color = Color.WHITE
 		ink.a = float(flash.time)/0.22
 		draw_arc(flash.point,9,0,TAU,24,ink,2.6/canvas_scale,true)
 	if world.warp_phase in [CombatWorld.WARP_ZOOM_IN,CombatWorld.WARP_TRAVEL,CombatWorld.WARP_ARRIVAL]: _draw_streaks(player,canvas_scale)
+
+## The rim: one closed polyline per stroke, coloured per vertex. Push (spec
+## §12: "the arc brightens as push depth builds"): only the predicted
+## destination arc, with a cosine falloff centred on the contact angle and cut
+## off at that arc's own bisectors, so the glow says exactly where you will go.
+func _draw_rim(center: Vector2, canvas_scale: float) -> void:
+	var radius: float = world.arena.radius
+	var weight: PackedFloat32Array = rim_highlight_weights()
+	var outer := PackedVector2Array()
+	var inner := PackedVector2Array()
+	var outer_ink := PackedColorArray()
+	var inner_ink := PackedColorArray()
+	for index: int in range(RIM_SEGMENTS+1):
+		var unit: Vector2 = Vector2.from_angle(TAU*index/RIM_SEGMENTS)
+		var w: float = weight[index % RIM_SEGMENTS]
+		outer.append(center+unit*radius)
+		inner.append(center+unit*(radius-INNER_STROKE_INSET))
+		outer_ink.append(RIM_COLOR.lerp(HIGHLIGHT_COLOR,w))
+		var faint: Color = RIM_COLOR.lerp(HIGHLIGHT_COLOR,w*0.8)
+		faint.a = 0.35+0.55*w
+		inner_ink.append(faint)
+	draw_polyline_colors(outer,outer_ink,1.5/canvas_scale,true)
+	draw_polyline_colors(inner,inner_ink,1.0/canvas_scale,true)
+	# The lit stretch alone gets a slightly heavier (still thin) outer stroke on top, fading
+	# with the weight, so a press reads at a glance without the whole ring thickening.
+	var lit := PackedVector2Array()
+	var lit_ink := PackedColorArray()
+	for index: int in range(RIM_SEGMENTS+1):
+		var w: float = weight[index % RIM_SEGMENTS]
+		if w <= 0.0:
+			if lit.size() >= 2: draw_polyline_colors(lit,lit_ink,2.4/canvas_scale,true)
+			lit.clear()
+			lit_ink.clear()
+			continue
+		lit.append(outer[index])
+		var ink: Color = HIGHLIGHT_COLOR
+		ink.a = w
+		lit_ink.append(ink)
+	if lit.size() >= 2: draw_polyline_colors(lit,lit_ink,2.4/canvas_scale,true)
+
+## Per-vertex highlight weight in [0, 1] for the rim's RIM_SEGMENTS vertices (vertex i at angle
+## TAU*i/RIM_SEGMENTS). Pure given the world, so a test can read it without pixels.
+func rim_highlight_weights() -> PackedFloat32Array:
+	var weights := PackedFloat32Array()
+	weights.resize(RIM_SEGMENTS)
+	if not highlight_enabled or world.warp_phase!=CombatWorld.WARP_PUSH or world.warp_progress<=0.0: return weights
+	var arc: Dictionary = world.arena.arc_for(world.warp_direction)
+	if arc.is_empty(): return weights
+	var contact: float = (Vector2(world.player.pos)-world.arena.center).angle()+highlight_offset
+	var strength: float = 0.35+0.65*world.warp_progress
+	for index: int in range(RIM_SEGMENTS):
+		var angle: float = TAU*index/RIM_SEGMENTS
+		# Bring the vertex into the arc's own [from, from + TAU) window before the bounds test.
+		var inside: float = float(arc.from)+fposmod(angle-float(arc.from),TAU)
+		if inside>float(arc.to): continue
+		var off: float = absf(angle_difference(contact,angle))
+		if off>=HIGHLIGHT_HALF_WIDTH: continue
+		weights[index] = strength*cos(off/HIGHLIGHT_HALF_WIDTH*PI*0.5)
+	return weights
 
 ## Warp streaks (spec §12: "background traces stretch into radial streaks
 ## running from a vanishing point in the travel direction... length ramps up,

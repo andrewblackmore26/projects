@@ -22,12 +22,14 @@ extends SceneTree
 ## a spring-back, the normal (non-locked) movement clamp that runs later in
 ## the SAME tick pulls the overshot position back to the near rim it pushed
 ## OUT from, which still reads as "inside" the circle. The real symptom is
-## resuming on the WRONG side: spec §12 places arrival "just inside the
-## OPPOSITE membrane" (`arena.entry_position(direction)`, the far rim), so
-## the assertion compares final position against that point directly.
+## resuming on the WRONG side: spec §12 places arrival just inside the far
+## rim (modernization M3: `arena.entry_point(direction, exit_point)`, the
+## committed exit mirrored), so the assertion compares final position against
+## that point directly.
 const Harness = preload("res://tests/support/harness.gd")
 const World = preload("res://scripts/combat/combat_world.gd")
 const STEP: float = 1.0 / 60.0
+const EXIT_OFFSET: float = 0.3
 
 func _initialize() -> void: _run.call_deferred()
 
@@ -41,10 +43,14 @@ func _run() -> void:
 	await process_frame
 	app._new_game(false)
 	app.combat.set_physics_process(false)
-	app.combat.player.pos = app.combat.arena.center + Vector2(app.combat.arena.radius - 4.0, 0.0)
-	app.combat.player.vel = Vector2(200.0, 0.0)
-	app.combat.command.movement = Vector2.RIGHT
-	app.combat.command.aim = Vector2.RIGHT
+	# Modernization M3: press 0.3 rad off the east bearing (still the east arc), so the arrival's
+	# reflected offset (~230 px from the zero-offset entry at R=800) is something a restore that
+	# lost the exit point would visibly miss.
+	var outward: Vector2 = Vector2.from_angle(EXIT_OFFSET)
+	app.combat.player.pos = app.combat.arena.center + outward * (app.combat.arena.radius - 4.0)
+	app.combat.player.vel = outward * 200.0
+	app.combat.command.movement = outward
+	app.combat.command.aim = outward
 	var pre_commit_sector: Vector2i = app.campaign.current_sector
 	var ticks: int = 0
 	while (app.combat.warp_phase == World.WARP_NONE or app.combat.warp_phase == World.WARP_PUSH) and ticks < 200:
@@ -69,7 +75,9 @@ func _run() -> void:
 	restored.combat.set_physics_process(false)
 	h.check(restored.combat.warp_phase == World.WARP_ZOOM_IN, "Restore resumes the same phase from its start (spec P6 item 6)")
 	var direction: Vector2i = restored.combat.warp_direction
-	var expected_entry: Vector2 = restored.combat.arena.entry_position(direction)
+	h.check(direction == Vector2i.RIGHT, "The press 0.3 rad off east committed to the east arc (%s)" % direction)
+	h.check(Vector2(restored.combat.warp_exit_point).distance_to(app.combat.warp_exit_point) < 0.01, "The save carries the committed exit point across the restore")
+	var expected_entry: Vector2 = restored.combat.arena.entry_point(direction, app.combat.warp_exit_point)
 	restored.combat.command.movement = Vector2.ZERO
 	var arrive_ticks: int = 0
 	while restored.combat.warp_phase != World.WARP_NONE and arrive_ticks < 200:
@@ -106,5 +114,22 @@ func _run() -> void:
 		sabotage_ticks += 1
 	var sabotaged_error: float = Vector2(sabotaged.combat.player.pos).distance_to(expected_entry)
 	h.control("restoring with the old warp_phase-only _warp_swap_done derivation (false at WARP_ZOOM_IN)", sabotaged_error > 500.0)
+
+	# --- Negative control (M3): the same save restored WITHOUT the exit point (the pre-M3 payload's
+	# fallback, a zero-offset exit) lands on the zero-offset entry, outside the drift budget.
+	var pointless: Node = load("res://scripts/main.gd").new()
+	pointless.testing = true
+	root.add_child(pointless)
+	await process_frame
+	pointless._continue_game("campaign")
+	pointless.combat.set_physics_process(false)
+	pointless.combat.warp_exit_point = pointless.combat.arena.center + Vector2(direction).normalized() * pointless.combat.arena.radius
+	pointless.combat.command.movement = Vector2.ZERO
+	var pointless_ticks: int = 0
+	while pointless.combat.warp_phase != World.WARP_NONE and pointless_ticks < 200:
+		pointless.combat._update_player(STEP)
+		pointless_ticks += 1
+	var pointless_error: float = Vector2(pointless.combat.player.pos).distance_to(expected_entry)
+	h.control("exit point dropped from the restore (error %.1f px)" % pointless_error, pointless_error > expected_drift + 20.0)
 
 	h.finish(self)

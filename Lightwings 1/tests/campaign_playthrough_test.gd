@@ -59,7 +59,7 @@ func _bfs_path(campaign: CampaignState, target: Vector2i) -> Array[Vector2i]:
 		var current: Vector2i = queue[head]
 		head += 1
 		if current == target: break
-		for dir: Vector2i in campaign.exits_of(current):
+		for dir: Vector2i in campaign.neighbours_of(current):
 			var next: Vector2i = current + dir
 			if not parent.has(next):
 				parent[next] = current

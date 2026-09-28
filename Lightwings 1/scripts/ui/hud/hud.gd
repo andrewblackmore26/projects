@@ -106,7 +106,7 @@ func component_controls() -> String:
 		var id: String = ship.secondaries[index]
 		var cooldowns: Dictionary = combat.player.get("cooldowns",{})
 		var cooldown: float = float(cooldowns.get("secondary_%d" % index,0.0))
-		labels.append("%s: %s%s" % [["Space/LB","Shift/RB","Q/X"][index],UiKit.ability_name(id)," %.1fs" % cooldown if cooldown>0 else ""])
+		labels.append("%s: %s%s" % [InputPrompts.shared().text_for(InputPrompts.SLOT_ACTIONS[index]),UiKit.ability_name(id)," %.1fs" % cooldown if cooldown>0 else ""])
 	return " | ".join(labels) if not labels.is_empty() else "Secondary: None"
 
 func _draw_slot_icons() -> void:
@@ -128,8 +128,10 @@ func _draw_slot_icons() -> void:
 		var cooldown: float = float(combat.player.get("fire_cd",0.0)) if index==0 else float(combat.player.get("cooldowns",{}).get("secondary_%d" % (index-1),0.0))
 		var fill: float = 1.0-clampf(cooldown/maxf(0.001,definition.cooldown),0,1)
 		slot_overlay.draw_arc(at,17,-PI/2,-PI/2+TAU*maxf(fill,0.005),32,Color(ink,0.6),1.0,true)
-		var text: String = "LMB" if index==0 else (["SPACE","SHIFT","Q"][index-1] if index<=ship.secondaries.size() else "PASSIVE")
-		slot_overlay.draw_string(ThemeDB.fallback_font,at+Vector2(-22,35),text,HORIZONTAL_ALIGNMENT_CENTER,44,9,Color("9099a8"))
+		AbilityGlyphs.draw(slot_overlay,components[index],at,10.5)
+		# M11: the bound input's glyph for the device in hand, read from the InputMap (no key names here).
+		if index<=ship.secondaries.size(): InputPrompts.shared().draw_prompt(slot_overlay,"fire" if index==0 else InputPrompts.SLOT_ACTIONS[index-1],at+Vector2(0,31),24.0)
+		else: slot_overlay.draw_string(ThemeDB.fallback_font,at+Vector2(-22,35),"PASSIVE",HORIZONTAL_ALIGNMENT_CENTER,44,9,Color("9099a8"))
 	_draw_dash_icon()
 
 ## Dash cooldown icon (spec §26/plan P6): next to the existing slot icons,
@@ -137,14 +139,14 @@ func _draw_slot_icons() -> void:
 ## dash is not an ability mount).
 func _draw_dash_icon() -> void:
 	var at: Vector2 = Vector2(867-68,752)
-	var cooldown: float = float(app.combat.player.get("dash_cooldown",0.0))
-	var fill: float = 1.0-clampf(cooldown/CombatWorld.DASH_COOLDOWN_SECONDS,0,1)
-	var ready: bool = cooldown<=0.0
+	var fill: float = app.combat.dash_ready_fraction()
+	var ready: bool = fill>=1.0
 	var ink: Color = BLUE if ready else MUTED
 	slot_overlay.draw_circle(at,13,Color(ink.r*0.1,ink.g*0.1,ink.b*0.1))
 	slot_overlay.draw_arc(at,13,0,TAU,28,ink,1.5,true)
 	slot_overlay.draw_arc(at,17,-PI/2,-PI/2+TAU*maxf(fill,0.005),32,Color(ink,0.6),1.0,true)
-	slot_overlay.draw_string(ThemeDB.fallback_font,at+Vector2(-22,35),"RMB",HORIZONTAL_ALIGNMENT_CENTER,44,9,Color("9099a8"))
+	AbilityGlyphs.draw(slot_overlay,"dash",at,10.5,1.0 if ready else 0.45)
+	InputPrompts.shared().draw_prompt(slot_overlay,"dash",at+Vector2(0,31),24.0)
 
 func _draw_radar() -> void:
 	var combat: CombatWorld = app.combat

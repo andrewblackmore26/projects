@@ -91,6 +91,10 @@ func continue_game(save_slot: String) -> void:
 		enter_sector(Vector2i.ZERO,GameTuning.ARENA_CENTER,false)
 	else:
 		app.combat.restore(run.combat)
+		# Modernization M3 (no save schema bump): a saved sector still carries the old maze's exits.
+		# The lattice is a pure function of the coordinate, so re-derive them rather than trust it.
+		app.combat.sector["exits"] = app.campaign.neighbours_of(app.campaign.current_sector)
+		app.combat._configure_arena_exits()
 	app.absorbed = app.combat.absorption
 	app._toast("Instance restored. Your light is still yours.")
 	app.last_hp = app.combat.light_total

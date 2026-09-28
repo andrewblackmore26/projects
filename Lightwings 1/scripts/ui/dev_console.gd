@@ -8,6 +8,8 @@ class_name DevConsole
 extends Control
 
 const TOGGLE_KEY: Key = KEY_QUOTELEFT
+## `cam <layer> on|off` -> the GameTuning switch it flips.
+const CAM_LAYERS: Dictionary = {"lag": "cam.lag_on", "zoom": "cam.zoom_on", "aim": "cam.aim_on", "shake": "shake.on"}
 signal command_submitted(result: Dictionary)
 
 var line_edit: LineEdit
@@ -32,7 +34,7 @@ func _ready() -> void:
 	line_edit = LineEdit.new()
 	line_edit.position = Vector2(210, 330)
 	line_edit.size = Vector2(860, 40)
-	line_edit.placeholder_text = "tier <1-6> [element] · level <1-5> · light <n> · tune <key> [v] · help"
+	line_edit.placeholder_text = "tier <1-6> [element] · level <1-5> · light <n> · tune <key> [v] · cam <layer> on|off · help"
 	add_child(line_edit)
 	line_edit.text_submitted.connect(_on_submit)
 
@@ -60,7 +62,8 @@ func _on_submit(text: String) -> void:
 	line_edit.text = ""
 
 ## Pure parser. Accepts exactly: "tier <1-6> [element]", "level <1-5>",
-## "light <n>", "tune <key> [value]", "tune reset", "tune dump", "help". Anything else -- empty input, unknown command, wrong
+## "light <n>", "tune <key> [value]", "tune reset", "tune dump", "cam <layer> on|off",
+## "cam <name> [value]", "help". Anything else -- empty input, unknown command, wrong
 ## argument count, out-of-range numbers, an unknown element -- is rejected
 ## with ok=false and a reason, never a partial/best-effort application.
 static func parse(text: String) -> Dictionary:
@@ -124,6 +127,22 @@ static func parse(text: String) -> Dictionary:
 			if not (parts[2].is_valid_float() or parts[2].is_valid_int()):
 				return _fail("tune value must be a number")
 			return {"ok": true, "command": "tune", "args": {"action": "set", "key": parts[1], "value": float(parts[2])}, "error": ""}
+		# M10: the camera's shorthand for `tune`, so it needs no handler of its own. `cam lag off`
+		# switches a layer (lag, zoom, aim, shake); `cam <name> [value]` reads or sets `cam.<name>`,
+		# or a full `shake.*` / `hitstop.*` key.
+		"cam":
+			if parts.size() == 3 and CAM_LAYERS.has(parts[1].to_lower()) and parts[2].to_lower() in ["on", "off"]:
+				return {"ok": true, "command": "tune", "args": {"action": "set", "key": CAM_LAYERS[parts[1].to_lower()], "value": 1.0 if parts[2].to_lower() == "on" else 0.0}, "error": ""}
+			if parts.size() < 2 or parts.size() > 3:
+				return _fail("usage: cam <lag|zoom|aim|shake> on|off · cam <name> [value]")
+			var key: String = parts[1] if parts[1].begins_with("shake.") or parts[1].begins_with("hitstop.") else "cam." + parts[1]
+			if not GameTuning.FEEL_DEFAULTS.has(key):
+				return _fail("unknown camera key: %s" % parts[1])
+			if parts.size() == 2:
+				return {"ok": true, "command": "tune", "args": {"action": "get", "key": key}, "error": ""}
+			if not (parts[2].is_valid_float() or parts[2].is_valid_int()):
+				return _fail("cam value must be a number")
+			return {"ok": true, "command": "tune", "args": {"action": "set", "key": key, "value": float(parts[2])}, "error": ""}
 		_:
 			return _fail("unknown command: %s" % command)
 

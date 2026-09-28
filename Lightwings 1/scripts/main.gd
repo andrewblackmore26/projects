@@ -130,6 +130,7 @@ func _ready() -> void:
 	platform = PlatformService.new()
 	add_child(platform)
 	platform.initialize()
+	add_child(FeelDirector.new(self)) # M16: feel_event -> post (CanvasLayer 5), rumble, FX, audio
 	_create_ui()
 	apply_settings()
 	_show_menu()
@@ -491,6 +492,7 @@ func _physics_process(_delta: float) -> void:
 	combat.set_command(command)
 
 func _input(event: InputEvent) -> void:
+	InputPrompts.shared().observe(event)
 	if overlay_kind == "death":
 		var policy: Dictionary = ScreenRouter.policy("death")
 		if bool(policy.any_input_dismiss) and _death_elapsed >= float(policy.input_guard):

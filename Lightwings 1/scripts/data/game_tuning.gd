@@ -27,11 +27,6 @@ const TP_BUDGETS: Array[float] = [6.0, 10.0, 15.0, 21.0, 28.0, 36.0]
 const LEVEL_RADIUS: Array[int] = [6, 8, 9, 11, 12]
 ## Spec §11: "roughly one enemy tier per 2 rings."
 const RING_TIER_DIVISOR: int = 2
-## Membrane construction (campaign_state.gd): probability an edge that is
-## not a structural parent link still opens. Measured in world_generation_test
-## to land the <4-exit share >=25% and the dead-end share inside 3%-25%
-## (see tasks/todo.md P5 review for the measured numbers).
-const EDGE_OPEN_PROBABILITY: float = 0.30
 ## Node archetypes rolled by ring band (spec §11: "transit, skirmish, dense,
 ## elite lair, boss"). One table, ring bands widen with level depth; band
 ## index = ring / RING_BAND_WIDTH, clamped to the last row. Boss is never
@@ -97,10 +92,14 @@ const DEATH_INPUT_GUARD_SECONDS: float = 0.35
 ## so the §9 feel pass can be run without a rebuild. Overrides are never saved, and a test that sets
 ## one calls `reset_feel()` first (tasks/lessons.md: shared mutable state couples scenarios).
 ##
-## A hull's `.tres` `speed` is an AUTHORING unit in which 220 is the base hull (core-only standard):
-## Compact authors 1.25x that and Heavy 0.85x, which are exactly the spec's hull ratios. Runtime top
-## speed is `player_top_speed * speed / AUTHORING_BASE_SPEED`, so retuning never needs a rebake.
-const AUTHORING_BASE_SPEED: float = 220.0
+## A hull's `.tres` `speed` is an AUTHORING unit in which 240 is the base hull: every shipped
+## standard hull, the seed included, authors 240 (ship_generator.gd `_base_stats`); Compact authors
+## 300 (1.25x, the spec's ratio) and Heavy 200 (0.83x; the spec says 0.85). Runtime top speed is
+## `player_top_speed * speed / AUTHORING_BASE_SPEED`, so retuning never needs a rebake.
+## M7 measured the P11a value of 220 (ShipDefinition's default, which no shipped hull uses): it ran
+## the standard hull at 1.09x, 502 px/s, and the seed crossed the node in 3.24 s against the 3.5 s
+## the whole budget is anchored on.
+const AUTHORING_BASE_SPEED: float = 240.0
 const FEEL_DEFAULTS: Dictionary = {
 	# §2. 1600 px node / 3.5 s crossing. The source's 560 assumed 1920x1080; this game is 1280x800.
 	"player_top_speed": 460.0,
@@ -112,6 +111,7 @@ const FEEL_DEFAULTS: Dictionary = {
 	"move.t90.heavy": 0.196,
 	"move.coast_stop_s": 0.40,      # input released at top speed -> below coast_stop_frac
 	"move.coast_stop_frac": 0.05,
+	"move.snap_frac": 0.02,         # coasting below this fraction of top speed snaps to rest
 	"move.drift_deg": 18.0,         # velocity lags a 90 degree input step by this much...
 	"move.drift_s": 0.15,           # ...this long after the step
 	"rim.speed_scale": 0.55,        # once on first contact, then a cap while sliding. Never per tick
@@ -123,6 +123,10 @@ const FEEL_DEFAULTS: Dictionary = {
 	"trail.len_top": 180.0,
 	"trail.len_dash": 320.0,
 	"trail.enemy_scale": 0.3,
+	# Pickups fly at max(pull_min, pull_ratio x the player's top speed), so a ship at top speed can
+	# never outrun its own light. 330 was the flat pull before M7, when top speed was 220.
+	"pickup.pull_min": 330.0,
+	"pickup.pull_ratio": 1.3,
 	# §7, sim side. Control returns at the START of arrival.
 	"warp.push_s": 0.20,
 	"warp.break_s": 0.06,
@@ -197,6 +201,17 @@ const FEEL_DEFAULTS: Dictionary = {
 	"shake.regression.px": 7.0, "shake.regression.s": 0.25,
 	"shake.limb.px": 3.0, "shake.limb.s": 0.10,
 	"shake.boss_death.px": 10.0, "shake.boss_death.s": 0.5,
+	"shake.rotation_per_px": 0.001, # radians of roll per px of shake amplitude: 10 px -> 0.57 degrees
+	# M10 layer switches (1 on, 0 off) so the §9 order can be tuned one layer at a time: `cam <layer> off`.
+	"cam.lag_on": 1.0, "cam.zoom_on": 1.0, "cam.aim_on": 1.0, "shake.on": 1.0,
+	# M10 hitstop, in sim ticks, per feel_event kind (h). A kind with no key gets none. The M1 broker
+	# caps grants at 8 ticks per rolling 60, so a 12-tick boss kill is granted 8 on its own.
+	"hitstop.player_hit": 4.0,
+	"hitstop.elite_limb": 3.0,
+	"hitstop.elite_kill": 3.0,
+	"hitstop.boss_phase": 6.0,
+	"hitstop.boss_kill": 12.0,
+	"hitstop.enemy_kill": 0.0,
 }
 static var _feel_live: Dictionary = {}
 ## Bumped on every change. Hot loops cache their floats and re-read only when this moves.
@@ -221,6 +236,11 @@ static func reset_feel() -> void:
 	feel_revision += 1
 
 static func feel_overrides() -> Dictionary: return _feel_live.duplicate()
+
+## The one table of hitstop lengths (M10): ticks for a feel_event kind, 0 for a kind without one.
+static func hitstop_ticks(kind: StringName) -> int:
+	var key: String = "hitstop." + String(kind)
+	return maxi(0, roundi(feel(key))) if FEEL_DEFAULTS.has(key) else 0
 
 ## The three time constants of the movement model for a hull role, derived from the spec's terms.
 ## `drift` is the decay of the velocity component PERPENDICULAR to the input: it solves "the velocity

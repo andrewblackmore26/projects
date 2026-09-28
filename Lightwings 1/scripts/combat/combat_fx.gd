@@ -111,8 +111,21 @@ const TEMPLATES: Dictionary = {
   {"kind":Kind.FRAGMENTS,"delay":0.0,"life":0.35,"count_min":5,"count_max":6,"speed_min":1.6,"speed_max":3.0,"drag":0.93},
  ]},
  "spawn_telegraph": {"duration":0.5,"beats":[{"kind":Kind.RING,"delay":0.0,"life":0.5,"r0":10.0,"r1":40.0,"a0":0.8,"a1":0.0}]},
- "damage_number": {"duration":0.6,"beats":[{"kind":Kind.TEXT,"delay":0.0,"life":0.6}]},
+ # M16: pops 1.4x -> 1x over 80 ms, rises 24 px, fades over its second half. Hits on the same
+ # target (extra.target, else within `merge_px`) within `merge_s` add into one number instead of
+ # stacking a second one (see `_spawn_text`).
+ "damage_number": {"duration":0.6,"beats":[{"kind":Kind.TEXT,"delay":0.0,"life":0.6,"rise":24.0,"pop":1.4,"pop_s":0.08,"merge_s":0.15,"merge_px":20.0}]},
+ # M16 collect sparkle, emitted by FeelDirector on `pickup_collect` (the magnet streak itself is
+ # the "absorb" line above): a small bright ring plus a few radial sparks.
+ "pickup_collect": {"duration":0.3,"beats":[
+  {"kind":Kind.RING,"delay":0.0,"life":0.25,"r0":3.0,"r1":16.0,"a0":1.0,"a1":0.0,"width":1.6,"light":true},
+  {"kind":Kind.FRAGMENTS,"delay":0.0,"life":0.3,"count_min":4,"count_max":5,"speed_min":1.0,"speed_max":2.2,"drag":0.9,"radial":true,"radius":1.4},
+ ]},
 }
+const NUMBER_FONT_PATH: String = "res://assets/fonts/exo2/Exo2-Italic-Variable.ttf"
+const NUMBER_FONT_WEIGHT: int = 900
+const NUMBER_FONT_SIZE: int = 15
+static var _number_font: Font
 
 var kind: PackedInt32Array = PackedInt32Array()
 var pos: PackedVector2Array = PackedVector2Array()
@@ -191,7 +204,7 @@ func emit(template_name: String, at: Vector2, tint: Color, rng: RandomNumberGene
    Kind.FRAGMENTS: _spawn_fragments(beat,at,tint,rng,extra)
    Kind.LINE: _spawn_one(Kind.LINE,at,Vector2(extra.get("to",at)),tint,beat,extra)
    Kind.COLLAR: _spawn_one(Kind.COLLAR,at,at,tint,beat,extra)
-   Kind.TEXT: _spawn_text(at,tint,beat,str(extra.get("text","")))
+   Kind.TEXT: _spawn_text(at,tint,beat,extra)
    _: _spawn_one(int(beat.get("kind",Kind.RING)),at,at,tint,beat,extra)
 
 func _slot() -> int:
@@ -245,17 +258,59 @@ func _spawn_one(beat_kind: int, at: Vector2, target: Vector2, tint: Color, beat:
  emitter_part[index]=str(extra.get("emitter_part",""))
  active_indices.append(index)
 
-func _spawn_text(at: Vector2, tint: Color, beat: Dictionary, message: String) -> void:
+## TEXT slots reuse the SoA fields: `r0` rise px, `r1` pop scale, `width` pop seconds,
+## `emitter_owner` the merge target. A numeric hit landing on a number that is younger than
+## `merge_s` on the same target (or, with no target given, within `merge_px`) adds into it and
+## restarts its pop, so a burst reads as one growing number rather than a stack.
+func _spawn_text(at: Vector2, tint: Color, beat: Dictionary, extra: Dictionary) -> void:
+ var message: String=str(extra.get("text",""))
+ var target: int=int(extra.get("target",-1))
+ var merge_s: float=float(beat.get("merge_s",0.0))
+ if merge_s>0.0 and message.is_valid_float():
+  var merge_px: float=float(beat.get("merge_px",0.0))
+  for other: int in active_indices:
+   if kind[other]!=Kind.TEXT or age[other]>=merge_s or not text[other].is_valid_float(): continue
+   var same: bool=emitter_owner[other]==target if target>=0 else pos[other].distance_to(at)<=merge_px
+   if not same: continue
+   text[other]=str(roundi(float(text[other])+float(message)))
+   age[other]=0.0
+   return
  var index: int=_slot()
  if index<0: return
  kind[index]=Kind.TEXT
  pos[index]=at
  color[index]=tint
+ r0[index]=float(beat.get("rise",16.0))
+ r1[index]=float(beat.get("pop",1.0))
+ width[index]=float(beat.get("pop_s",0.0))
+ a0[index]=1.0
+ a1[index]=0.0
  life[index]=float(beat.get("life",0.6))
  delay[index]=0.0
  age[index]=0.0
+ emitter_owner[index]=target
  text[index]=message
  active_indices.append(index)
+
+## The damage-number face: Exo 2 Black Italic when the font is in the project, else `fallback`.
+static func number_font(fallback: Font) -> Font:
+ if _number_font==null and ResourceLoader.exists(NUMBER_FONT_PATH):
+  var variation: FontVariation=FontVariation.new()
+  variation.base_font=load(NUMBER_FONT_PATH)
+  variation.variation_opentype={TextServerManager.get_primary_interface().name_to_tag("wght"):NUMBER_FONT_WEIGHT}
+  _number_font=variation
+ return _number_font if _number_font!=null else fallback
+
+func _draw_text(canvas: CanvasItem, font: Font, index: int, local_t: float, t: float) -> void:
+ var pop_s: float=width[index]
+ var scale: float=lerpf(r1[index],1.0,clampf(local_t/pop_s,0.0,1.0)) if pop_s>0.0 else 1.0
+ var tint: Color=color[index]
+ tint.a=1.0-smoothstep(0.5,1.0,t)
+ var face: Font=number_font(font)
+ canvas.draw_set_transform(pos[index]+Vector2(0,-r0[index]*t),0.0,Vector2(scale,scale))
+ canvas.draw_string_outline(face,Vector2.ZERO,text[index],HORIZONTAL_ALIGNMENT_CENTER,-1,NUMBER_FONT_SIZE,3,Color(0,0,0,tint.a*0.8))
+ canvas.draw_string(face,Vector2.ZERO,text[index],HORIZONTAL_ALIGNMENT_CENTER,-1,NUMBER_FONT_SIZE,tint)
+ canvas.draw_set_transform(Vector2.ZERO,0.0,Vector2.ONE)
 
 ## Fragments thrown "along the incoming vector" (§19): `extra.direction`
 ## (default: random) sets the cone's centre; each fragment samples its own
@@ -364,9 +419,7 @@ func draw_above(canvas: CanvasItem, font: Font) -> void:
     canvas.draw_line(pos[index].lerp(mid,1.0-segment_t),to[index].lerp(mid,1.0-segment_t),tint*1.6,width[index],true)
    Kind.FRAGMENTS:
     canvas.draw_circle(pos[index],maxf(0.6,r0[index]*(1.0-t*0.3)),tint)
-   Kind.TEXT:
-    var rise: Vector2=Vector2(0,-16.0*t)
-    canvas.draw_string(font,pos[index]+rise,text[index],HORIZONTAL_ALIGNMENT_CENTER,-1,13,tint)
+   Kind.TEXT: _draw_text(canvas,font,index,local_t,t)
 
 ## Real per-frame draw path (P9 perf pass, tasks/todo.md): rings, discs,
 ## fragments and the collar are batched by `fx_canvas.gd`'s MultiMesh
@@ -393,6 +446,4 @@ func draw_lines_and_text(canvas: CanvasItem, font: Font) -> void:
     var mid: Vector2=pos[index].lerp(to[index],0.5)
     var segment_t: float=1.0-t
     canvas.draw_line(pos[index].lerp(mid,1.0-segment_t),to[index].lerp(mid,1.0-segment_t),tint*1.6,width[index],true)
-   Kind.TEXT:
-    var rise: Vector2=Vector2(0,-16.0*t)
-    canvas.draw_string(font,pos[index]+rise,text[index],HORIZONTAL_ALIGNMENT_CENTER,-1,13,tint)
+   Kind.TEXT: _draw_text(canvas,font,index,local_t,t)

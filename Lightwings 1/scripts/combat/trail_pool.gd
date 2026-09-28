@@ -13,17 +13,18 @@ extends RefCounted
 ## computed by the renderer from `width_for_step`, divided by the live
 ## canvas scale there so it stays constant in screen space at any zoom (§23).
 ##
-## "Longer at higher speed" (§13) falls out of the sampling rule rather than
-## a separate length parameter: a point is only appended once the owner has
-## moved `MIN_SAMPLE_DISTANCE`, so a fast owner fills its fixed-size ring
-## buffer (spatially) faster than a slow one - the trail is visually longer
-## because its points are farther apart, covering more ground, for the same
-## point count. "Enemies leave shorter ones" is `max_points` at request time.
+## Length is an explicit ARC-LENGTH cap passed at request time (camera/movement
+## spec §5: 0 px at rest, 180 at top speed, 320 in a dash; M7). The oldest
+## segment is shortened, not dropped, so the trail is exactly the cap long
+## and shrinks back to nothing at rest. Before M7 the length fell out of a
+## fixed point count x the sampling distance, so a ship that stopped kept its
+## whole trail forever. `max_points` only bounds the buffer: it must hold the
+## longest cap at `MIN_SAMPLE_DISTANCE` spacing.
 
 const MAX_TRAILS: int = 40
 const MIN_SAMPLE_DISTANCE: float = 6.0
 const FADE_SECONDS: float = 0.35
-const PLAYER_MAX_POINTS: int = 16
+const PLAYER_MAX_POINTS: int = 56 # 320 px / 6 px + head and tail
 const ENEMY_MAX_POINTS: int = 7
 const STEP_SCALES: PackedFloat32Array = [1.0, 0.82, 0.64, 0.46, 0.3, 0.16]
 
@@ -43,7 +44,7 @@ var dropped_count: int = 0
 ## Called at most once per tick per potential owner. `priority` decides who
 ## survives when the pool is over budget (the player should pass an
 ## effectively-unbounded priority so it is never the one dropped).
-func request(owner_id: int, position: Vector2, priority: float, width: float, color: Color, max_points: int = PLAYER_MAX_POINTS) -> void:
+func request(owner_id: int, position: Vector2, priority: float, width: float, color: Color, max_points: int = PLAYER_MAX_POINTS, max_length: float = INF) -> void:
 	var trail: Trail = trails.get(owner_id)
 	if trail == null:
 		if trails.size() >= MAX_TRAILS:
@@ -66,6 +67,23 @@ func request(owner_id: int, position: Vector2, priority: float, width: float, co
 		while trail.points.size() > trail.max_points:
 			trail.points.remove_at(0)
 			trail.kinked.remove_at(0)
+	_cap_length(trail, max_length)
+
+## Trims the TAIL until the polyline is at most `max_length` long, moving the last kept tail point
+## along its segment so the length is exact rather than a whole segment short.
+static func _cap_length(trail: Trail, max_length: float) -> void:
+	if max_length == INF: return
+	var total: float = 0.0
+	for i: int in range(1, trail.points.size()): total += trail.points[i - 1].distance_to(trail.points[i])
+	while total > max_length and trail.points.size() >= 2:
+		var segment: float = trail.points[0].distance_to(trail.points[1])
+		if total - segment >= max_length or segment <= 0.000001:
+			trail.points.remove_at(0)
+			trail.kinked.remove_at(0)
+			total -= segment
+		else:
+			trail.points[0] = trail.points[0].move_toward(trail.points[1], total - max_length)
+			total = max_length
 
 ## Dash (spec §13/§19): "a hard kink in the trail" - marks the most recent
 ## sample point of `owner_id`'s trail, so the renderer can break the smooth
