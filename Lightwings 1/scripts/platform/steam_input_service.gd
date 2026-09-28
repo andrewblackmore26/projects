@@ -19,6 +19,13 @@ var _primary_pending: bool = false
 var _secondary_pending: bool = false
 var _tertiary_pending: bool = false
 var _repeat_times: Dictionary = {}
+## M19: the prompts told when the player touches a Steam controller (null: InputPrompts.shared()).
+## Steam Input reaches the game as InputEventActions, which InputPrompts.observe cannot attribute to
+## a device, so without this the prompts stayed on the keyboard set while a Deck was in use.
+var prompts: InputPrompts
+## ESteamInputType (GodotSteam getInputTypeForHandle) -> InputPrompts family. Anything else is
+## "generic"; no type at all (an older GodotSteam, or Unknown) is the Deck, Steam Input's home.
+const INPUT_TYPE_FAMILIES: Dictionary = {0: "steamdeck", 1: "steamdeck", 14: "steamdeck", 2: "xbox", 3: "xbox", 5: "playstation", 12: "playstation", 13: "playstation"}
 
 func initialize(api: Object) -> bool:
 	steam = api
@@ -67,8 +74,12 @@ func poll(delta: float) -> void:
 	movement = _analog("Move") if not is_menu else Vector2.ZERO
 	aim = _analog("Aim") if not is_menu else Vector2.ZERO
 	var navigation: Vector2 = _analog("MenuNavigate") if is_menu else Vector2.ZERO
+	# `active` only says an action set is live; the player TOUCHED the pad when a stick left its
+	# dead zone or a button went down this frame.
+	var touched: bool = maxf(maxf(movement.length(), aim.length()), navigation.length()) >= InputPrompts.AXIS_THRESHOLD
 	for action: String in DIGITAL_ACTIONS:
 		var down: bool = _digital(action)
+		if down and not bool(buttons.get(action, false)): touched = true
 		if is_menu and action in ["MenuUp", "MenuDown", "MenuLeft", "MenuRight"]:
 			down = down or {"MenuUp": navigation.y < -0.5, "MenuDown": navigation.y > 0.5, "MenuLeft": navigation.x < -0.5, "MenuRight": navigation.x > 0.5}[action]
 		var previous: bool = bool(buttons.get(action, false))
@@ -87,6 +98,14 @@ func poll(delta: float) -> void:
 					_send_action(str(FORWARD_ACTIONS[action]), true)
 					_repeat_times[action] = 0.1
 		buttons[action] = down
+	if touched: (prompts if prompts != null else InputPrompts.shared()).select(InputPrompts.PAD, prompt_family())
+
+## The prompt family of the connected controller, from Steam's own controller type when GodotSteam
+## exposes it (INPUT_TYPE_FAMILIES), else the Deck.
+func prompt_family() -> String:
+	if controller != 0 and steam != null and steam.has_method("getInputTypeForHandle"):
+		return str(INPUT_TYPE_FAMILIES.get(int(steam.call("getInputTypeForHandle", controller)), "generic"))
+	return "steamdeck"
 
 func get_command(fallback_aim: Vector2 = Vector2.UP) -> ShipCommand:
 	if not ready or not active or controller == 0 or is_menu:

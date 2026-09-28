@@ -94,6 +94,13 @@ func observe(event: InputEvent) -> bool:
 	elif event is InputEventJoypadMotion and absf(event.axis_value) >= AXIS_THRESHOLD: next_device = PAD
 	if next_device.is_empty(): return false
 	if next_device == PAD: next_family = _family_of(event.device)
+	return select(next_device, next_family)
+
+## Makes `next_device` (with `next_family` for a pad) the active one. Returns true on a change. For
+## input that never reaches `observe` as a device event: Steam Input forwards InputEventActions
+## (SteamInputService.poll calls this when the player touches a Steam controller).
+func select(next_device: String, next_family: String = "") -> bool:
+	if next_family.is_empty(): next_family = family
 	if next_device == device and next_family == family: return false
 	device = next_device
 	family = next_family

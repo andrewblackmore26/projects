@@ -14,6 +14,12 @@ extends UiScreen
 ## preview, its weapon and passive glyph rows (AbilityGlyphs) and its stats against the current hull
 ## (green up, coral down). Focus - which is hover - lifts a card CARD_LIFT px, lights its edge and
 ## speeds its preview.
+##
+## M19: the cards keep clear of the player's ship, because the player is still dodging in the slow
+## motion. When the centred row would cover the ship (its animated radius + SHIP_CLEARANCE), the
+## row splits around the ship's projected position - the cards on each side of a clear corridor,
+## scaled down only as far as the corridor needs (never below MIN_CARD_SCALE) - and it splits again
+## if the ship flies into a card. The focused card's hull is ghosted over the ship (HullGhost).
 
 const TITLE_BOTTOM: float = 94.0
 const SUBTITLE_Y: float = 104.0
@@ -40,6 +46,15 @@ const CARD_LIFT: float = 8.0
 const GLOW_PX: float = 6.0
 const PREVIEW_HOVER_SPEED: float = 2.5
 const PICK_KEYS: Array[Key] = [KEY_1, KEY_2, KEY_3]
+## M19: the clear margin kept around the ship's disc, the cards' pitch (a card and its gap), the
+## smallest the cards shrink to open the corridor, and how long a re-split glides.
+const SHIP_CLEARANCE: float = 44.0
+const CARD_PITCH: float = 350.0
+const MIN_CARD_SCALE: float = 0.6
+const RESPLIT_SECONDS: float = 0.18
+## Test seams, each with its own control: the corridor (off: the pre-M19 centred row) and the ghost.
+static var avoid_ship: bool = true
+static var ghost_enabled: bool = true
 
 var _title: Label
 var _subtitle: Label
@@ -60,6 +75,10 @@ var _key_hints: Array[Label] = []
 var _device: String = ""
 ## The HUD's ability dock, faded out while the cards are up (it sits under DECIDE LATER).
 var _dock: CanvasItem
+## M19: the focused offer's hull over the ship, and the ship's animated radius (world px).
+var _ghost: HullGhost
+var _ship_radius: float = 0.0
+var _resplit: Tween
 
 ## A procedural ability glyph (AbilityGlyphs) on a faint disc.
 class Glyph extends Control:
@@ -94,7 +113,7 @@ func relayout() -> void:
 	var subtitle_y: float = maxf(SUBTITLE_Y,title_y+title_height+2.0)
 	_subtitle.position.y = subtitle_y
 	for tab: Button in _tabs: tab.position.y = maxf(TABS_Y,subtitle_y+_subtitle.get_minimum_size().y+4.0)
-	var bottom: float = CARD_Y+CARD_SIZE.y
+	var bottom: float = CARD_Y+CARD_SIZE.y if _cards.is_empty() else CARD_Y
 	for entry: Dictionary in _cards:
 		var chip: Label = entry.chip
 		UiLayout.hug(chip)
@@ -129,7 +148,16 @@ func relayout() -> void:
 		(entry.glow as Control).size.y = height
 		(entry.card as Control).size.y = height
 		(entry.lift as Control).size.y = height
-		bottom = maxf(bottom,CARD_Y+height)
+	# M19: split the row around the ship. The split reads the canvas fit and the fit reads the
+	# cards, so place, fit, and place again (the router's own fit then changes nothing).
+	var area: Vector2 = (host.get_parent() as Control).size if host.get_parent() is Control else UiLayout.BASE_SIZE
+	for fit_pass: int in range(2):
+		_place_cards(_card_targets())
+		UiLayout.fit_canvas(host,area)
+	_place_cards(_card_targets())
+	for entry: Dictionary in _cards:
+		var card: Control = entry.card
+		bottom = maxf(bottom,CARD_Y+card.size.y*card.scale.y)
 	_footer.position.y = maxf(FOOTER_Y,bottom+17.0)
 	_later.position.y = maxf(LATER_Y,_footer.position.y+_footer.get_minimum_size().y+14.0)
 	_countdown.position.y = _later.position.y-6.0
@@ -168,6 +196,7 @@ func build() -> void:
 		shown = by_element.get(app.evolution_tab,[] as Array[String])
 	var current: ShipDefinition = null
 	if is_instance_valid(app.combat): current = ShipCatalog.get_ship(str(app.combat.hull_id))
+	if is_instance_valid(app.combat): _ship_radius = ShipPreview.animated_radius(app.combat.player.get("definition") as ShipDefinition)
 	# M6: the row of cards is centred on the canvas (three cards start at the design's x = 125). Dev
 	# mode's four-card tabs are wider than 16:10, and the canvas scales them down to fit.
 	var x: float = 640.0-(float(shown.size())*350.0-20.0)*0.5
@@ -203,6 +232,96 @@ func build() -> void:
 
 func exit() -> void:
 	if is_instance_valid(_dock): UiMotion.tween(_dock).tween_property(_dock,"modulate:a",1.0,UiMotion.duration(UiTokens.FAST,true))
+	if is_instance_valid(_ghost): _ghost.queue_free()
+	_ghost = null
+
+## M19: the ship's position and radius on this screen's canvas: (x, y, radius), radius < 0 when there
+## is no ship on screen (no world, or no compositor).
+func ship_on_canvas() -> Vector3:
+	var compositor: CombatCompositor = app.get("compositor") as CombatCompositor
+	var combat: CombatWorld = app.get("combat") as CombatWorld
+	if not is_instance_valid(compositor) or not is_instance_valid(combat) or combat.player.is_empty() or not host.is_inside_tree(): return Vector3(0,0,-1)
+	var screen: Vector2 = compositor.get_global_transform_with_canvas()*compositor.world_to_screen(combat.player_position)
+	var to_host: Transform2D = host.get_global_transform_with_canvas().affine_inverse()
+	var at: Vector2 = to_host*screen
+	return Vector3(at.x,at.y,_ship_radius*compositor.zoom*absf(to_host.get_scale().x))
+
+## Each card's [x, scale] on the canvas: the centred row, or - when that row would cover the ship -
+## the row split into a clear corridor through the ship. Of the ways to put k cards left of the
+## corridor and the rest right, the one that lets the cards stay largest wins (the more even split
+## on a tie). Dev mode's element tabs (four cards, already scaled to fit) keep the centred row.
+func _card_targets() -> Array:
+	var count: int = _cards.size()
+	var result: Array = []
+	var start: float = 640.0-(float(count)*CARD_PITCH-20.0)*0.5
+	for index: int in range(count): result.append([start+float(index)*CARD_PITCH,1.0])
+	if not avoid_ship or count == 0 or count > PICK_KEYS.size(): return result
+	var ship: Vector3 = ship_on_canvas()
+	if ship.z < 0.0: return result
+	var at := Vector2(ship.x,ship.y)
+	var reach: float = ship.z+SHIP_CLEARANCE
+	var covered: bool = false
+	for index: int in range(count):
+		var card: Control = _cards[index].card
+		if _disc_hits(Rect2(result[index][0],CARD_Y-CARD_LIFT,CARD_SIZE.x,card.size.y+CARD_LIFT),at,reach): covered = true
+	if not covered: return result
+	var bounds: Vector2 = _canvas_span()
+	var best_left: int = 0
+	var best_scale: float = -INF
+	for left: int in range(count+1):
+		var fit: float = 1.0
+		if left > 0: fit = minf(fit,(at.x-reach-bounds.x)/_group_width(left))
+		if count-left > 0: fit = minf(fit,(bounds.y-at.x-reach)/_group_width(count-left))
+		if fit > best_scale+0.001 or (absf(fit-best_scale) <= 0.001 and absi(2*left-count) < absi(2*best_left-count)):
+			best_scale = fit
+			best_left = left
+	var s: float = clampf(best_scale,MIN_CARD_SCALE,1.0)
+	for index: int in range(count):
+		var x: float = at.x-reach-_group_width(best_left)*s+float(index)*CARD_PITCH*s if index < best_left else at.x+reach+float(index-best_left)*CARD_PITCH*s
+		result[index] = [x,s]
+	return result
+
+## The width of `cards` cards side by side at scale 1.
+static func _group_width(cards: int) -> float:
+	return float(cards)*CARD_PITCH-20.0
+
+## The x range the cards may use on the canvas: the UI's safe rect, less the focus glow, mapped
+## through the canvas as UiLayout.fit_canvas centres it BEFORE its nudge - cards inside this span
+## never make the fit nudge the canvas off its design coordinates.
+func _canvas_span() -> Vector2:
+	var area: Vector2 = (host.get_parent() as Control).size if host.get_parent() is Control else UiLayout.BASE_SIZE
+	var safe: Rect2 = UiLayout.safe_rect(area)
+	var s: float = maxf(0.0001,host.scale.x)
+	var origin: float = (area.x-UiLayout.BASE_SIZE.x*s)*0.5
+	return Vector2((safe.position.x-origin)/s+GLOW_PX+2.0,(safe.end.x-origin)/s-GLOW_PX-2.0)
+
+static func _disc_hits(rect: Rect2, at: Vector2, radius: float) -> bool:
+	var nearest := Vector2(clampf(at.x,rect.position.x,rect.end.x),clampf(at.y,rect.position.y,rect.end.y))
+	return nearest.distance_to(at) < radius
+
+func _place_cards(targets: Array, glide: bool = false) -> void:
+	if is_instance_valid(_resplit): _resplit.kill()
+	if glide: _resplit = UiMotion.tween(host).set_parallel(true)
+	for index: int in range(mini(targets.size(),_cards.size())):
+		var card: Control = _cards[index].card
+		var x: float = float(targets[index][0])
+		var s := Vector2.ONE*float(targets[index][1])
+		if not glide:
+			card.position.x = x
+			card.scale = s
+			continue
+		var motion: Tween = _resplit
+		motion.tween_property(card,"position:x",x,UiMotion.duration(RESPLIT_SECONDS)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		motion.tween_property(card,"scale",s,UiMotion.duration(RESPLIT_SECONDS)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+## True when the ship (its own disc, no clearance) is under a card as the cards stand now.
+func ship_under_card() -> bool:
+	var ship: Vector3 = ship_on_canvas()
+	if ship.z < 0.0: return false
+	for entry: Dictionary in _cards:
+		var card: Control = entry.card
+		if _disc_hits(Rect2(card.position,card.size*card.scale),Vector2(ship.x,ship.y),ship.z): return true
+	return false
 
 func _build_card(ship: ShipDefinition, current: ShipDefinition, x: float, index: int) -> Dictionary:
 	var ink: Color = ShipCatalog.get_color(ship.element)
@@ -283,7 +402,7 @@ func _build_card(ship: ShipDefinition, current: ShipDefinition, x: float, index:
 		var delta: Label = UiKit.label(lift,delta_text(float(stat[2]),float(stat[3]),str(stat[1])),Vector2(20,STATS_Y),Vector2.ZERO,UiTokens.TEXT_XS,delta_color(float(stat[2])-float(stat[3]),int(stat[4])))
 		stats.append([value,delta])
 	var choice: Button = button(lift,"CHOOSE SHIP",Rect2(20,BUTTON_Y,290,40),_pick.bind(ship.id))
-	var entry: Dictionary = {"id":ship.id,"card":card,"lift":lift,"panel":panel,"backing":backing,"glow":glow,"button":choice,"preview":preview,"ink":ink,"rows":rows,"stats":stats,"chip":chip,"kicker":kicker}
+	var entry: Dictionary = {"id":ship.id,"ship":ship,"card":card,"lift":lift,"panel":panel,"backing":backing,"glow":glow,"button":choice,"preview":preview,"ink":ink,"rows":rows,"stats":stats,"chip":chip,"kicker":kicker}
 	card.mouse_entered.connect(func() -> void: if not choice.has_focus(): choice.grab_focus())
 	card.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -340,7 +459,8 @@ func _slide_in(card: Control, index: int) -> void:
 	card.modulate.a = 0.0
 	var motion: Tween = UiMotion.tween(card).set_parallel(true)
 	var wait: float = UiMotion.duration(0.05+CARD_STAGGER*index)
-	motion.tween_property(card,"position",rest,UiMotion.duration(UiTokens.SLOW)).set_delay(wait).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	# Only y: the corridor (relayout, and a re-split in tick) owns x.
+	motion.tween_property(card,"position:y",rest.y,UiMotion.duration(UiTokens.SLOW)).set_delay(wait).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	motion.tween_property(card,"modulate:a",1.0,UiMotion.duration(UiTokens.BASE,true)).set_delay(wait).set_trans(UiTokens.EASE_IN_TRANS).set_ease(UiTokens.EASE_IN_EASE)
 
 ## Focus is hover: the focused card lifts, lights its edge in its element and runs its preview fast.
@@ -358,6 +478,13 @@ func _on_card_focus(entry: Dictionary, focused: bool) -> void:
 	var glow: Control = entry.glow
 	UiMotion.tween(glow).tween_property(glow,"modulate:a",1.0 if focused else 0.0,UiMotion.duration(UiTokens.FAST,true))
 	(entry.preview as ShipPreview).preview_time_scale = PREVIEW_HOVER_SPEED if focused else 1.0
+	# M19: the focused hull, ghosted over the ship. Focus leaving every card (to DECIDE LATER) fades
+	# it; focus moving card to card swaps it (the exit of one card lands before the next one's entry).
+	if not ghost_enabled: return
+	if focused and not is_instance_valid(_ghost): _ghost = HullGhost.attach(app.get("compositor") as CombatCompositor,app.get("combat") as CombatWorld)
+	if is_instance_valid(_ghost):
+		if focused: _ghost.show_hull(entry.ship as ShipDefinition)
+		elif _ghost.hull_id == (entry.ship as ShipDefinition).id: _ghost.show_hull(null)
 
 ## The card whose button has focus (-1: none, e.g. a tab or DECIDE LATER).
 func _focused_card() -> int:
@@ -409,6 +536,8 @@ func tick(delta: float) -> void:
 		_device = InputPrompts.shared().device
 		_footer.text = _footer_text()
 		for key: Label in _key_hints: key.visible = _device != InputPrompts.PAD
+	# M19: the ship flew under a card - open the corridor where it is now.
+	if avoid_ship and not (is_instance_valid(_resplit) and _resplit.is_running()) and ship_under_card(): _place_cards(_card_targets(),true)
 	if _hold_index >= 0:
 		if _focused_card() != _hold_index:
 			_cancel_hold()

@@ -19,7 +19,8 @@ extends Node
 const FX = preload("res://scripts/combat/combat_fx.gd")
 
 ## kind -> channels. `flash`: requested luminance delta (PostFx caps it); `radial` centres it on the
-## event. `hurt`: hurt tint + aberration strength (player only). `rumble`: [weak, strong, seconds].
+## event; `bloom` (M19, the evolution) makes it a glow on the event with no floor, so the rest of
+## the screen stays readable. `hurt`: hurt tint + aberration strength (player only). `rumble`: [weak, strong, seconds].
 ## `fx`: a CombatFX template drawn at the event. `low_light`: enters/leaves the low-light post and
 ## audio state. `cue`: the Soundscape cue it plays; `positional` plays it where it happened;
 ## `stop_cue` cuts a sounding cue (the warp strain, when the press ends or snaps).
@@ -44,7 +45,7 @@ const MAP: Dictionary = {
 	&"pickup_collect": {"fx": "pickup_collect", "cue": "pickup"},
 	&"combo_step": {"cue": "combo_step"},
 	&"combo_break": {"cue": "combo_break"},
-	&"evolved": {"flash": 0.20, "radial": true, "rumble": [0.3, 0.3, 0.30], "cue": "evolve_assemble"},
+	&"evolved": {"flash": 0.25, "bloom": true, "rumble": [0.3, 0.3, 0.30], "cue": "evolve_assemble"},
 	&"low_light_enter": {"low_light": true},
 	&"low_light_exit": {"low_light": false},
 }
@@ -147,7 +148,8 @@ func on_feel_event(kind: StringName, at: Vector2, magnitude: float, actor_id: in
 	event_counts[kind] = int(event_counts.get(kind, 0)) + 1
 	var scale: float = 1.0 if magnitude <= 0.0 else clampf(magnitude, 0.0, 1.0)
 	if entry.has("flash"):
-		post.request_flash(float(entry.flash) * scale, _screen_uv(at) if bool(entry.get("radial", false)) else Vector2(-1.0, -1.0))
+		var centred: bool = bool(entry.get("radial", false)) or bool(entry.get("bloom", false))
+		post.request_flash(float(entry.flash) * scale, _screen_uv(at) if centred else Vector2(-1.0, -1.0), bool(entry.get("bloom", false)))
 	if entry.has("hurt") and actor_id == 0: post.hurt(float(entry.hurt) * scale)
 	if entry.has("rumble"):
 		var r: Array = entry.rumble

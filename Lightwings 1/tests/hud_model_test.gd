@@ -86,14 +86,23 @@ func _run() -> void:
 	# instead of a `draw_arc` centred on the player with a level-radius-in-
 	# pixels radius (which is Euclidean, moves with the player, and - for
 	# any level with radius > ~5 - exceeds the 186px panel outright).
+	# Since M11b the drawing lives in the static `primitives` (the minimap draws its cached list), so
+	# the scan reads THAT function's own body, wherever it sits in the file (M19: it used to slice
+	# `_draw_minimap` up to the next non-static func, which only worked while `primitives` sat
+	# directly below it), and checks that `_draw_minimap` really draws from it.
 	var minimap_source: String = FileAccess.get_file_as_string("res://scripts/ui/hud/minimap.gd")
-	var minimap_start: int = minimap_source.find("func _draw_minimap")
-	h.check(minimap_start >= 0, "minimap.gd defines _draw_minimap (the scan below reads its body)")
-	var minimap_end: int = minimap_source.find("\nfunc ", minimap_start + 1)
-	if minimap_end < 0: minimap_end = minimap_source.length() # the last function in its file
-	var minimap_body: String = minimap_source.substr(minimap_start, minimap_end - minimap_start)
-	h.check(minimap_body.contains("CampaignState.ring(map_cell.coord) == model.radius"), "_draw_minimap classifies the perimeter the same way _show_map does (per-cell ring test)")
-	h.check(not minimap_body.contains("draw_arc(center,perimeter_radius"), "_draw_minimap no longer draws a circular arc for the perimeter")
+	var draw_body: String = _function_body(minimap_source, "_draw_minimap")
+	var minimap_body: String = _function_body(minimap_source, "primitives")
+	h.check(not draw_body.is_empty() and not minimap_body.is_empty(), "minimap.gd defines _draw_minimap and primitives (the scan below reads their bodies)")
+	h.check(draw_body.contains("primitives(campaign,"), "_draw_minimap draws the primitives list")
+	h.check(_ring_test(minimap_body), "the minimap's primitives classify the perimeter the same way _show_map does (per-cell ring test)")
+	h.check(not minimap_body.contains("draw_arc(center,perimeter_radius"), "the minimap no longer draws a circular arc for the perimeter")
+	# Controls: the scan must not be satisfied by the file at large, only by that one function. The
+	# next function's body (draw_primitive) fails the ring test, and a body that still drew the old
+	# arc fails the arc test.
+	h.control("the ring test run on draw_primitive's body", not _ring_test(_function_body(minimap_source, "draw_primitive")))
+	h.control("a primitives body with the old perimeter arc", ("\tdraw_arc(center,perimeter_radius,0,TAU,64,ink,1.0)\n" + minimap_body).contains("draw_arc(center,perimeter_radius"))
+	h.control("a function name the file does not define", _function_body(minimap_source, "primitive").is_empty())
 	# Panel clipping: the old arc (radius up to level_radius*18, e.g. 216px
 	# for L5's radius 12) spilled well outside the 186px panel; confirm the
 	# panel now clips its own contents so nothing it draws can do that again.
@@ -128,6 +137,22 @@ func _run() -> void:
 	_ticks(h)
 	await _live_hud(h)
 	h.finish(self)
+
+## The source of function `name` (static or not) in `source`: from its `func` line to the line before
+## the next top-level `func`/`static func`, wherever it sits in the file. "" when it is not defined.
+static func _function_body(source: String, name: String) -> String:
+	var lines: PackedStringArray = source.split("\n")
+	for start: int in range(lines.size()):
+		if not (lines[start].begins_with("func %s(" % name) or lines[start].begins_with("static func %s(" % name)): continue
+		var body: PackedStringArray = [lines[start]]
+		for index: int in range(start + 1, lines.size()):
+			if lines[index].begins_with("func ") or lines[index].begins_with("static func "): break
+			body.append(lines[index])
+		return "\n".join(body)
+	return ""
+
+static func _ring_test(body: String) -> bool:
+	return body.contains("CampaignState.ring(map_cell.coord) == model.radius")
 
 ## [hold, drain] seconds of the loss ghost after a scripted loss of 400 -> 250 at `hz`.
 func _measure_ghost(hz: float, enabled: bool) -> Vector2:

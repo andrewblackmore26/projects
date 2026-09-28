@@ -110,6 +110,8 @@ func _run() -> void:
 	h.check(str(prompts.prompt_for("ability_primary", kbm).path).ends_with("keyboard_space_icon.png"), "A pad rebind leaves the keyboard glyph alone")
 	InputBindings.setup()
 
+	_steam_input(h)
+
 	# --- Ability glyphs: one shape per ability, set pieces drawn as themselves -------------------
 	var from_pieces: int = 0
 	for id: String in AbilityCatalog.DEFINITIONS:
@@ -122,6 +124,85 @@ func _run() -> void:
 	h.control("an id with no piece and no table entry", str(AbilityGlyphs.shape_for("turret_ring").source) == "generic")
 	h.check(not (AbilityGlyphs.shape_for("dash").circles as Array).is_empty(), "The dash has a glyph")
 	h.finish(self)
+
+## A GodotSteam stand-in with one connected controller: `pressed` digital actions are down, `sticks`
+## maps an analog action to its value. `input_type` < 0 leaves getInputTypeForHandle undefined (an
+## older GodotSteam).
+class FakeSteam extends RefCounted:
+	var pressed: Dictionary = {}
+	var sticks: Dictionary = {}
+	func inputInit(_explicit: bool) -> bool: return true
+	func runFrame() -> void: pass
+	func getConnectedControllers() -> Array: return [7]
+	func activateActionSet(_controller: int, _handle: int) -> void: pass
+	func getActionSetHandle(name: String) -> int: return 1 if name == "Gameplay" else 2
+	func getAnalogActionHandle(name: String) -> int: return 100 + ["Move", "Aim", "MenuNavigate"].find(name)
+	func getDigitalActionHandle(name: String) -> int: return 1 + SteamInputService.DIGITAL_ACTIONS.find(name)
+	func getAnalogActionData(_controller: int, handle: int) -> Dictionary:
+		var value: Vector2 = sticks.get(["Move", "Aim", "MenuNavigate"][handle - 100], Vector2.ZERO)
+		return {"active": true, "x": value.x, "y": -value.y}
+	func getDigitalActionData(_controller: int, handle: int) -> Dictionary:
+		return {"active": true, "state": bool(pressed.get(SteamInputService.DIGITAL_ACTIONS[handle - 1], false))}
+
+class TypedSteam extends FakeSteam:
+	var input_type: int = 13
+	func getInputTypeForHandle(_controller: int) -> int: return input_type
+
+## M19: Steam Input forwards InputEventActions, which `observe` cannot attribute to a device (the
+## control above), so SteamInputService.poll selects the pad itself when the player touches the
+## controller - and only then: a connected, idle controller must not pull a keyboard player's
+## prompts over. The family is Steam's controller type when GodotSteam reports it, else the Deck.
+func _steam_input(h: RefCounted) -> void:
+	var prompts := InputPrompts.new()
+	var fake := FakeSteam.new()
+	var service := SteamInputService.new()
+	service.prompts = prompts
+	h.check(service.initialize(fake), "the Steam Input service initializes on the stand-in")
+	service.set_context(false)
+	service.poll(1.0 / 60.0)
+	fake.sticks["Move"] = Vector2(0.2, 0.0)
+	service.poll(1.0 / 60.0)
+	h.check(prompts.device == InputPrompts.KEYBOARD_MOUSE, "a connected Steam controller at rest (stick 0.2) leaves the prompts on keyboard/mouse")
+	fake.sticks["Move"] = Vector2.ZERO
+	fake.pressed["Fire"] = true
+	service.poll(1.0 / 60.0)
+	h.check(prompts.device == InputPrompts.PAD and prompts.family == "steamdeck", "pressing Fire on it switches the prompts to the pad, Steam Deck set, with no controller type available (%s/%s)" % [prompts.device, prompts.family])
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_W
+	key.pressed = true
+	h.check(prompts.observe(key) and prompts.device == InputPrompts.KEYBOARD_MOUSE, "a key press takes the prompts back to keyboard/mouse")
+	service.poll(1.0 / 60.0)
+	h.check(prompts.device == InputPrompts.KEYBOARD_MOUSE, "Fire merely HELD on the Steam controller does not pull them back (only a new press does)")
+	fake.pressed.clear()
+	fake.sticks["Move"] = Vector2(0.0, -0.9)
+	service.poll(1.0 / 60.0)
+	h.check(prompts.device == InputPrompts.PAD, "a full stick push on the Steam controller switches to the pad")
+	var typed_prompts := InputPrompts.new()
+	var typed := TypedSteam.new()
+	var typed_service := SteamInputService.new()
+	typed_service.prompts = typed_prompts
+	typed_service.initialize(typed)
+	typed_service.set_context(false)
+	typed.pressed["Dash"] = true
+	typed_service.poll(1.0 / 60.0)
+	h.check(typed_prompts.device == InputPrompts.PAD and typed_prompts.family == "playstation", "a PS5 controller under Steam Input (type 13) wears the PlayStation set (%s)" % typed_prompts.family)
+	# Control: the pre-M19 service, which only forwarded actions. Its Fire press reaches the prompts
+	# as nothing at all, and a forwarded menu action as a non-device InputEventAction.
+	var old_prompts := InputPrompts.new()
+	var forwarded := InputEventAction.new()
+	forwarded.action = "ui_accept"
+	forwarded.pressed = true
+	old_prompts.observe(forwarded)
+	h.control("the Steam path as forwarded actions only (device stays %s)" % old_prompts.device, old_prompts.device != InputPrompts.PAD)
+	typed.input_type = 99
+	typed_prompts.select(InputPrompts.KEYBOARD_MOUSE)
+	typed.pressed.clear()
+	typed_service.poll(1.0 / 60.0)
+	typed.pressed["Dash"] = true
+	typed_service.poll(1.0 / 60.0)
+	h.control("a controller type the table does not know reads as generic, not as the Deck (%s)" % typed_prompts.family, typed_prompts.family == "generic")
+	service.shutdown()
+	typed_service.shutdown()
 
 func _key(code: int) -> InputEventKey:
 	var event := InputEventKey.new()

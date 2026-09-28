@@ -10,6 +10,9 @@ const Harness = preload("res://tests/support/harness.gd")
 var t: RefCounted
 var scene: Node2D
 var post: PostFx
+## The measured delta of a capped full-white flash (_flash_case): the bloom's centre is judged
+## against it, not against a hand-picked constant.
+var _capped_white: float = 0.0
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -22,6 +25,7 @@ func _run() -> void:
 	await _vignette_case()
 	await _aberration_case()
 	await _flash_case()
+	await _bloom_case()
 	await _combat_capture()
 	t.finish(self)
 
@@ -136,6 +140,7 @@ func _flash_case() -> void:
 	post.request_flash(1.0)
 	await _frame()
 	var capped: float = _lum(_capture(), Vector2i(640, 400)) - base
+	_capped_white = capped
 	var open: PostFx = _fresh_post()
 	open.vignette_strength = 0.0
 	open.limit_luminance = false
@@ -147,6 +152,74 @@ func _flash_case() -> void:
 	t.check(capped <= PostFx.MAX_FLASH_DELTA * 1.08, "and its measured luminance delta stays <= 0.25 (+8%% readback tolerance): %.3f" % capped)
 	t.control("luminance cap off (delta %.3f)" % uncapped, uncapped > PostFx.MAX_FLASH_DELTA * 1.08)
 	_clear_scene()
+
+## M19: the evolution's flash is a bloom on the ship, not a grey wash. Driven through FeelDirector's
+## `evolved` row (the real mapping; with no world bound it centres on the screen, where the camera
+## keeps the ship) over the game's own near-black void, and again off-centre straight through
+## request_flash. Corners: mean of the four 9x9 corner patches. Controls: the M16b radial flash
+## (30 % floor) at the same strength and centre, which is the wash (corner line); the flash setting
+## at 0 (centre line).
+func _bloom_case() -> void:
+	_rect(Rect2(0, 0, 1280, 800), VisualStyle.BG)
+	await _frame()
+	var base: Image = _capture()
+	var director: FeelDirector = FeelDirector.new()
+	director.set_process(false)
+	director.post.set_process(false)
+	director.post.vignette_strength = 0.0
+	root.add_child(director)
+	director.on_feel_event(&"evolved", Vector2.ZERO, 2.0, 0)
+	await _frame()
+	var bloom: Image = _capture()
+	var centre: float = _lum(bloom, Vector2i(640, 400)) - _lum(base, Vector2i(640, 400))
+	var corners: float = _corners(bloom) - _corners(base)
+	var near: float = _lum(bloom, Vector2i(640 + 160, 400)) - _lum(base, Vector2i(640 + 160, 400))
+	director.post.flash_level = 0.0
+	director.post._apply()
+	# Off-centre, direct: the glow follows the ship's screen position.
+	var off: PostFx = _fresh_post()
+	off.vignette_strength = 0.0
+	off.request_flash(0.25, Vector2(0.3, 0.4), true)
+	await _frame()
+	var shifted: Image = _capture()
+	var off_at: float = _lum(shifted, Vector2i(384, 320)) - _lum(base, Vector2i(384, 320))
+	var off_mirror: float = _lum(shifted, Vector2i(896, 480)) - _lum(base, Vector2i(896, 480))
+	var old: PostFx = _fresh_post()
+	old.vignette_strength = 0.0
+	old.request_flash(0.25, Vector2(0.5, 0.5))
+	await _frame()
+	var wash: float = _corners(_capture()) - _corners(base)
+	post.free()
+	director.post.flash_setting = 0.0
+	director.post.flash_level = 0.0
+	director.post.step(1.0)
+	director.post.request_flash(0.25, Vector2(0.5, 0.5), true)
+	await _frame()
+	var off_centre_setting: float = _lum(_capture(), Vector2i(640, 400)) - _lum(base, Vector2i(640, 400))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts"))
+	bloom.save_png("res://artifacts/post_fx_evolve_bloom.png")
+	print("measure: evolve bloom delta (linear) centre %.4f, 160 px out %.4f, corners %.5f (sRGB corner %.2f/255); off-centre at %.4f, mirror %.4f; old radial corners %.4f; setting 0 centre %.4f" % [centre, near, corners, _corner_srgb(bloom) - _corner_srgb(base), off_at, off_mirror, wash, off_centre_setting])
+	var bright: float = 0.7 * _capped_white
+	t.check(centre >= bright and bright > 0.05, "the evolve bloom lights the ship: centre delta >= 70%% of a capped white flash, %.4f (%.4f)" % [bright, centre])
+	t.check(centre <= PostFx.MAX_FLASH_DELTA * 1.08, "and stays under the 0.25 luminance cap (%.4f)" % centre)
+	t.check(corners <= 0.003, "the corners barely change: delta <= 0.003 linear (%.5f)" % corners)
+	t.check(off_at >= bright and off_mirror <= 0.01, "an off-centre bloom sits on its centre (%.4f) and not across the screen (%.4f)" % [off_at, off_mirror])
+	t.control("the M16b radial flash with its 30%% floor (corners %.4f)" % wash, not (wash <= 0.003))
+	t.control("flash intensity 0 (centre %.4f)" % off_centre_setting, not (off_centre_setting >= bright))
+	director.free()
+	_clear_scene()
+
+func _corners(image: Image) -> float:
+	return (_lum(image, Vector2i(8, 8)) + _lum(image, Vector2i(1271, 8)) + _lum(image, Vector2i(8, 791)) + _lum(image, Vector2i(1271, 791))) * 0.25
+
+## The corners' mean green channel in 8-bit sRGB steps (what the eye sees on the void).
+func _corner_srgb(image: Image) -> float:
+	var total: float = 0.0
+	for at: Vector2i in [Vector2i(8, 8), Vector2i(1271, 8), Vector2i(8, 791), Vector2i(1271, 791)]:
+		var c: Color = image.get_pixel(at.x, at.y)
+		if not image.get_format() in [Image.FORMAT_RGBA8, Image.FORMAT_RGB8]: c = c.linear_to_srgb()
+		total += c.g * 255.0
+	return total * 0.25
 
 ## A real combat frame (player + enemies, no compositor) with and without the hurt state, saved for
 ## a human look: artifacts/post_fx_hurt.png and artifacts/post_fx_calm.png.
@@ -162,6 +235,10 @@ func _combat_capture() -> void:
 	_fresh_post()
 	await _frame()
 	var calm: Image = _capture()
+	post.request_flash(0.25, Vector2(0.5, 0.5), true)
+	await _frame()
+	var evolve: Image = _capture()
+	post.flash_level = 0.0
 	post.hurt(1.0)
 	await _frame()
 	var hurt: Image = _capture()
@@ -172,6 +249,7 @@ func _combat_capture() -> void:
 	var low: Image = _capture()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts"))
 	calm.save_png("res://artifacts/post_fx_calm.png")
+	evolve.save_png("res://artifacts/post_fx_evolve_combat.png")
 	hurt.save_png("res://artifacts/post_fx_hurt.png")
 	low.save_png("res://artifacts/post_fx_low_light.png")
 	var edge_calm: Color = _linear(calm, calm.get_pixel(60, 400))

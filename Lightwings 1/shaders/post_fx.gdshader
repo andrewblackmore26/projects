@@ -15,9 +15,14 @@ uniform float hurt = 0.0;
 uniform vec4 hurt_color : source_color = vec4(1.0, 0.42, 0.36, 1.0);
 // Additive white; PostFx.request_flash is the only writer and caps it at 0.25 x the flash setting.
 uniform float flash = 0.0;
-// M16b big kills: a radial flash, full at flash_center (screen UV) and falling to 30% far away.
+// M16b big kills: a radial flash, full at flash_center (screen UV) and falling to flash_floor (30%)
+// far away. M19's bloom (the evolution) is the same pass with no floor, a tighter falloff and a
+// tint: it lights the ship and leaves the rest of the screen as it was.
 uniform float flash_radial = 0.0;
 uniform vec2 flash_center = vec2(0.5);
+uniform float flash_floor = 0.3;
+uniform float flash_falloff = 9.0;
+uniform vec4 flash_color : source_color = vec4(1.0);
 uniform float desaturation = 0.0;
 // Low-light coral edge, 0..1 (PostFx pulses it on the heartbeat unless motion is reduced).
 uniform float low_light_edge = 0.0;
@@ -54,7 +59,7 @@ void fragment() {
 		colour *= 1.0 - scanlines * 0.18 * step(mod(FRAGCOORD.y, 3.0), 1.0);
 	}
 	vec2 from_flash = (uv - flash_center) * vec2(aspect, 1.0);
-	float falloff = mix(0.3, 1.0, exp(-dot(from_flash, from_flash) * 9.0));
-	colour += vec3(flash * mix(1.0, falloff, flash_radial));
+	float falloff = mix(flash_floor, 1.0, exp(-dot(from_flash, from_flash) * flash_falloff));
+	colour += flash_color.rgb * flash * mix(1.0, falloff, flash_radial);
 	COLOR = vec4(colour, 1.0);
 }

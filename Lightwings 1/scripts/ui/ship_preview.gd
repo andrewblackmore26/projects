@@ -12,6 +12,12 @@ var fit_margin: float = 28.0
 var requested_magnification: float = 1.8
 var motion_radius: float = 0.0
 
+## A preview is a picture, never a stop on the focus path (M19): a SubViewportContainer is
+## FOCUS_CLICK by default, so every evolution card carried a second focusable Control the pad could
+## never reach and a click could take. The editor's resizable subclass inherits this.
+func _init() -> void:
+	focus_mode = Control.FOCUS_NONE
+
 func initialize(ship: ShipDefinition, area: Vector2, magnification: float = 1.8) -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("ship_previews")

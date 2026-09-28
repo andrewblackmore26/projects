@@ -22,7 +22,7 @@ extends SceneTree
 const Harness = preload("res://tests/support/harness.gd")
 const ViewportMatrix = preload("res://tests/support/viewport_matrix.gd")
 
-const SCREENS: Array[String] = ["title", "title_saves", "level_select_campaign", "level_select_dev", "options_audio", "options_display", "options_gameplay", "options_controls", "options_accessibility", "options_over_pause", "pause", "level_complete", "ending_campaign", "ending_demo", "confirm_new", "import_confirm", "cloud"]
+const SCREENS: Array[String] = ["title", "title_saves", "level_select_campaign", "level_select_dev", "options_audio", "options_display", "options_gameplay", "options_controls", "options_accessibility", "options_over_pause", "pause", "level_complete", "ending_campaign", "ending_demo", "confirm_new", "import_confirm", "cloud", "evolution"]
 const DIRECTIONS: Array[String] = ["ui_up", "ui_down", "ui_left", "ui_right"]
 const LAUNCH_BUDGET_MS: int = 2500
 
@@ -38,6 +38,7 @@ func _run() -> void:
 	for screen: String in SCREENS:
 		await _screen(screen)
 	print("measure: %d screens walked, %d focusable controls, %d presses" % [measured.screens, measured.controls, measured.presses])
+	await _evolution_previews()
 	await _rebind_modal()
 	await _dialogue()
 	await _controls()
@@ -102,6 +103,12 @@ func _build(app: Node, screen: String) -> void:
 		"cloud":
 			app.cloud_review = {"state": "conflict", "local_summary": "Level 2 · T3 · 14 nodes", "remote_summary": "Level 1 · T2 · 6 nodes"}
 			app._show_cloud_review()
+		"evolution":
+			app._new_game(false)
+			_step(app, 1)
+			app._close_overlay()
+			app.combat.light_total = EvolutionRules.threshold(app.combat.player_tier)
+			app._show_evolution()
 
 ## The Control the screen's nodes live under: the router's host, or the title's group.
 func _host(app: Node) -> Control:
@@ -205,7 +212,10 @@ func judge(app: Node, where: String) -> Dictionary:
 		return report
 	var graph: Dictionary = await walk(app, host, start)
 	var edges: Dictionary = graph.edges
+	# M19: previews are counted apart, reached or not (a preview must never be a focus stop).
+	report.preview_stops = 0
 	for control: Control in focusables:
+		if control is ShipPreview: report.preview_stops += 1
 		if not edges.has(control): report.unreached.append(str(control.name))
 	var back: Dictionary = reaching(edges, start)
 	for control: Variant in edges:
@@ -265,6 +275,32 @@ func _launch() -> void:
 	root.push_input(key)
 	h.check(not app.title_screen.intro_running(), "a press finishes the title intro at once")
 	await _free(app)
+
+## M19: an evolution card's live preview is never a focusable Control (a SubViewportContainer is
+## FOCUS_CLICK by default: a click could take focus off the card's button, and the pad could never
+## reach it, so REACH failed on every card). Control: the same cards with their previews back at
+## the engine's default.
+func _evolution_previews() -> void:
+	var app: Node = _new_app()
+	await process_frame
+	_build(app, "evolution")
+	await create_timer(UiTokens.STAGGER_MAX + UiTokens.SLOW + 0.1, true, false, true).timeout
+	var previews: Array[Node] = app.overlay.find_children("*", "ShipPreview", true, false)
+	h.check(app.overlay_kind == "evolution" and previews.size() >= 2, "the evolution cards are up with their previews (%d)" % previews.size())
+	h.check(previews.all(func(node: Node) -> bool: return (node as Control).focus_mode == Control.FOCUS_NONE), "every card preview is non-focusable by default")
+	var report: Dictionary = await judge(app, "evolution previews")
+	h.check(not _preview_stop(report) and report.unreached.is_empty(), "no card preview is a focus stop, and every card is reached (unreached: %s; focusable previews: %d)" % [str(report.unreached), int(report.get("preview_stops", 0))])
+	# The engine's own default for a SubViewportContainer (measured: FOCUS_CLICK).
+	for node: Node in previews: (node as Control).focus_mode = Control.FOCUS_CLICK
+	var first: Button = app.screen_router.stack.back().screen._cards[0].button
+	first.grab_focus()
+	var sabotaged: Dictionary = await judge(app, "evolution, previews focusable")
+	h.control("the card previews made focusable (unreached %s, focusable previews %d)" % [str(sabotaged.unreached), int(sabotaged.get("preview_stops", 0))], _preview_stop(sabotaged))
+	await _free(app)
+
+## True when the screen had a focusable ShipPreview (reached by the walk, or left for REACH to report).
+static func _preview_stop(report: Dictionary) -> bool:
+	return int(report.get("preview_stops", 0)) > 0
 
 func _rebind_modal() -> void:
 	var app: Node = _new_app()

@@ -75,9 +75,7 @@ func _draw_minimap() -> void:
 	var campaign: CampaignState = app.campaign
 	var combat: CombatWorld = app.combat
 	if campaign == null or not is_instance_valid(combat): return
-	# The primitives (and the model under them) are rebuilt only when the run moves on. Keep
-	# `primitives` directly below: tests/hud_model_test.gd's source scan of this function runs to
-	# the next non-static func and checks the per-cell perimeter test there.
+	# The primitives (and the model under them) are rebuilt only when the run moves on.
 	var key: Array = _signature(campaign,combat.player_tier)
 	if key != _cache_key:
 		_cache = batched(primitives(campaign,CLIP_RADIUS))

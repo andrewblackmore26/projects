@@ -17,6 +17,15 @@ const LAYER: int = 5
 const MAX_ONSETS_PER_SECOND: int = 3
 const MAX_FLASH_DELTA: float = 0.25
 const FLASH_DECAY_SECONDS: float = 0.10
+## A radial flash (big kills) keeps RADIAL_FLOOR of itself at the far corner; exp(-d^2 x falloff)
+## with d in screen heights from the centre.
+const RADIAL_FLOOR: float = 0.3
+const RADIAL_FALLOFF: float = 9.0
+## The bloom (evolution): no floor, 1/e at ~0.16 screen heights (126 px at 800), the player's light
+## blue lifted toward white (its luminance is below 1, so the cap still bounds it), held longer.
+const BLOOM_FALLOFF: float = 40.0
+const BLOOM_TINT: Color = Color(0.82, 0.95, 1.0)
+const BLOOM_DECAY_SECONDS: float = 0.32
 const HURT_SECONDS: float = 0.12
 const MAX_ABERRATION_PX: float = 3.0
 const VIGNETTE_DEFAULT: float = 0.16
@@ -42,6 +51,7 @@ var onset_count: int = 0
 var rejected_count: int = 0
 var _clock: float = 0.0
 var _onsets: Array[float] = []
+var _flash_decay: float = FLASH_DECAY_SECONDS
 var _hurt_remaining: float = 0.0
 var _hurt_peak: float = 0.0
 var _low_light_mix: float = 0.0
@@ -71,7 +81,7 @@ func _process(delta: float) -> void:
 ## Advances every envelope by `dt` seconds and pushes the uniforms (tests drive this directly).
 func step(dt: float) -> void:
 	_clock += dt
-	flash_level = move_toward(flash_level, 0.0, dt * MAX_FLASH_DELTA / FLASH_DECAY_SECONDS)
+	flash_level = move_toward(flash_level, 0.0, dt * MAX_FLASH_DELTA / _flash_decay)
 	_hurt_remaining = maxf(0.0, _hurt_remaining - dt)
 	hurt_level = _hurt_peak * (_hurt_remaining / HURT_SECONDS)
 	_low_light_mix = move_toward(_low_light_mix, 1.0 if low_light else 0.0, dt / 0.4)
@@ -81,8 +91,11 @@ func step(dt: float) -> void:
 ## Returns true when the request became a flash onset. `strength` is the requested luminance
 ## delta (0..1 of full white); it is clamped to MAX_FLASH_DELTA x flash_setting. `center` (screen
 ## UV, M16b big kills) makes it radial: full strength there, falling to RADIAL_FLOOR of it far
-## away (30 %, in the shader), so the cap still bounds the brightest pixel. Outside 0..1 (the default) it is uniform.
-func request_flash(strength: float, center: Vector2 = Vector2(-1.0, -1.0)) -> bool:
+## away, so the cap still bounds the brightest pixel. Outside 0..1 (the default) it is uniform.
+## `bloom` (M19, the evolution; needs a centre) has no floor, a tight falloff, BLOOM_TINT and a
+## slower decay: a glow on the ship, not a grey wash over the screen (a 30 % floor of a 0.2 flash
+## is +0.06 linear everywhere, which lifts the near-black void to a visible grey).
+func request_flash(strength: float, center: Vector2 = Vector2(-1.0, -1.0), bloom: bool = false) -> bool:
 	var level: float = strength
 	if limit_luminance:
 		level = minf(strength, MAX_FLASH_DELTA * clampf(flash_setting, 0.0, 1.0))
@@ -97,8 +110,13 @@ func request_flash(strength: float, center: Vector2 = Vector2(-1.0, -1.0)) -> bo
 	onset_count += 1
 	flash_level = maxf(flash_level, level)
 	var radial: bool = Rect2(0.0, 0.0, 1.0, 1.0).has_point(center)
+	bloom = bloom and radial
 	material.set_shader_parameter("flash_radial", 1.0 if radial else 0.0)
 	if radial: material.set_shader_parameter("flash_center", center)
+	material.set_shader_parameter("flash_floor", 0.0 if bloom else RADIAL_FLOOR)
+	material.set_shader_parameter("flash_falloff", BLOOM_FALLOFF if bloom else RADIAL_FALLOFF)
+	material.set_shader_parameter("flash_color", BLOOM_TINT if bloom else Color.WHITE)
+	_flash_decay = BLOOM_DECAY_SECONDS if bloom else FLASH_DECAY_SECONDS
 	_apply()
 	return true
 
