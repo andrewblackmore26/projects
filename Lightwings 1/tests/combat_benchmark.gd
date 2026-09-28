@@ -39,9 +39,68 @@ func _extra_sections() -> Array[String]:
 		if argument.begins_with("--require-section="): extra.append(argument.trim_prefix("--require-section="))
 	return extra
 
+## Modernization M13 `wave_peak`: the density the waves can actually reach - 12 T6 enemies (the
+## alive-cap ceiling) all firing at a T5 player who fires back, for 30 s, topped back up to 12
+## through the ordinary spawn path whenever one dies. REPORTED, not gated: no budget exists until
+## this has been measured on a quiet machine (tasks/lessons.md, "a budget nobody measured").
+## `-- --scenario=wave_peak` runs it alone.
+const WAVE_PEAK_ENEMIES: int = 12
+const WAVE_PEAK_KINDS: Array[String] = ["drone", "sentry", "chain"]
+func _wave_peak() -> Dictionary:
+	var world: CombatWorld = World.new()
+	world.visuals_enabled = false
+	world.profile_sections = true
+	root.add_child(world)
+	world.set_physics_process(false)
+	world.setup_player("plasma", 5, 1500, [], world.arena.center)
+	world.set_player_hull("player_plasma_t5_heavy")
+	world._grant_invulnerability(1000000.0, &"benchmark")
+	var hulls: Array = []
+	for i: int in range(WAVE_PEAK_ENEMIES): hulls.append(ShipGenerator.hull_id("enemy", WAVE_PEAK_KINDS[i % 3], GameTuning.ELEMENTS[i % 5], 6))
+	world.start_sector({"id": "wave_peak", "kind": "regular", "element": "plasma", "tier": 6, "resource_budget": 1000000, "encounter_epoch": 0, "enemy_hulls": hulls})
+	var samples: Array[float] = []
+	var section_totals: Dictionary = {}
+	var peak_bullets: int = 0
+	var min_alive: int = WAVE_PEAK_ENEMIES
+	var topped_up: int = 0
+	for frame: int in range(60 + 1800):
+		var alive: int = 0
+		for actor: Dictionary in world.enemies:
+			if not bool(actor.dead): alive += 1
+		min_alive = mini(min_alive, alive)
+		for i: int in range(alive, WAVE_PEAK_ENEMIES):
+			var at: Vector2 = world.arena.center + Vector2.from_angle(TAU * float(frame * 7 + i) / 13.0) * (world.arena.radius - 60.0)
+			if not world._spawn_named_enemy(str(hulls[(frame + i) % hulls.size()]), "plasma", 6, at, false, false).is_empty(): topped_up += 1
+		var command: ShipCommand = ShipCommand.new()
+		command.movement = ((world.arena.center + Vector2(cos(frame * 0.006) * 320.0, sin(frame * 0.006) * 180.0) - Vector2(world.player.pos)) / 100.0).limit_length(1.0)
+		var target: Dictionary = world._nearest(world.player, world.player.pos)
+		command.aim = (Vector2(target.pos) - Vector2(world.player.pos)).normalized() if not target.is_empty() else Vector2.RIGHT
+		command.fire = true
+		command.secondaries.assign([frame % 30 == 0, frame % 45 == 0, frame % 60 == 0])
+		world.set_command(command)
+		world._physics_process(1.0 / 60.0)
+		if frame >= 60:
+			samples.append(world.simulation_ms)
+			for key: String in world.section_ms: section_totals[key] = float(section_totals.get(key, 0.0)) + float(world.section_ms[key])
+		peak_bullets = maxi(peak_bullets, world.bullets.count())
+	samples.sort()
+	var total: float = 0.0
+	for sample: float in samples: total += sample
+	for key: String in section_totals: section_totals[key] /= samples.size()
+	print("CPU SECTIONS wave_peak: " + JSON.stringify(section_totals))
+	var report: Dictionary = {"scenario": "wave_peak", "enemies": WAVE_PEAK_ENEMIES, "min_alive": min_alive, "topped_up": topped_up, "peak_bullets": peak_bullets, "mean_simulation_ms": total / samples.size(), "p95_simulation_ms": samples[int(samples.size() * 0.95)], "max_simulation_ms": samples[-1]}
+	print("measure: benchmark wave_peak enemies=%d min_alive=%d topped_up=%d peak_bullets=%d mean_ms=%.3f p95_ms=%.3f max_ms=%.3f (reported, no budget)" % [WAVE_PEAK_ENEMIES, min_alive, topped_up, peak_bullets, report.mean_simulation_ms, report.p95_simulation_ms, report.max_simulation_ms])
+	world.queue_free()
+	return report
+
 func _run() -> void:
 	print("benchmark roster: ", ShipCatalog.use_cmdline_root())
 	var reports: Array = []
+	if "--scenario=wave_peak" in OS.get_cmdline_user_args():
+		reports.append(_wave_peak())
+		print("COMBAT BENCHMARK: " + JSON.stringify({"engine": Engine.get_version_info().string, "reports": reports}))
+		quit(0)
+		return
 	var asserting: bool = "--assert" in OS.get_cmdline_user_args()
 	var scale: float = _scale_argument("--budget-scale=")
 	var fill_scale: float = _scale_argument("--fill-scale=")
@@ -102,6 +161,8 @@ func _run() -> void:
 				print("measure: benchmark bullets=%d section=%s section_avg=%.4f ok=%d" % [requested, name, float(section_totals.get(name, 0.0)), int(timed)])
 		world.queue_free()
 		await process_frame
+	reports.append(_wave_peak())
+	await process_frame
 	print("COMBAT BENCHMARK: " + JSON.stringify({"engine": Engine.get_version_info().string, "platform": OS.get_name(), "mode": "Headless simulation plus instance-buffer preparation; excludes GPU rendering and is not Steam Deck qualification", "reports": reports}))
 	if asserting: print("COMBAT BENCHMARK GATE: %d checks, %d failures (budget scale %.2f)" % [gate_checks, gate_failures, scale])
 	quit(1 if asserting and gate_failures > 0 else 0)

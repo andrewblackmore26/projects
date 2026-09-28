@@ -32,6 +32,14 @@ const RETREAT_RANGE: float = 420.0
 ## "Protect the core when exposed": bias the ship's facing so the side
 ## carrying more surviving circles is the one presented toward the threat.
 const PROTECT_BIAS_MAX_RAD: float = 0.45 # ~26 degrees
+## An elite or boss holds range between these (px from its delayed target) instead of chasing. Before
+## M8 it closed to 300 px and then circled; the band keeps the circle and adds the back-off.
+const HOLD_NEAR: float = 200.0
+const HOLD_FAR: float = 340.0
+## The longest lead an elite or boss takes on a moving target, in seconds of the target's velocity.
+const LEAD_MAX_SECONDS: float = 0.8
+## The least fraction of its target speed a unicycle keeps while it turns (see `_steer`).
+const TURN_SPEED_FLOOR: float = 0.25
 
 ## Single choke point for what counts as "an elite or boss decision, not a
 ## regular's fixed pattern" - both archetype dispatch and the tests use it.
@@ -91,7 +99,7 @@ static func _update_regular(world, actor: Dictionary, dt: float) -> void:
 		var desired: Vector2 = actor.desired_aim
 		if relative.length() < 300.0: desired = desired.orthogonal() * 0.6
 		actor.desired = desired
-	_steer(world, actor, dt, 0.45)
+	_steer(world, actor, dt)
 	world._regular_pattern(actor, dt)
 	for i: int in range(actor.secondaries.size()): world._use_secondary(actor, i)
 	_fire_hub_guns(world, actor, dt)
@@ -132,7 +140,7 @@ static func _update_decision_driven(world, actor: Dictionary, dt: float) -> void
 	# code that aimed every gun perfectly at the nearest target every tick.
 	var new_decision: bool = timer_due or bool(world.ai_reaction_disabled)
 	if new_decision: _decide(world, actor)
-	_steer(world, actor, dt, 0.45 if bool(actor.get("elite", false)) else 0.85)
+	_steer(world, actor, dt)
 	if actor.get("gun_indices", PackedInt32Array()).size() > 0:
 		world._update_guns(actor, dt, new_decision)
 		# A rail hull's MAIN weapon is in its core (spec §4.1), which is rig index 0 and so never a
@@ -167,7 +175,10 @@ static func _decide(world, actor: Dictionary) -> void:
 	actor._delayed_pos = delayed_pos
 	actor._delayed_vel = delayed_vel
 	var relative: Vector2 = delayed_pos - Vector2(actor.pos)
-	var lead: Vector2 = delayed_vel * clampf(relative.length() / 600.0, 0.1, 0.6)
+	# Lead by the time the actor's own shot takes to cover the range (M8: was range / 600 px/s, a
+	# stand-in older than the projectile ratios), capped so a weave still beats it.
+	var shot_speed: float = world.shot_speed_of(actor, str(actor.get("primary", "")))
+	var lead: Vector2 = delayed_vel * clampf(relative.length() / maxf(1.0, shot_speed), 0.1, LEAD_MAX_SECONDS)
 	var aim_point: Vector2 = relative + lead
 	var desired_aim: Vector2 = aim_point.normalized() if aim_point.length_squared() > 0.0001 else Vector2(actor.aim)
 	desired_aim = desired_aim.rotated(_protect_bias(actor))
@@ -175,9 +186,13 @@ static func _decide(world, actor: Dictionary) -> void:
 	if _should_retreat(actor):
 		actor.desired = (-relative).normalized() if relative.length_squared() > 0.0001 else Vector2(actor.aim)
 	else:
-		var desired: Vector2 = relative.normalized() if relative.length_squared() > 0.0001 else Vector2(actor.aim)
-		if relative.length() < 300.0: desired = desired.orthogonal()
-		actor.desired = desired
+		# Spec §8: elites and bosses "reposition, they don't chase". A hold band: close in from beyond
+		# it, circle inside it, back off (still circling) when the target comes too close.
+		var toward: Vector2 = relative.normalized() if relative.length_squared() > 0.0001 else Vector2(actor.aim)
+		var distance: float = relative.length()
+		if distance > HOLD_FAR: actor.desired = toward
+		elif distance < HOLD_NEAR: actor.desired = (toward.orthogonal() - toward).normalized()
+		else: actor.desired = toward.orthogonal()
 
 ## "Retreat when limbs are lost" - measured, not guessed: fewer than half the
 ## weapon circles authored at spawn remain attached and alive.
@@ -211,21 +226,44 @@ static func _protect_bias(actor: Dictionary) -> float:
 	if total <= 0: return 0.0
 	return clampf(float(right - left) / float(total), -1.0, 1.0) * PROTECT_BIAS_MAX_RAD
 
-## Momentum for enemies (spec v0.3 §13 plan item 1: "Enemies should ease
-## toward their desired velocity rather than teleporting to it"): the same
-## accel/drag model the player uses, just driven by the archetype's
-## `desired` unit vector instead of a live command. `move_toward` on the
-## velocity with an `accel*dt` budget is a cheap, allocation-free ease that
-## reaches the same terminal speed the player's exact accel/drag integral
-## does, without needing a second physics model.
-static func _steer(world, actor: Dictionary, dt: float, base_speed_fraction: float) -> void:
-	var thrusters: float = 1.2 if world._has_ability(actor, "thrusters") else 1.0
+## The single choke point for an enemy's top speed (camera/movement spec §2, M8): a ratio of the
+## player's `player_top_speed` per archetype, x1.2 with thrusters. Movement and the trail cap both
+## read it. A hull pinned at `speed` 0 (the workshop preview's dummies) never moves.
+static func top_speed(world, actor: Dictionary) -> float:
+	if float(actor.get("speed", 0.0)) <= 0.0: return 0.0
+	return GameTuning.enemy_top_speed(archetype_of(actor)) * _thrusters(world, actor)
+
+static func _thrusters(world, actor: Dictionary) -> float:
+	return 1.2 if world._has_ability(actor, "thrusters") else 1.0
+
+## Spec §8 "Enemies accelerate slowly and turn slowly. No drift, no dash": a unicycle. The velocity
+## always points along a heading that turns toward `desired` at no more than `enemy_turn.<archetype>`
+## rad/s, and the speed approaches |desired| x top speed exponentially (`enemy_t90.<archetype>` to
+## 90 %), both in closed form per tick so no tick rate changes the path. The target speed falls with
+## the cosine of what is left of the turn, so a reversal slows, pivots and pulls away rather than
+## looping wide. Before M8 this was the player's old `move_toward` ease at 0.45 of the hull's speed
+## (0.85 for a boss), with the velocity free to swing any angle in a tick.
+## The floor keeps a unicycle that starts at rest facing away from `desired` creeping round its turn;
+## at 0 it would never gain the speed that carries its heading and would sit still (M8 found that).
+## The hull's facing (`aim`) still turns at the hull's own `turn_rate`: a gun aims, the body travels.
+static func _steer(world, actor: Dictionary, dt: float) -> void:
+	var archetype: String = archetype_of(actor)
+	var thrusters: float = _thrusters(world, actor)
 	var desired_aim: Vector2 = actor.get("desired_aim", actor.aim)
 	actor.aim = Vector2.from_angle(rotate_toward(Vector2(actor.aim).angle(), desired_aim.angle(), float(actor.turn_rate) * thrusters * dt))
-	var top_speed: float = float(actor.speed) * thrusters * base_speed_fraction
-	var accel: float = float(actor.get("accel", 1200.0)) * thrusters
-	var target_vel: Vector2 = Vector2(actor.get("desired", Vector2.ZERO)) * top_speed * world._slow_multiplier(actor)
-	var vel: Vector2 = Vector2(actor.get("vel", Vector2.ZERO)).move_toward(target_vel, accel * dt)
+	var desired: Vector2 = actor.get("desired", Vector2.ZERO)
+	var vel: Vector2 = actor.get("vel", Vector2.ZERO)
+	var speed: float = vel.length()
+	# From rest the heading starts where the hull faces; a velocity carries its own.
+	var heading: float = vel.angle() if speed > 0.0001 else Vector2(actor.aim).angle()
+	var target_speed: float = 0.0
+	if desired.length_squared() > 0.000001:
+		heading = rotate_toward(heading, desired.angle(), GameTuning.feel("enemy_turn." + archetype) * thrusters * dt)
+		var alignment: float = clampf(cos(angle_difference(heading, desired.angle())), TURN_SPEED_FLOOR, 1.0)
+		target_speed = top_speed(world, actor) * minf(1.0, desired.length()) * alignment * world._slow_multiplier(actor)
+	var tau: float = maxf(0.001, GameTuning.feel("enemy_t90." + archetype) / log(10.0))
+	speed = target_speed + (speed - target_speed) * exp(-dt / tau)
+	vel = Vector2.from_angle(heading) * speed
 	actor.vel = vel
 	actor.pos = world.arena.clamp_point(Vector2(actor.pos) + vel * dt, 18.0)
 	world._finish_follow_motion(actor)

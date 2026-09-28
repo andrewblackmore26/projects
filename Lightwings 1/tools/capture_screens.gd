@@ -7,11 +7,17 @@ extends SceneTree
 ##   tools\godot.ps1 -Arguments '--script "res://tools/capture_screens.gd" -- --out=<abs dir> [--only=<name>]'
 ## `--shift-label=<screen>` moves the first Label under app.overlay/app.menu/app.hud by +1 px x in
 ## that screen only: the negative control for tools/diff_captures.py.
+## M6: `--size=WxH` captures at another window size (aspect "expand": 1920x1080 is a 1422x800 UI,
+## 2560x1080 a 1896x800 one); `--text-scale=` and `--ui-scale=` apply those settings. `--only=` takes
+## a comma-separated list.
 const STEP: float = 1.0 / 60.0
 
 var out_dir: String = ""
 var only: String = ""
 var shift_screen: String = ""
+var window_size: Vector2i = Vector2i(1280, 800)
+var text_scale: float = 1.0
+var ui_scale: float = 1.0
 var failures: int = 0
 var captured: int = 0
 
@@ -22,15 +28,18 @@ func _run() -> void:
 		if arg.begins_with("--out="): out_dir = arg.trim_prefix("--out=")
 		elif arg.begins_with("--only="): only = arg.trim_prefix("--only=")
 		elif arg.begins_with("--shift-label="): shift_screen = arg.trim_prefix("--shift-label=")
+		elif arg.begins_with("--size="): window_size = Vector2i(int(arg.trim_prefix("--size=").get_slice("x",0)),int(arg.trim_prefix("--size=").get_slice("x",1)))
+		elif arg.begins_with("--text-scale="): text_scale = arg.trim_prefix("--text-scale=").to_float()
+		elif arg.begins_with("--ui-scale="): ui_scale = arg.trim_prefix("--ui-scale=").to_float()
 	if DisplayServer.get_name() == "headless" or out_dir.is_empty():
 		push_error("capture_screens needs a GPU window and --out=<dir>")
 		quit(1)
 		return
-	root.size = Vector2i(1280,800)
+	root.size = window_size
 	DisplayServer.window_move_to_foreground()
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	for screen: String in ["menu","menu_saves","level_select_campaign","level_select_dev","options_audio","options_display","options_gameplay","options_controls","pause","options_over_pause","pause_after_options","evolution","evolution_dev","map","death","level_complete","ending_campaign","ending_demo","cloud","confirm_new","import_confirm","dialogue","hud_origin","hud_combat","hud_evolve_ready","hud_dev","toast"]:
-		if not only.is_empty() and screen != only: continue
+	for screen: String in ["menu","menu_saves","level_select_campaign","level_select_dev","options_audio","options_display","options_gameplay","options_controls","options_accessibility","pause","options_over_pause","pause_after_options","evolution","evolution_dev","map","death","level_complete","ending_campaign","ending_demo","cloud","confirm_new","import_confirm","dialogue","hud_origin","hud_combat","hud_evolve_ready","hud_dev","toast"]:
+		if not only.is_empty() and not screen in only.split(","): continue
 		await _capture(screen)
 	print("SCREEN CAPTURE: %d screens, %d failures" % [captured,failures])
 	quit(1 if failures else 0)
@@ -69,8 +78,8 @@ func _capture(screen: String) -> void:
 			app._show_menu()
 		"level_select_campaign": app._show_level_select("campaign")
 		"level_select_dev": app._show_level_select("dev")
-		"options_audio","options_display","options_gameplay","options_controls":
-			app.options_tab = ["options_audio","options_display","options_gameplay","options_controls"].find(screen)
+		"options_audio","options_display","options_gameplay","options_controls","options_accessibility":
+			app.options_tab = ["options_audio","options_display","options_gameplay","options_controls","options_accessibility"].find(screen)
 			app._show_options()
 		"pause","options_over_pause","pause_after_options":
 			app._new_game(false)
@@ -117,6 +126,12 @@ func _capture(screen: String) -> void:
 		"dialogue":
 			app._new_game(false)
 			_step_combat(app,1)
+			# M6: the origin may now hold enemies, which holds back an ordinary line; show the
+			# welcome through the immediate lane so the box is always in the capture.
+			if app.line_queue.is_empty() or not app.dialogue_director.can_show_next(false):
+				var front: Dictionary = app.line_queue[0] if not app.line_queue.is_empty() else {"element":"fire","title":"ECHO","text":"Signal found."}
+				app.line_queue.clear()
+				app.dialogue_director.queue_immediate(str(front.element),str(front.title),str(front.text),"capture_dialogue")
 			app._update_dialogue(0.0)
 		"hud_origin":
 			app._new_game(false)
@@ -148,6 +163,14 @@ func _capture(screen: String) -> void:
 	# main.gd pauses a run when the window loses focus (NOTIFICATION_APPLICATION_FOCUS_OUT), which a
 	# capture cannot rule out: the screen must still be the one that was built when it is grabbed.
 	var built_kind: String = app.overlay_kind
+	if text_scale != 1.0 or ui_scale != 1.0:
+		app.settings.text_scale = text_scale
+		app.settings.ui_scale = ui_scale
+		app.apply_settings()
+		# A preview refitted by the new layout draws its new scale on its next _process, which the
+		# freeze below would otherwise never let run.
+		for preview: Node in get_nodes_in_group("ship_previews"):
+			if is_instance_valid(preview.renderer): preview.renderer._process(0)
 	if app.mode == "play" and is_instance_valid(app.combat):
 		app._refresh_hud()
 		for actor: Dictionary in app.combat.actors_by_id.values():
@@ -182,8 +205,8 @@ func _capture(screen: String) -> void:
 	if app.overlay_kind != built_kind:
 		push_error("capture %s: overlay changed from '%s' to '%s' before the grab (window focus lost?)" % [screen,built_kind,app.overlay_kind])
 		failures += 1
-	if raw.get_width() != 1280 or raw.get_height() != 800:
-		push_error("capture %s is %dx%d, expected 1280x800" % [screen,raw.get_width(),raw.get_height()])
+	if raw.get_size() != root.size:
+		push_error("capture %s is %dx%d, expected root.size %s" % [screen,raw.get_width(),raw.get_height(),root.size])
 		failures += 1
 	var encoded := Image.create(raw.get_width(),raw.get_height(),false,Image.FORMAT_RGB8)
 	for y: int in range(raw.get_height()):

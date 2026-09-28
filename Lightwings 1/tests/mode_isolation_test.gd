@@ -106,9 +106,8 @@ func _run() -> void:
 	app._show_evolution()
 	h.check(app.overlay_kind == "evolution","Dev evolution screen opens")
 	h.check(app.pending_offers.size() == everything.size(),"Dev pending offers hold every hull (%d)" % app.pending_offers.size())
-	var previews: int = 0
-	for child: Node in app.overlay.get_children():
-		if child is ShipPreview: previews += 1
+	# M12: each evolution card groups its nodes, so previews are counted among descendants.
+	var previews: int = app.overlay.find_children("*","ShipPreview",true,false).size()
 	h.check(previews > 0 and previews <= 4,"Only one element's hulls are previewed at a time (%d)" % previews)
 	h.control("previews counted against the full 20-hull offer list",not (app.pending_offers.size() <= 4))
 	app._close_overlay()

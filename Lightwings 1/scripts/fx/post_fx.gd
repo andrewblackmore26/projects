@@ -45,6 +45,11 @@ var _onsets: Array[float] = []
 var _hurt_remaining: float = 0.0
 var _hurt_peak: float = 0.0
 var _low_light_mix: float = 0.0
+## M12: world desaturation a screen asks for (ScreenRouter's `desaturate`, the evolution cards),
+## eased toward over FOCUS_FADE_SECONDS; the stronger of it and the low-light state wins.
+const FOCUS_FADE_SECONDS: float = 0.15
+var focus_desaturation: float = 0.0
+var _focus_mix: float = 0.0
 
 func _init() -> void:
 	layer = LAYER
@@ -70,11 +75,14 @@ func step(dt: float) -> void:
 	_hurt_remaining = maxf(0.0, _hurt_remaining - dt)
 	hurt_level = _hurt_peak * (_hurt_remaining / HURT_SECONDS)
 	_low_light_mix = move_toward(_low_light_mix, 1.0 if low_light else 0.0, dt / 0.4)
+	_focus_mix = move_toward(_focus_mix, focus_desaturation, dt / FOCUS_FADE_SECONDS)
 	_apply()
 
 ## Returns true when the request became a flash onset. `strength` is the requested luminance
-## delta (0..1 of full white); it is clamped to MAX_FLASH_DELTA x flash_setting.
-func request_flash(strength: float) -> bool:
+## delta (0..1 of full white); it is clamped to MAX_FLASH_DELTA x flash_setting. `center` (screen
+## UV, M16b big kills) makes it radial: full strength there, falling to RADIAL_FLOOR of it far
+## away (30 %, in the shader), so the cap still bounds the brightest pixel. Outside 0..1 (the default) it is uniform.
+func request_flash(strength: float, center: Vector2 = Vector2(-1.0, -1.0)) -> bool:
 	var level: float = strength
 	if limit_luminance:
 		level = minf(strength, MAX_FLASH_DELTA * clampf(flash_setting, 0.0, 1.0))
@@ -88,6 +96,9 @@ func request_flash(strength: float) -> bool:
 	_onsets.append(_clock)
 	onset_count += 1
 	flash_level = maxf(flash_level, level)
+	var radial: bool = Rect2(0.0, 0.0, 1.0, 1.0).has_point(center)
+	material.set_shader_parameter("flash_radial", 1.0 if radial else 0.0)
+	if radial: material.set_shader_parameter("flash_center", center)
 	_apply()
 	return true
 
@@ -109,8 +120,8 @@ func _apply() -> void:
 	material.set_shader_parameter("aberration_px", minf(aberration, MAX_ABERRATION_PX))
 	material.set_shader_parameter("hurt", hurt_level)
 	material.set_shader_parameter("flash", flash_level)
-	material.set_shader_parameter("desaturation", LOW_LIGHT_DESATURATION * _low_light_mix)
+	material.set_shader_parameter("desaturation", maxf(LOW_LIGHT_DESATURATION * _low_light_mix, _focus_mix))
 	material.set_shader_parameter("low_light_edge", 0.5 * _low_light_mix * pulse)
 	material.set_shader_parameter("scanlines", 1.0 if scanlines else 0.0)
 	# A pass with nothing to do is skipped entirely.
-	rect.visible = vignette_strength > 0.0 or flash_level > 0.0 or hurt_level > 0.0 or _low_light_mix > 0.0 or scanlines
+	rect.visible = vignette_strength > 0.0 or flash_level > 0.0 or hurt_level > 0.0 or _low_light_mix > 0.0 or _focus_mix > 0.0 or scanlines

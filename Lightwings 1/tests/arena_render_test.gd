@@ -31,6 +31,8 @@ func _run() -> void:
 	scene.add_child(backdrop)
 	await _frame()
 	var image: Image = root.get_texture().get_image()
+	# M6 (aspect "expand"): the capture is the whole window, never a letterboxed part of it.
+	_check(image.get_size() == root.size, "the capture is exactly root.size %s (got %s)" % [root.size, image.get_size()])
 	var background: float = _sample(image, Vector2i(2, 2)) # Inside the fill rect, far from any drawn shape.
 	var rest_ne: float = _sample(image, _rim(center, radius, CONTACT))
 	_check(_bright(image, Vector2i(center+Vector2(radius,0)), background), "Rim renders as a circle (pixel found on the +X radius)")

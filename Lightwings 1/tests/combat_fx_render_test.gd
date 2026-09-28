@@ -46,6 +46,8 @@ func _ring_radius_case() -> void:
 	canvas.queue_redraw()
 	await _frame()
 	var image: Image = root.get_texture().get_image()
+	# M6 (aspect "expand"): the capture is the whole window, never a letterboxed part of it.
+	_check(image.get_size() == root.size,"the capture is exactly root.size %s (got %s)" % [root.size,image.get_size()])
 	var on_ring: bool = _bright_at(image,center+Vector2(50,0)) or _bright_at(image,center+Vector2(0,50))
 	var off_ring: bool = _bright_at(image,center+Vector2(20,0))
 	_check(on_ring,"a ring's pixels sit at its radius (+/- a couple of px)")

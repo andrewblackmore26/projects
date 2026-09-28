@@ -28,6 +28,8 @@ var hud: Control
 var menu: Control
 var overlay: Control
 var dialogue: Control
+## M6: the UI's CanvasLayer, scaled by the `ui_scale` setting (UiLayout.fit_root); the world is not.
+var ui_layer: CanvasLayer
 var hud_view: Hud
 ## Held so the menu's own button callbacks outlive `_show_menu`.
 var title_screen: TitleScreen
@@ -63,7 +65,9 @@ var line_queue: Array[Dictionary]:
 var seen_lines: Dictionary:
 	get: return dialogue_director.seen_lines
 	set(value): dialogue_director.seen_lines = value
-var settings: Dictionary = {"volume":0.7,"effects_volume":0.55,"interface_volume":0.45,"ambience_volume":0.15,"pickup_cues":false,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false,"reduced_warp":false}
+var settings: Dictionary = {"volume":0.7,"effects_volume":0.55,"interface_volume":0.45,"ambience_volume":0.15,"pickup_cues":false,"music":true,"auto_fire":false,"glow":true,"damage_numbers":false,"show_elements":true,"fullscreen":false,"reduced_warp":false,"ui_scale":1.0,"text_scale":1.0,"window_mode":"windowed","resolution":"auto","vsync":"on","fps_cap":0,"screen_shake":1.0,"flash_intensity":1.0,"reduced_motion":false,"colorblind":false,"rumble":1.0}
+## M15: where the settings persist (tests point it at a scratch file).
+var settings_path: String = "user://device.cfg"
 var options_tab: int = 0
 var elapsed_ui: float = 0.0
 ## The dialogue box's on-screen timer (RunController clears it on reboot).
@@ -91,7 +95,6 @@ var benchmark_seconds: float = 65.0
 var benchmark_warmup_seconds: float = 5.0
 var benchmark_asserting: bool = false
 var benchmark_budget_scale: float = 1.0
-var hud_elapsed: float = 0.0
 var testing: bool = false
 var sector_edges: SectorEdges
 var cloud_review: Dictionary = {}
@@ -105,12 +108,9 @@ var _capture_at_tick: int = 90 # --show-death needs a much shorter delay: the de
 ## scripts/world/run_controller.gd since modernization M1; the methods below with the old names are
 ## one-line forwarders, kept because tests and package_validation.gd call them on `app`.
 var run_controller: RunController
-## Frictionless death (spec §7.4/§24, plan P7): seconds the death card has been up. The next life
-## itself is prepared by RunController.on_death.
-var _death_elapsed: float = 0.0
-## Swallows N upcoming _physics_process command frames after a dismiss, so
-## the very press that dismissed the card (e.g. held right-click) cannot
-## also fire a dash the instant control returns.
+## Swallows N upcoming _physics_process command frames after a reboot, so a
+## fire or dash held through the death (e.g. held right-click) cannot also go
+## off the instant control returns.
 var _input_swallow_frames: int = 0
 
 func _init() -> void:
@@ -148,6 +148,7 @@ func _ready() -> void:
 			benchmark_mode = true
 			settings.glow = true
 			settings.fullscreen = false
+			settings.window_mode = "windowed"
 			# P9 finding: Godot's default physics catch-up (max 8 substeps/frame)
 			# trapped this benchmark in a self-sustaining spiral the first time
 			# it was measured (mean 112ms/frame) - once any one frame's cost
@@ -182,7 +183,7 @@ func _ready() -> void:
 			combat.absorption = {"fire":20.0,"corruption":20.0,"plasma":20.0}
 			_show_evolution()
 		elif (arg == "--show-options" or arg.begins_with("--show-options=")) and OS.has_feature("editor"):
-			if arg.contains("="): options_tab = maxi(0,["audio","display","gameplay","controls"].find(arg.get_slice("=",1)))
+			if arg.contains("="): options_tab = maxi(0,["audio","display","gameplay","controls","accessibility"].find(arg.get_slice("=",1)))
 			_show_options()
 		elif arg == "--show-pause" and OS.has_feature("editor"):
 			_new_game(false)
@@ -232,7 +233,7 @@ func _ready() -> void:
 			line_queue.clear()
 		elif arg == "--show-death" and OS.has_feature("editor"):
 			# Debug-only capture aid (plan P7 "LOOK at it"): the death card
-			# (spec §7.4/§24) is only up for GameTuning.DEATH_CARD_SECONDS, so
+			# (spec §7.4/§24) is only up for RunController.DEATH_REBOOT_S, so
 			# the capture must fire soon after death, not at the default
 			# 90-tick delay other --show-* captures use.
 			_new_game(false)
@@ -292,11 +293,13 @@ func _create_ui() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 10
 	add_child(layer)
+	ui_layer = layer
 	ui = Control.new()
-	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.theme = UiKit.make_theme()
 	layer.add_child(ui)
+	UiLayout.fit_root(ui_layer,ui,float(settings.get("ui_scale",1.0)))
+	get_tree().root.size_changed.connect(layout_ui)
 	hud = group(ui)
 	menu = group(ui)
 	overlay = group(ui)
@@ -306,6 +309,19 @@ func _create_ui() -> void:
 	dialogue_box = DialogueBox.new(self,dialogue)
 	hud_view = Hud.new(self,hud)
 	hud_view.build()
+	layout_ui()
+
+## M6: the one place the UI follows the window - the aspect rule, the UI scale on the UI layer, then
+## every layout that reads the UI rect (scripts/ui/ui_layout.gd). Runs on every root resize.
+func layout_ui() -> void:
+	if ui_layer == null: return
+	UiLayout.apply_aspect(get_tree().root)
+	UiLayout.fit_root(ui_layer,ui,float(settings.get("ui_scale",1.0)))
+	hud_view.layout()
+	screen_router.relayout()
+	dialogue_box.layout()
+	toast_stack.layout(ui.size)
+	if is_instance_valid(title_screen): title_screen.layout()
 
 func _show_menu() -> void:
 	mode = "menu"
@@ -325,6 +341,8 @@ func _show_menu() -> void:
 	sound.set_context("menu")
 	title_screen = TitleScreen.new()
 	title_screen.enter({"app":self,"host":menu})
+	UiLayout.scale_text(menu)
+	title_screen.layout()
 	title_screen.default_focus().grab_focus()
 
 ## Level select for a NEW run in `mode_id` (scripts/ui/screens/level_select_screen.gd).
@@ -367,6 +385,7 @@ func _start_game_view() -> void:
 	compositor = CombatCompositor.new()
 	add_child(compositor)
 	compositor.attach(combat)
+	backdrop.mount_warp_layer(compositor.foreground) # M9: warp dim + streaks above the world, below the player
 	sector_edges = SectorEdges.new()
 	sector_edges.z_index = 50
 	sector_edges.campaign = campaign
@@ -414,33 +433,30 @@ func _queue_defeat_line(element: String) -> void:
 
 func _process(delta: float) -> void:
 	if _debug_show_warp and is_instance_valid(combat):
+		# Mid-TRAVEL, pinned half-way to a deadline that never lands (M9 phases run on sim_q).
 		combat.warp_direction = Vector2i.RIGHT
 		combat.warp_phase = CombatWorld.WARP_TRAVEL
-		combat.warp_progress = 0.5
-		combat.warp_commit_speed = 260.0
-		combat.player.vel = Vector2.RIGHT*260.0
+		combat.warp_heading = Vector2.RIGHT
+		combat.warp_exit_point = combat.arena.center+Vector2.RIGHT*combat.arena.radius
+		combat.warp_teleported = true
+		combat.warp_phase_start_q = combat.sim_q-108
+		combat.warp_deadline_q = combat.sim_q+108
 	elapsed_ui += delta
-	if overlay_kind == "death":
-		_death_elapsed += delta
-		var policy: Dictionary = ScreenRouter.policy("death")
-		if _death_elapsed >= float(policy.auto_close): _dismiss_death_card()
+	run_controller.step_death(delta) # M12: the death beat and its no-press reboot
+	screen_router.tick(delta) # M12: Evolution's hold ring and auto-close (real time)
 	if platform != null:
 		platform.set_input_context(mode != "play" or get_tree().paused)
 	toast_stack.tick(delta)
 	if mode == "play" and is_instance_valid(combat):
-		hud_elapsed += delta
-		if hud_elapsed >= 0.1:
-			hud_elapsed = 0.0
-			_refresh_hud()
+		# M11b: every frame (bars and rings read the sim; labels change only with their value).
+		hud_view.update(delta)
 		if not get_tree().paused:
-			if combat.player_hp < last_hp:
-				sound.play("hurt")
-			last_hp = combat.player_hp
 			# spec §25 "speaks only between fights", except the one immediate-lane
 			# case (a boss's own encounter line). DialogueDirector.can_show_next
 			# arbitrates that, not this call site, so `_update_dialogue` now runs
 			# every play tick and only ever shows a line the director allows.
 			_update_dialogue(delta)
+			sound.set_music_intensity(combat.music_intensity()) # M13: alive count, combo, boss
 	if benchmark_mode and is_instance_valid(combat) and not get_tree().paused:
 		var now_usec: int = Time.get_ticks_usec()
 		if benchmark_started_usec == 0:
@@ -493,16 +509,8 @@ func _physics_process(_delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	InputPrompts.shared().observe(event)
-	if overlay_kind == "death":
-		var policy: Dictionary = ScreenRouter.policy("death")
-		if bool(policy.any_input_dismiss) and _death_elapsed >= float(policy.input_guard):
-			# Fresh press only (a key/mouse/pad button transitioning to pressed,
-			# or an axis rising past a threshold) - never a hold, never motion,
-			# so a held fire button cannot skip a card the player never saw.
-			var fresh: bool = (event is InputEventKey and event.pressed and not event.echo) or (event is InputEventMouseButton and event.pressed) or (event is InputEventJoypadButton and event.pressed) or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.5)
-			if fresh:
-				_dismiss_death_card()
-				get_viewport().set_input_as_handled()
+	if rebind_action.is_empty() and screen_router.input(event): # M12: Evolution's own keys, before the GUI
+		get_viewport().set_input_as_handled()
 		return
 	if not rebind_action.is_empty():
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -520,6 +528,9 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not rebind_action.is_empty(): return
+	if dialogue_box.skip_pressed(event): # M15: finish the typewriter, then dismiss the line
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
 		if not overlay_kind.is_empty():
 			if not screen_router.escape(): return
@@ -548,7 +559,6 @@ func _on_energy(element: String, amount: float) -> void:
 	absorbed = combat.absorption
 	if campaign.unlock_element(element,amount):
 		_queue_line("companion","A new dialect",element.capitalize()+" light now belongs among your possible futures. Absorb it to change the hulls you are offered.","unlocked_"+element)
-	sound.play("pickup")
 	if combat.light_total >= EvolutionRules.threshold(combat.player_tier) and combat.player_tier < mode_config.max_tier():
 		_queue_line("companion","Enough light to change","Press E or A to choose a complete new lightship. Its labelled weapons and passives are part of the hull. The choice follows the light you absorb.","first_threshold_v2")
 
@@ -643,11 +653,12 @@ func _show_evolution() -> void:
 
 func _choose_evolution(id: String) -> void:
 	if id not in pending_offers or combat.light_total < EvolutionRules.threshold(combat.player_tier): return
-	combat.evolve_hull(id)
+	var from: ShipDefinition = combat.player.get("definition") as ShipDefinition
+	var evolved: bool = combat.evolve_hull(id)
 	pending_offers.clear()
 	absorbed = combat.absorption
 	_close_overlay()
-	sound.play("evolve")
+	if evolved: run_controller.present_evolution(from) # M12: burst, core-out assembly, title card
 	_achieve("FIRST_EVOLUTION")
 	_queue_line("companion","A different kind of you","Each visible part belongs to your new build. Follow another dialect's light when you want a different future.","first_evolution_v2")
 	_save_game()
@@ -682,22 +693,28 @@ func apply_settings() -> void:
 	if environment != null: environment.glow_enabled = bool(settings.glow)
 	if is_instance_valid(combat):
 		combat.show_element_labels = bool(settings.show_elements)
-		combat.warp_reduced = bool(settings.get("reduced_warp",false))
+		combat.warp_reduced = bool(settings.get("reduced_warp",false)) or bool(settings.get("reduced_motion",false)) # M15: reduced motion implies the reduced warp
 		combat.show_damage_numbers = bool(settings.get("damage_numbers",false)) # spec §24: off by default
+	# M6: UI and text scale (UiLayout). Text sizes are re-derived from each Control's own base size,
+	# so applying twice never compounds.
+	UiLayout.text_scale = UiLayout.clamp_text_scale(float(settings.get("text_scale",1.0)))
+	if ui != null:
+		UiLayout.scale_text(ui)
+		layout_ui()
 	if sound != null:
 		sound.configure(settings)
-	if DisplayServer.get_name() != "headless":
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if bool(settings.fullscreen) else DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplaySettings.apply(settings,benchmark_mode) # M15: window mode, resolution, vsync, fps cap, reduced motion, colourblind
 
 func save_settings() -> void:
 	var config := ConfigFile.new()
 	for key: String in settings: config.set_value("device",key,settings[key])
-	config.save("user://device.cfg")
+	config.save(settings_path)
 
 func load_settings() -> void:
 	var config := ConfigFile.new()
-	if config.load("user://device.cfg") == OK:
+	if config.load(settings_path) == OK:
 		for key: String in settings: settings[key] = config.get_value("device",key,settings[key])
+		DisplaySettings.migrate(settings,config.has_section_key("device","window_mode"))
 
 ## Frictionless death (spec §7.4/§24). RunController.on_death builds the next life and saves the
 ## profile; this half plays the sound and shows the card. (The profile save used to run after the
@@ -705,11 +722,9 @@ func load_settings() -> void:
 func _on_death() -> void:
 	sound.play("death")
 	run_controller.on_death()
-	_death_elapsed = 0.0
 	screen_router.replace("death",{"stats":run_controller.death_stats})
 
 func _reboot() -> void: run_controller.reboot()
-func _dismiss_death_card() -> void: _reboot()
 
 func _show_ending(is_demo: bool) -> void:
 	screen_router.replace("ending",{"is_demo":is_demo})

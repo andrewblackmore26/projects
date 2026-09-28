@@ -29,7 +29,7 @@ func _frame() -> Image:
 		await process_frame
 		await RenderingServer.frame_post_draw
 	var image: Image = root.get_texture().get_image()
-	check(image.get_size() == Vector2i(1280, 800), "capture is 1280x800 (got %s)" % image.get_size())
+	check(image.get_size() == root.size, "capture is root.size %s (got %s)" % [root.size, image.get_size()])
 	return image
 
 func _luma(pixel: Color) -> float: return pixel.r * 0.2126 + pixel.g * 0.7152 + pixel.b * 0.0722

@@ -52,11 +52,15 @@ func test_progression() -> void:
  for i: int in range(50): w._update_pace(0.1)
  check(is_equal_approx(w.light_total,GameTuning.DECAY_FLOOR) and w.active,"Decay floors at DECAY_FLOOR and can never kill")
  w.setup_player("neutral",1,40,[],Vector2(500,500))
+ # M13 restated: a full bar no longer refuses light - the overflow is banked up to 25% of the NEXT
+ # threshold (62.5 here) and paid in on evolve. Retired: "caps at the threshold, consumes 60".
  var consumed: float=w.collect_light(80.0,"fire")
- check(consumed==60 and w.light_total==100,"Collection caps at next threshold and returns raw amount consumed")
- check(w.absorption.fire==60,"Only consumed light enters diet")
+ check(consumed==80 and w.light_total==100 and w.light_bank==20,"Collection fills the bar, banks the overflow and returns raw amount consumed")
+ check(w.absorption.fire==80,"Only consumed light (banked included) enters diet")
  check(w.evolve_hull("player_fire_t2_standard_a"),"Threshold unlocks next hull")
- check(w.light_total==100 and w.player_invulnerable==0.8,"Evolution preserves bar with reshape invulnerability")
+ check(w.light_total==120 and w.light_bank==0 and w.player_invulnerable==0.8,"Evolution pays the bank into the bar with reshape invulnerability")
+ w.light_total=100 # the regression checks below are stated from a bar of exactly 100
+ w.player.hp=w.light_total
  w.player_invulnerable=0
  w.player.invulnerable=0
  w._damage_actor(w.player,15,1)
@@ -94,8 +98,10 @@ func test_progression() -> void:
  w.setup_player("corruption",4,899,[],Vector2(500,500))
  w.player.ability_set.siphon=true
  consumed=w.collect_light(5,"corruption")
- check(is_equal_approx(consumed,0.8) and w.light_total==900,"Siphon consumes raw quantity correctly at cap")
- check(is_equal_approx(w.absorption.corruption,0.8),"Siphon bonus does not fabricate elemental diet")
+ # M13 restated: 1 of the 6.25 gained fills the bar, the other 5.25 is banked (cap 375), so all 5
+ # raw are consumed. Retired: "consumes 0.8 at cap".
+ check(is_equal_approx(consumed,5.0) and w.light_total==900 and is_equal_approx(w.light_bank,5.25),"Siphon consumes raw quantity correctly at cap, overflow x1.25 banked")
+ check(is_equal_approx(w.absorption.corruption,5.0),"Siphon bonus does not fabricate elemental diet")
  release(w)
 func test_arena_collision() -> void:
  var w: CombatWorld=make_world()

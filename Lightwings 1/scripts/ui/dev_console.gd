@@ -19,24 +19,39 @@ var open: bool = false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	UiLayout.mark_bleed(self) # a full-screen holder; the panel inside is what is laid out
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
-	var panel := Panel.new()
-	panel.position = Vector2(200, 300)
-	panel.size = Vector2(880, 90)
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(panel)
+	_panel = Panel.new()
+	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_panel)
 	log_label = Label.new()
-	log_label.position = Vector2(210, 306)
-	log_label.size = Vector2(860, 20)
 	log_label.add_theme_font_size_override("font_size", 12)
+	log_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	add_child(log_label)
 	line_edit = LineEdit.new()
-	line_edit.position = Vector2(210, 330)
-	line_edit.size = Vector2(860, 40)
 	line_edit.placeholder_text = "tier <1-6> [element] · level <1-5> · light <n> · tune <key> [v] · cam <layer> on|off · help"
 	add_child(line_edit)
 	line_edit.text_submitted.connect(_on_submit)
+	_layout()
+
+var _panel: Panel
+
+## M6: the 880 px panel centred on the screen (it was pinned at (200, 300) of a 1280x800 frame),
+## narrowed to the safe rect on a small UI.
+func _layout() -> void:
+	if _panel == null: return
+	var width: float = minf(880.0, size.x - UiLayout.SAFE_MARGIN * 2.0)
+	var origin := Vector2(size.x * 0.5 - width * 0.5, size.y * 0.5 - 100.0)
+	_panel.position = origin
+	_panel.size = Vector2(width, 90)
+	log_label.position = origin + Vector2(10, 6)
+	log_label.size = Vector2(width - 20, 20)
+	line_edit.position = origin + Vector2(10, 30)
+	line_edit.size = Vector2(width - 20, 40)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED: _layout()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == TOGGLE_KEY:

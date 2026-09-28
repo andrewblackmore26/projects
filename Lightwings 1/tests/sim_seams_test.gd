@@ -193,6 +193,7 @@ func _invulnerability_grants() -> void:
 	var w: CombatWorld = make_world()
 	w.setup_player("neutral", 1, 40, [], w.arena.center)
 	w.collect_light(80.0, "fire")
+	w.light_bank = 0.0 # M13 banks the 20 overflow and pays it on evolve; this check is stated from a bar of 100
 	var reshape_before: int = _grants(w, &"reshape")
 	t.check(w.evolve_hull("player_fire_t2_standard_a") and _grants(w, &"reshape") == reshape_before + 1 and is_equal_approx(w.player_invulnerable, 0.8), "Evolution's reshape grant goes through the choke point (0.8 s)")
 	w.player_invulnerable = 0.0
@@ -206,7 +207,8 @@ func _invulnerability_grants() -> void:
 	w.player.vel = Vector2(200.0, 0.0)
 	w.command.movement = Vector2.RIGHT
 	for i: int in range(floori(0.30 / STEP) + 2): w._update_player(STEP)
-	t.check(w.warp_locked() and _grants(w, &"warp") == 1 and w.player_invulnerable > 1.0, "The warp commit grant goes through the choke point (%.2f s)" % w.player_invulnerable)
+	# M9: the grant runs from commit to the end of ARRIVAL, 403 sim_q = 0.56 s (was 1.02 s).
+	t.check(w.warp_locked() and _grants(w, &"warp") == 1 and w.player_invulnerable > 0.5, "The warp commit grant goes through the choke point (%.2f s)" % w.player_invulnerable)
 	# The choke point keeps the max: a shorter grant cannot shorten a longer one.
 	var held: float = w.player_invulnerable
 	w._grant_invulnerability(0.1, &"test")

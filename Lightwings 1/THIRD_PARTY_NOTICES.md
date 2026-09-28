@@ -14,6 +14,10 @@ Three typefaces under the SIL Open Font License 1.1, unmodified variable-font fi
 
 Input Prompts 1.5 by Kenney (www.kenney.nl), CC0 1.0 (public domain dedication): a subset of the 64 px PNGs for Keyboard & Mouse, Xbox Series, PlayStation Series and Steam Deck, in assets/prompts/. The pack's License.txt is reproduced at assets/prompts/License.txt.
 
+### Menu prompts (M15)
+
+Fifteen more unmodified PNGs from the same Kenney Input Prompts 1.5 pack (CC0 1.0), for the menus' footer hints and the dialogue skip prompt: keyboard_enter, keyboard_arrows_horizontal, keyboard_arrows_vertical; xbox_button_b, xbox_button_y, xbox_dpad_horizontal, xbox_dpad_vertical; playstation_button_circle, playstation_button_triangle, playstation_dpad_horizontal, playstation_dpad_vertical; steamdeck_button_b, steamdeck_button_y, steamdeck_dpad_horizontal, steamdeck_dpad_vertical.
+
 ## Sound effects
 
 Interface Sounds 1.0, Sci-Fi Sounds 1.0 and Impact Sounds 1.0 by Kenney (www.kenney.nl), CC0 1.0 (public domain dedication): 22 unmodified .ogg files (12 interface, 8 sci-fi, 2 impact) in assets/audio/kenney/, each pack's License.txt reproduced beside its files. The music stems in assets/audio/music/ and the weapon cues are synthesized for Lightship.

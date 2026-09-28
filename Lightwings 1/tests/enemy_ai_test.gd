@@ -244,6 +244,41 @@ func _test_sentry(t: RefCounted) -> void:
 	t.control("ai_firing_disabled=true", int(sentry2.get("shots_fired", 0)) == 0)
 	release(w2)
 	release(w)
+	_test_telegraph_warning(t)
+
+## Spec v0.3 §16: "any attack that cannot be dodged on reaction shows a warning >= 0.5 s before it
+## lands". A sentry's own loadout no longer mounts one (see above), so each telegraphed enemy weapon is
+## fired from a sentry directly and its warning is MEASURED in ticks from the activation to the tick
+## its telegraph goes off - not read from the number it was queued with. M8 re-ran it after enemy
+## movement and shot speeds became ratios of the player's.
+const TELEGRAPHED: Array[String] = ["explosives", "laser_prong", "mine_layer", "discharge", "collapse_charge", "nova_pulse", "blink_mine", "refract_beam", "incendiary_spores"]
+
+func _warning_seconds(w: CombatWorld, sentry: Dictionary, id: String, forced_warn: float = -1.0) -> float:
+	w.telegraphs.clear()
+	if forced_warn >= 0.0: w._queue_attack(sentry, "explosive", Vector2(sentry.pos) + Vector2(200, 0), Vector2.ZERO, forced_warn, 1.0, 40.0)
+	else: w._activate_component(sentry, id, Vector2(sentry.pos), Vector2.RIGHT)
+	if w.telegraphs.is_empty(): return -1.0
+	for tick: int in range(1, 241):
+		w._update_telegraphs(1.0 / 60.0)
+		for attack: Dictionary in w.telegraphs:
+			if bool(attack.fired): return float(tick) / 60.0
+	return -1.0
+
+func _test_telegraph_warning(t: RefCounted) -> void:
+	var w: CombatWorld = make_world()
+	w.setup_player("lightning", 2, 400, [], w.arena.center)
+	var sentry: Dictionary = spawn_named(w, "enemy_sentry_lightning_t2", w.arena.center + Vector2(-600, 0))
+	var shortest: float = INF
+	for id: String in TELEGRAPHED:
+		var seconds: float = _warning_seconds(w, sentry, id)
+		print("ENEMY AI: telegraph %s warns %.3f s" % [id, seconds])
+		t.check(seconds >= 0.5 - 0.0001, "A sentry's %s warns %.3f s before it lands (>= 0.5 s)" % [id, seconds])
+		if seconds >= 0.0: shortest = minf(shortest, seconds)
+	print("ENEMY AI: shortest telegraph warning = %.3f s" % shortest)
+	# Control: the pre-P8 0.35 s warning, through the same instrument.
+	var old: float = _warning_seconds(w, sentry, "", 0.35)
+	t.control("a telegraph queued with the pre-P8 0.35 s warning (%.3f s)" % old, not (old >= 0.5 - 0.0001))
+	release(w)
 
 ## --- Retreat ---------------------------------------------------------------
 

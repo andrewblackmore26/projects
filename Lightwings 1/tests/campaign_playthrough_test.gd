@@ -167,10 +167,14 @@ func _test_boss_route(level: int) -> void:
 		combat.start_sector(campaign.sector_at(coord))
 		if coord != boss: combat.debug_clear() # arrival node checked BELOW before clearing it
 	expect(campaign.current_sector == boss,"The bot's route physically arrives at the boss node")
+	# M13 restated: the boss no longer spawns inside start_sector; it is queued (telegraphed, landing
+	# `wave_first_s` after arrival). "Spawns exactly one rival" became "landed or queued: exactly one".
 	var rival_count: int = 0
 	for actor: Dictionary in combat.enemies:
 		if bool(actor.get("rival",false)): rival_count += 1
-	expect(rival_count == 1,"The boss node spawns exactly one rival encounter")
+	for entry: Dictionary in combat.spawn_queue:
+		if bool(entry.get("rival",false)): rival_count += 1
+	expect(rival_count == 1,"The boss node spawns (or has queued) exactly one rival encounter")
 	combat.debug_clear()
 	await process_frame
 	expect(bool(_last_completion.get("level_completed",false)),"Beating the boss completes the level")

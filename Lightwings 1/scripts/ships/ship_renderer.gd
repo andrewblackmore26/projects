@@ -12,6 +12,11 @@ var draw_hull: bool = true
 var hull_only: bool = false
 var show_core: bool = true
 var evolution_ready: bool = false
+## M12, render only: 0..1 progress of the evolved hull assembling core-out (the shader's
+## `assembly_t`; 1 = fully built, the default). EvolutionTransform animates it after a pick.
+var assembly_t: float = 1.0
+## Test seam (tests/evolution_assembly_render_test.gd's negative control): false skips the upload.
+static var assembly_upload_enabled: bool = true
 var part_position_overrides: Dictionary = {}
 var hidden_part_ids: PackedStringArray = []
 var rig: ShipMotion.ShipRig
@@ -52,6 +57,7 @@ var _last_hull_only: bool = false
 var _last_draw_hull: bool = true
 var _last_show_core: bool = true
 var _last_evolution_ready: bool = false
+var _last_assembly_t: float = 1.0
 var last_draw_usec: int = 0
 static var frame_draw_usec: int = 0
 static var frame_draw_calls: int = 0
@@ -131,6 +137,9 @@ func _process(delta: float) -> void:
 			if _last_evolution_ready != evolution_ready:
 				_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)
 				_last_evolution_ready = evolution_ready
+			if _last_assembly_t != assembly_t and assembly_upload_enabled:
+				_mesh_material.set_shader_parameter("assembly_t", assembly_t)
+				_last_assembly_t = assembly_t
 			if pose != null:
 				# Geometry motion always comes from an integer tick, never a wall
 				# clock. Owners with a real sim (CombatWorld) drive `motion_tick`
@@ -195,6 +204,13 @@ func _build_mesh() -> void:
 	_mesh_material.set_shader_parameter("core_radius", definition.core_radius)
 	_mesh_material.set_shader_parameter("show_core", show_core)
 	_mesh_material.set_shader_parameter("evolution_ready", evolution_ready)
+	# The hull's largest reach (centre distance + radius): the shader's assembly wavefront ends there.
+	var extent: float = 1.0
+	for index: int in range(mini(_mesh_builder.centers.size(), _mesh_builder.geometries.size())):
+		extent = maxf(extent, _mesh_builder.centers[index].length() + _mesh_builder.geometries[index].x)
+	_mesh_material.set_shader_parameter("assembly_extent", extent)
+	if assembly_upload_enabled: _mesh_material.set_shader_parameter("assembly_t", assembly_t)
+	_last_assembly_t = assembly_t
 	_last_factor = _body_scale()
 	_last_canvas_scale = maxf(0.01, get_global_transform_with_canvas().get_scale().abs().x) if is_inside_tree() else 1.0
 	_mesh_material.set_shader_parameter("body_scale", _last_factor)

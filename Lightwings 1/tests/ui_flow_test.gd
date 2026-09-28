@@ -25,18 +25,25 @@ func _run() -> void:
 	app.combat.collect_light(20.0,"corruption")
 	app.combat.collect_light(20.0,"plasma")
 	app._show_evolution()
-	check(paused and app.overlay_kind == "evolution","Evolution pauses simulation")
+	# M12: evolution no longer pauses; it dilates the sim to 0.25 (tests/evolution_slowmo_test.gd
+	# measures the rate, with its control).
+	check(not paused and app.overlay_kind == "evolution" and is_equal_approx(app.combat.time_scale(),0.25),"Evolution dilates simulation to 0.25 instead of pausing")
 	check(app.pending_offers.size() == 3,"Three complete preset hulls offered")
+	# M12: each card groups its nodes, so the previews are the overlay's descendants, not children.
 	var preview_count: int = 0
-	for child: Node in app.overlay.get_children():
-		if child is ShipPreview:
-			preview_count += 1
-			check(child.renderer.definition.tier == 2,"Every preview is next tier")
+	for child: Node in app.overlay.find_children("*","ShipPreview",true,false):
+		preview_count += 1
+		check(child.renderer.definition.tier == 2,"Every preview is next tier")
 	check(preview_count == 3,"Three live previews")
-	var frozen: float = app.combat.elapsed
+	var before_elapsed: float = app.combat.elapsed
 	var before_light: float = app.combat.light_total
-	await create_timer(0.15,true).timeout
-	check(app.combat.elapsed == frozen and app.combat.light_total == before_light,"Evolution does not advance combat or heal")
+	var frames: int = 0
+	for index: int in range(12):
+		await physics_frame
+		frames += 1
+	var advanced: float = app.combat.elapsed-before_elapsed
+	check(advanced > 0.0 and advanced <= (frames+1)*0.25/60.0+0.0001,"Evolution advances combat only at the dilated rate (%.4f s sim in %d physics frames)" % [advanced,frames])
+	check(app.combat.light_total <= before_light,"Evolution does not heal")
 	var offered: Array = app.pending_offers.duplicate()
 	app._close_overlay()
 	app._show_evolution()
@@ -49,6 +56,7 @@ func _run() -> void:
 	check(app.pending_offers == offered and app.offer_serial == saved_serial,"Save/resume preserves pending choices without reroll")
 	var chosen: String = app.pending_offers[0]
 	var definition: ShipDefinition = ShipCatalog.get_ship(chosen)
+	before_light = app.combat.light_total # the dilated sim may have spent light while the cards were up
 	app._choose_evolution(chosen)
 	check(not paused and app.combat.hull_id == chosen,"Chosen hull is equipped")
 	check(app.combat.light_total == before_light and app.combat.player_invulnerable >= 0.79,"Evolution preserves light and grants protection")
@@ -83,9 +91,12 @@ func _run() -> void:
 	app.compositor._update_camera()
 	# M10: the camera trails the ship (camera_rig.gd), so the ship is no longer pinned to (640,400);
 	# what must hold is that mouse aim inverts the camera's own (shake-free) transform, and that the
-	# ship stays inside the 18% total clamp of the screen centre.
+	# ship stays inside the 18% total clamp of the screen centre. M6 (restated in M12): the centre is
+	# the compositor's own screen_center() - the middle of the visible rect, not a fixed (640,400) -
+	# and the clamp is a fraction of the rig's fixed reference half-width.
 	var ship_on_screen: Vector2 = app.compositor.world_to_screen(app.combat.player_position)
-	check(app.compositor.screen_to_world(ship_on_screen).is_equal_approx(app.combat.player_position) and ship_on_screen.distance_to(Vector2(640,400)) <= 0.18*640.0+0.01,"Mouse aim and camera share world transform")
+	var clamp_px: float = GameTuning.feel("cam.total_clamp")*CameraRig.HALF_WIDTH
+	check(app.compositor.screen_to_world(ship_on_screen).is_equal_approx(app.combat.player_position) and ship_on_screen.distance_to(app.compositor.screen_center()) <= clamp_px+0.01,"Mouse aim and camera share world transform (ship %.1f px from the centre %s, clamp %.1f)" % [ship_on_screen.distance_to(app.compositor.screen_center()),app.compositor.screen_center(),clamp_px])
 	check(app.compositor.background_viewport.canvas_transform.origin == app.compositor.foreground.position,"HDR and foreground camera transforms match")
 	var snapshot: Dictionary = app.combat.snapshot()
 	app.combat.restore(snapshot)

@@ -229,10 +229,11 @@ func element_of(coord: Vector2i) -> String:
 	var pick: int = _hash_cell(block.x, block.y, "element2") % pool.size()
 	return str(pool[pick])
 
+## M13: regular enemies at a node (a lair's escort, a boss's adds), before any elite.
 func enemy_count_for(coord: Vector2i) -> int:
 	var archetype: String = archetype_of(coord)
 	var base: int = int(Tuning.ARCHETYPE_ENEMY_BASE.get(archetype, 2))
-	return maxi(0, base + ring(coord) / 3)
+	return maxi(0, base + ring(coord) / Tuning.ENEMY_RING_DIVISOR)
 
 func elite_chance_for(coord: Vector2i) -> float:
 	var archetype: String = archetype_of(coord)
@@ -249,6 +250,9 @@ func _kinds_for(archetype: String) -> Array[String]:
 		"transit": return ["drone"]
 		"skirmish": return ["drone", "sentry"]
 		"dense": return ["drone", "sentry", "chain"]
+		# M13: a lair's escort, and a boss's adds (movers only: a sentry add would just stand still).
+		"elite_lair": return ["drone", "sentry"]
+		"boss": return ["drone", "chain"]
 		_: return []
 
 func _enemy_hulls_for(coord: Vector2i, archetype: String, element: String, tier: int) -> Array[String]:
@@ -269,6 +273,40 @@ func _elite_hulls_for(coord: Vector2i, archetype: String, element: String, tier:
 	if float(roll % 100000) / 100000.0 < elite_chance_for(coord):
 		return [ShipGenerator.hull_id("elite", "radial" if roll % 2 == 0 else "irregular", element, tier)]
 	return []
+
+## --- The wave plan (modernization M13) -----------------------------------
+## Pure data carried in the descriptor: `waves` is a list of waves, each a list of indices into
+## `enemy_hulls + elite_hulls` (an index past the enemy list is an elite). CombatWorld releases
+## them; nothing here knows about time beyond the numbers it hands over.
+
+## `count` items split by cumulative `fractions` boundaries (rounded), empty waves dropped.
+## 3 -> 1/1/1, 5 -> 2/2/1, 9 -> 4/2/3 at 40/30/30.
+static func split_waves(count: int, fractions: Array, first_index: int = 0) -> Array:
+	var waves: Array = []
+	var start: int = 0
+	var cumulative: float = 0.0
+	for i: int in range(fractions.size()):
+		cumulative += float(fractions[i])
+		var stop: int = count if i == fractions.size() - 1 else clampi(roundi(count * cumulative), start, count)
+		var wave: Array = []
+		for index: int in range(start, stop): wave.append(first_index + index)
+		if not wave.is_empty(): waves.append(wave)
+		start = stop
+	return waves
+
+## Regular nodes: the 40/30/30 split, every elite in the last wave (the climax). Boss nodes: the
+## adds split evenly over the BOSS_ADD_WAVE_HP waves (the boss itself spawns on arrival), and a
+## wandering elite rides with the last add wave.
+func wave_plan(kind: String, enemy_count: int, elite_count: int) -> Array:
+	var fractions: Array = Array(Tuning.WAVE_SPLIT)
+	if kind == "boss":
+		fractions = []
+		for i: int in range(Tuning.BOSS_ADD_WAVE_HP.size()): fractions.append(1.0 / Tuning.BOSS_ADD_WAVE_HP.size())
+	var waves: Array = split_waves(enemy_count, fractions)
+	if elite_count > 0:
+		if waves.is_empty(): waves.append([])
+		for i: int in range(elite_count): (waves[-1] as Array).append(enemy_count + i)
+	return waves
 
 ## --- Node pool / respawn bookkeeping (spec §7) ---------------------------
 ## `now` is the campaign's own elapsed-seconds clock (caller-supplied, so this
@@ -314,16 +352,28 @@ func sector_at(coord: Vector2i, now: float = 0.0) -> Dictionary:
 		"cleared": boss_down if kind == "boss" else false,
 		"enemy_hulls": [], "elite_hulls": [], "boss_hull": "",
 		"starter_pickups": [],
+		# M13 wave plan (see wave_plan). `wave_boss_hp[i]` releases wave i on the boss's HP instead
+		# of the alive/gap rule; empty on every node but the boss.
+		"waves": [], "wave_gap_s": Tuning.WAVE_GAP_SECONDS, "wave_first_s": Tuning.WAVE_FIRST_SECONDS,
+		"wave_boss_hp": [],
 	}
 	if not bounded: return result
 	if kind == "origin":
 		var starter_element: String = str(_revealed_elements()[-1])
 		result["starter_pickups"] = [starter_element, starter_element, starter_element]
+		# M13: every life starts in a fight - a T1 training wave of the starter element's drones.
+		var training: Array[String] = []
+		for i: int in range(Tuning.ORIGIN_TRAINING_COUNT): training.append(ShipGenerator.hull_id("enemy", "drone", starter_element, 1))
+		result["enemy_hulls"] = training
+		result["waves"] = split_waves(training.size(), [1.0])
+		result["wave_first_s"] = Tuning.ORIGIN_TRAINING_DELAY_SECONDS
 		return result
 	result["enemy_hulls"] = _enemy_hulls_for(coord, archetype, element, tier)
 	result["elite_hulls"] = _elite_hulls_for(coord, archetype, element, tier, roll)
+	result["waves"] = wave_plan(kind, (result["enemy_hulls"] as Array).size(), (result["elite_hulls"] as Array).size())
 	if kind == "boss":
 		result["boss_hull"] = ShipGenerator.hull_id("boss", "boss", element, tier)
+		result["wave_boss_hp"] = Array(Tuning.BOSS_ADD_WAVE_HP).slice(0, (result["waves"] as Array).size())
 	return result
 
 ## --- Mutating world/travel API -------------------------------------------

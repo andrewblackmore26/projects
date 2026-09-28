@@ -32,6 +32,29 @@ var save_timings_ms: Array[float] = []
 ## happens on the dismiss path itself, which is what keeps it fast.
 var death_stats: Dictionary = {}
 var death_next_sector: Dictionary = {}
+## --- M12: death is a beat, not a card ---------------------------------------
+## The world runs on (CombatWorld keeps the dead player out of it) at DEATH_SLOWMO_SCALE for the
+## first DEATH_SLOWMO_SECONDS, with DEATH_HITSTOP_TICKS of hitstop on top of the killing hit's own;
+## the hull bursts, a non-modal SIGNAL LOST banner slams in, and at `death_reboot_s` real seconds the
+## next life starts with no press. The life's stats follow as a DEATH_TOAST_SECONDS toast. Real
+## seconds, not ticks: this is the player's wait, and the sim under it is slowed and hit-stopped.
+const DEATH_REBOOT_S: float = 0.40
+const DEATH_SLOWMO_SCALE: float = 0.3
+const DEATH_SLOWMO_SECONDS: float = 0.25
+const DEATH_HITSTOP_TICKS: int = 3
+const DEATH_TOAST_SECONDS: float = 2.0
+const DEATH_SCALE_REASON: StringName = &"death"
+## The plan's budget for a synchronous save inside the reboot (ms). The save measured over it
+## (tests/death_timing_test.gd), so the reboot always leaves its save to the next frame.
+const REBOOT_SAVE_BUDGET_MS: float = 8.0
+## Real seconds since death (-1: no death beat running), and when the reboot fires (a test's
+## negative control moves it).
+var death_elapsed: float = -1.0
+var death_reboot_s: float = DEATH_REBOOT_S
+## What the last reboot cost (ms, without its save when that was deferred), and whether it was.
+var last_reboot_ms: float = 0.0
+var reboot_save_deferred: bool = false
+var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 func _init(owner: Node) -> void:
 	app = owner
@@ -117,7 +140,7 @@ func enter_sector(coord: Vector2i, spawn: Vector2, show_intro: bool = true) -> v
 ## cut: `combat` runs the push/commit/travel state machine itself and fires
 ## `warp_committed` the instant control locks. This handler does the sector
 ## swap SYNCHRONOUSLY (GDScript signal emission is synchronous), so it is
-## done well before the travel phase ends and `confirm_warp_swap()` is
+## done well before the ship leaves the old node (end of BREAK) and `confirm_warp_swap()` is
 ## always called in time - the "missing node swap springs back" case is a
 ## test-only scenario (nothing connects this signal), not something that can
 ## happen in play.
@@ -140,9 +163,10 @@ func on_warp_committed(direction: Vector2i) -> void:
 
 ## Frictionless death (spec §7.4/§24): the non-UI half. No confirmation, no
 ## menu, no loading screen: the next life is built HERE, immediately, so
-## `reboot` (fired by the timer, a fresh press, or a test/fixture calling it
+## `reboot` (fired by the death beat's timer, or a test/fixture calling it
 ## directly) does no work of its own beyond swapping to data that already
-## exists. main.gd's `_on_death` plays the sound and builds the card.
+## exists. main.gd's `_on_death` plays the sound and raises the banner; the beat
+## itself (burst, slow motion, hitstop) starts here and `step_death` runs it.
 func on_death() -> void:
 	var combat = app.combat # untyped: see enter_sector
 	var campaign: CampaignState = app.campaign
@@ -155,10 +179,34 @@ func on_death() -> void:
 	app.pending_offers.clear()
 	if not app.testing:
 		SaveService.save_snapshot(campaign.to_dict(),{"seen_lines":app.seen_lines,"previous_offers":app.previous_offers,"offer_serial":app.offer_serial},app.slot)
+	death_elapsed = 0.0
+	if is_instance_valid(combat) and not combat.player.is_empty():
+		var hull: ShipRenderer = combat.player.get("renderer") as ShipRenderer
+		if is_instance_valid(hull): hull.visible = false # it bursts instead
+		var definition: ShipDefinition = combat.player.get("definition") as ShipDefinition
+		if definition != null: EvolutionTransform.burst(combat,definition,Vector2(combat.player.pos),_fx_rng)
+		combat.active = true # the world runs on through the beat; CombatWorld skips the dead player
+		combat.request_time_scale(DEATH_SCALE_REASON,DEATH_SLOWMO_SCALE)
+		combat.request_hitstop(DEATH_HITSTOP_TICKS,DEATH_SCALE_REASON)
+
+## The death beat's real-time upkeep (main.gd's `_process` while the banner is up): the slow motion
+## ends at DEATH_SLOWMO_SECONDS, and the next life starts at `death_reboot_s` with no press.
+func step_death(delta: float) -> void:
+	if death_elapsed < 0.0: return
+	if app.overlay_kind != "death":
+		death_elapsed = -1.0
+		release_time_scale(DEATH_SCALE_REASON)
+		return
+	death_elapsed += delta
+	if death_elapsed >= DEATH_SLOWMO_SECONDS: release_time_scale(DEATH_SCALE_REASON)
+	if death_elapsed >= death_reboot_s: app._reboot()
 
 func reboot() -> void:
+	var began: int = Time.get_ticks_usec()
 	var combat: CombatWorld = app.combat
 	var campaign: CampaignState = app.campaign
+	death_elapsed = -1.0
+	release_time_scale(DEATH_SCALE_REASON)
 	app._close_overlay()
 	combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
 	campaign.on_enter(Vector2i.ZERO)
@@ -166,10 +214,27 @@ func reboot() -> void:
 	combat.start_sector(death_next_sector if not death_next_sector.is_empty() else campaign.sector_at(Vector2i.ZERO,0.0))
 	app.dialogue.visible = false
 	app.dialogue_remaining = 0.0
-	app._input_swallow_frames = 1 # spec §7.4: swallow the dismissing press for one tick
+	app._input_swallow_frames = 1 # spec §7.4: a fire held through the death does not shoot on the first tick
 	app._queue_reboot_line()
 	app._refresh_hud()
-	save_game()
+	# "Core reignites": a ring where the next life starts, and the stats of the last one as a toast.
+	if combat.fx != null: combat.fx.emit("core_fire",GameTuning.ARENA_CENTER,CombatWorld.PLAYER_COLOR,_fx_rng,{"r0":4.0,"r1":64.0})
+	if app.sound != null: app.sound.play_cue("reboot",{})
+	if not death_stats.is_empty() and app.toast_stack != null:
+		app.toast_stack.show(DeathCardScreen.stats_line(death_stats),DEATH_TOAST_SECONDS)
+	# The reboot's save waits for the next frame (the fresh origin is calm). Measured on its own at
+	# a 7-7.5 ms median and an 8.3-8.8 ms max over three runs (tests/death_timing_test.gd), it was
+	# nearly all of the reboot's cost and over REBOOT_SAVE_BUDGET_MS; the reboot is ~1 ms without it.
+	var tree: SceneTree = app.get_tree()
+	reboot_save_deferred = tree != null
+	if tree == null: save_game()
+	elif not tree.process_frame.is_connected(save_game): tree.process_frame.connect(save_game,CONNECT_ONE_SHOT)
+	last_reboot_ms = float(Time.get_ticks_usec()-began)/1000.0
+
+## M12: the transformation after an evolution pick, from hull `from` into the current one (render
+## only; see scripts/fx/evolution_transform.gd).
+func present_evolution(from: ShipDefinition) -> void:
+	EvolutionTransform.begin(app,from)
 
 func on_boss_defeated(element: String) -> void:
 	if element.is_empty(): return

@@ -19,8 +19,9 @@ signal boundary_contact(position: Vector2)
 ## SYNCHRONOUSLY inside its handler (call `start_sector` then
 ## `confirm_warp_swap()`) - GDScript signal emission is synchronous, so this
 ## happens before `_warp_commit` returns. If nothing calls
-## `confirm_warp_swap()` by the end of the travel phase, the warp springs
-## back instead of deadlocking (see `_update_warp`).
+## `confirm_warp_swap()` by the time the ship would leave the old node (the
+## end of BREAK, or the FADE midpoint), the warp springs back instead of
+## deadlocking (see `_warp_advance`).
 signal warp_committed(direction: Vector2i)
 signal warp_arrived
 ## Modernization M1 seam: the one channel every "feel" reaction (camera shake, hitstop, rumble,
@@ -164,6 +165,9 @@ var ai_aim_error_disabled: bool = false
 ## the single choke point that makes every archetype's fire count (and every
 ## enemy-only component event, which all fire from inside these) go to 0.
 var ai_firing_disabled: bool = false
+## Test-only negative control (M8, movement_feel_test): the pre-M8 seeker weave, added per TICK after
+## the turn limit instead of tracked inside it. Never set by gameplay.
+var seeker_weave_per_tick: bool = false
 var _pickup_collectors: Array = []
 var _shot_source: Dictionary={"id":-1,"faction":-1,"element":"fire"}
 var _last_dt: float = 1.0/60.0
@@ -177,42 +181,51 @@ const RIM_RELEASE_PX: float = 4.0
 ## Test-only negative control (movement_feel_test): integrate with an explicit Euler step instead
 ## of the closed form. Never set by gameplay.
 var movement_euler: bool = false
-## --- The warp (spec §12, plan P6 item 5) -------------------------------
-## Phases in order; WARP_FADE replaces ZOOM_IN..ZOOM_OUT wholesale when the
-## accessibility "reduced warp" option is on (0.25 s fade, no zoom, no streaks).
-enum {WARP_NONE=0, WARP_PUSH=1, WARP_ZOOM_IN=2, WARP_TRAVEL=3, WARP_ARRIVAL=4, WARP_ZOOM_OUT=5, WARP_FADE=6}
-const WARP_PUSH_SECONDS: float = 0.30
-const WARP_ZOOM_IN_SECONDS: float = 0.12
-const WARP_TRAVEL_SECONDS: float = 0.55
-const WARP_ARRIVAL_SECONDS: float = 0.15
-const WARP_ZOOM_OUT_SECONDS: float = 0.20
-const WARP_REDUCED_SECONDS: float = 0.25
-const WARP_PUSH_SPEED_SCALE: float = 0.4
-const WARP_PUSH_RELEASE_RATE: float = 2.0 # spring-back drains twice as fast as push fills
+## --- The warp (camera/movement spec §7, modernization M9) --------------
+## PUSH (press into the rim, reversible) -> BREAK (commit: flung at `warp.speed_ratio` x top speed)
+## -> TRAVEL (the spec's "Warp": the ship is already in the new node, flying in along its heading)
+## -> ARRIVAL (PLAYABLE: `warp_locked()` is false, still invulnerable) -> NONE. With the "reduced
+## warp" option FADE replaces BREAK + TRAVEL: one cross-fade, the teleport at its midpoint.
+## Every duration is a `warp.*` feel key turned into a sim_q DEADLINE (M1 clock), so a phase lasts
+## the same time at any tick rate and a snapshot resumes it exactly. Value 5 is unused: it was the
+## pre-M9 ZOOM_OUT, and a version-3 save maps its phases on restore (combat_persistence.gd).
+enum {WARP_NONE=0, WARP_PUSH=1, WARP_BREAK=2, WARP_TRAVEL=3, WARP_ARRIVAL=4, WARP_FADE=6}
+const WARP_PUSH_RELEASE_RATE: int = 2 # a released press drains twice as fast as it fills
 var warp_phase: int = WARP_NONE
+## 0..1: the press depth during PUSH, the current phase's elapsed fraction after commit.
 var warp_progress: float = 0.0
 var warp_direction: Vector2i = Vector2i.ZERO
 ## Accessibility option (spec §12): settable externally (main.gd options).
 var warp_reduced: bool = false
-var warp_commit_speed: float = 0.0
-var warp_entry_speed: float = 0.0
 ## Modernization M3 (whole-rim exits): input.outward a rim press needs to engage (raised from 0.2
 ## against accidental exits). A var only so tests/warp_test.gd can build its 0.2 control.
 var warp_engage_dot: float = 0.5
-## Where on the rim, and with what velocity, the warp committed (the arrival reflects both), and
-## the unit heading the locked phases carry the ship along: the travel bearing until arrival, the
-## arrival velocity's heading after it.
+## The velocity VECTOR when the press began, before the push's own slowdown: the arrival gives it
+## back (through `arena.entry_velocity`), so the 40 % press never becomes the arrival speed.
+var warp_approach: Vector2 = Vector2.ZERO
+## The rim angle under the ship during the press (frozen at commit): the bulge and the highlight.
+var warp_contact_angle: float = 0.0
+## Where on the rim the warp committed (the arrival reflects it: `arena.entry_point`), and the unit
+## heading BREAK and TRAVEL carry the ship along (the arrival velocity's heading).
 var warp_exit_point: Vector2 = Vector2.ZERO
-var warp_exit_velocity: Vector2 = Vector2.ZERO
 var warp_heading: Vector2 = Vector2.ZERO
-## Seconds the most recently completed warp actually held control locked for
-## (zoom-in..zoom-out or the reduced fade) - read by `tests/warp_test.gd`
-## instead of asserting the constants sum to what the spec says.
-var warp_locked_measured: float = 0.0
-var _warp_push_depth: float = 0.0
-var _warp_timer: float = 0.0
-var _warp_locked_accum: float = 0.0
+## Press depth in sim_q; commits at `warp.push_s`.
+var warp_push_q: int = 0
+## sim_q of the commit, of the current phase's start and deadline, and of the end of ARRIVAL (the
+## warp's invulnerability deadline).
+var warp_commit_q: int = 0
+var warp_phase_start_q: int = 0
+var warp_deadline_q: int = 0
+var warp_end_q: int = 0
+## sim_q and depth (0..1) of the last press released before commit, or of a spring-back: the rim's
+## wobble reads them. Presentation only, never saved.
+var warp_release_q: int = -1000000
+var warp_release_depth: float = 0.0
+## True once the ship has jumped into the new node (TRAVEL, or the FADE's second half).
+var warp_teleported: bool = false
 var _warp_swap_done: bool = false
+## True while the press is filling (the rim bulges with it); false once let go.
+var warp_filling: bool = false
 ## --- Pace (spec §7, plan P7) -------------------------------------------
 ## Decay suppression counts down from GameTuning.DECAY_SUPPRESSION_SECONDS on
 ## every kill or absorb; light only bleeds while this is at 0.
@@ -228,13 +241,40 @@ var _combo_drain_accum: float = 0.0
 var run_kills: int = 0
 ## Enemies that died this sector, waiting on ENEMY_RESPAWN_COOLDOWN to
 ## reappear (spec §7.3: "enemies respawn on a cooldown; the pool does not
-## follow"). Cleared whenever a fresh sector starts (start_sector).
+## follow"). Cleared whenever a fresh sector starts (start_sector); saved in the
+## encounter snapshot since M13 (P10 finding: a revisited node never respawned).
 var _dead_enemy_records: Array = []
-var _respawn_timer: float = 0.0
+## --- Waves (modernization M13) ------------------------------------------
+## `encounter_q` is this encounter's own clock in sim_q quanta (1/720 s, the M1 clock's unit): it
+## advances by exactly the quanta sim_q does, except while the arrival hold is on, and it is saved
+## with the encounter, so every deadline below survives save/restore and a cached node's waves
+## resume where they stopped. Deadlines are encounter_q values; 0 means "none".
+var encounter_q: int = 0
+## Held from a sector swap made at a warp commit until the arrival, so wave 1 lands
+## `wave_first_s` after the player actually arrives however long the warp's locked phases last.
+var _wave_arrival_hold: bool = false
+## Next wave to release, the size of the last release, and the gap deadline for the next.
+var wave_index: int = 0
+var _wave_last_size: int = 0
+var _wave_due_q: int = 0
+## Released but not yet queued (held back by the alive cap): {hull, elite, rival}.
+var _wave_pending: Array = []
+## Queued spawns: {hull, elite, rival, pos, due_q, tele}. `tele` counts telegraph pulses shown.
+var spawn_queue: Array = []
+## The bearing wave 1 must keep clear of (the arrival point), and whether there is one.
+var _wave_clear_from: Vector2 = Vector2.ZERO
+var _respawn_due_q: int = 0
+## 0 = GameTuning's cap. A test's control sets 999 to prove the cap line can fail.
+var alive_cap_override: int = 0
+## Overflow light banked while the bar is full (M13), paid into the bar on evolve.
+var light_bank: float = 0.0
+## A var only so the banking test's control can lift the cap.
+var light_bank_fraction: float = GameTuning.LIGHT_BANK_FRACTION
 
 func _ready() -> void:
  _rng.seed=734927
  _fx_rng.randomize() # FX-only RNG (never the sim's `_rng`): visuals must not perturb the trace.
+ if not warp_arrived.is_connected(_on_wave_arrival): warp_arrived.connect(_on_wave_arrival) # M13: releases the wave clock's arrival hold
  # Startup choke point (spec item 2): a template shorter than the §16 0.25s
  # minimum visible lifetime is a hard, loud engine error every test runner's
  # log grep catches (tools/lib.ps1 greps for "ERROR:").
@@ -286,6 +326,7 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  combo_count=0
  combo_timer=0.0
  _combo_drain_accum=0.0
+ light_bank=0.0
 func set_player_hull(id: String, animate: bool = false) -> bool:
  var definition: ShipDefinition=ShipCatalog.get_ship(id)
  if definition==null or not definition.is_player: return false
@@ -313,8 +354,9 @@ func set_player_hull(id: String, animate: bool = false) -> bool:
 ## The single choke point for GRANTING player invulnerability (modernization M1; lessons: one choke
 ## point per rule). It keeps the larger of the current grant and the new one, so no grant can
 ## shorten another. Resets to 0 (a new life, a warp spring-back) and snapshot restore are not
-## grants and assign the field directly. M9 turns this into a sim_q deadline; the float field and
-## its per-step decay in _physics_process are unchanged here.
+## grants and assign the field directly. The field stays a float with a per-step decay in
+## _physics_process (tests and saves read it); M9's warp grant is sized from its sim_q deadline
+## (`warp_end_q`, the end of ARRIVAL), so the protection ends with that deadline at any tick rate.
 ##
 ## The regression grant used to ASSIGN (RESHAPE + GRACE = 1.8 s) rather than take the max. The two
 ## agree whenever the current grant is <= 1.8 s, and at a regression it always is: damage cannot
@@ -332,8 +374,23 @@ func evolve_hull(id: String) -> bool:
  hull_history.resize(tier)
  hull_history[tier-1]=id
  absorption.clear()
+ _pay_light_bank()
  feel_event.emit(&"evolved",player.pos,float(tier),0)
  return true
+## M13 banking: the most light the bank may hold now - LIGHT_BANK_FRACTION of the NEXT tier's
+## threshold, and nothing at the top tier or the mode's cap (there is no evolve to pay it into).
+func light_bank_cap() -> float:
+ if player_tier>=max_player_tier or player_tier>=GameTuning.MAX_TIER: return 0.0
+ return light_bank_fraction*GameTuning.capacity(player_tier+1,max_player_tier)
+## Paid on evolve, the one place the bank empties into the bar (clamped to the new capacity).
+func _pay_light_bank() -> void:
+ if light_bank<=0.0: return
+ light_total=minf(GameTuning.capacity(player_tier,max_player_tier),light_total+light_bank)
+ light_bank=0.0
+ player.hp=light_total
+func _player_can_collect() -> bool:
+ if bool(player.get("dead",false)): return false # M12 death beat
+ return light_total<GameTuning.capacity(player_tier,max_player_tier) or light_bank<light_bank_cap()
 func evolve_player(element: String, tier: int, _stolen: Array) -> void:
  # Transitional test/editor adapter; production evolution uses evolve_hull.
  var id: String="player_seed" if tier==1 else "player_%s_t%d_standard_a" % [element,clampi(tier,1,GameTuning.MAX_TIER)]
@@ -344,9 +401,13 @@ func set_command(value: ShipCommand) -> void: command=value
 func collect_light(raw_amount: float, element: String) -> float:
  if raw_amount<=0.0 or not active: return 0.0
  var multiplier: float=1.25 if _has_ability(player,"siphon") else 1.0
- var consumed: float=minf(raw_amount,maxf(0.0,GameTuning.capacity(player_tier,max_player_tier)-light_total)/multiplier)
+ # M13: the bar fills first; what overflows a full bar is banked up to light_bank_cap().
+ var bar_room: float=maxf(0.0,GameTuning.capacity(player_tier,max_player_tier)-light_total)
+ var consumed: float=minf(raw_amount,(bar_room+maxf(0.0,light_bank_cap()-light_bank))/multiplier)
  if consumed<=0.0: return 0.0
- light_total+=consumed*multiplier
+ var gained: float=consumed*multiplier
+ light_total+=minf(gained,bar_room)
+ light_bank+=maxf(0.0,gained-bar_room)
  player.hp=light_total
  decay_suppress_timer=GameTuning.DECAY_SUPPRESSION_SECONDS # spec §7.1: any absorb suppresses decay
  absorption[element]=float(absorption.get(element,0.0))+consumed
@@ -656,20 +717,23 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
  sector_energy_remaining=int(sector.get("resource_budget",200))
  sector_energy_paid=0
  _dead_enemy_records.clear()
- _respawn_timer=GameTuning.ENEMY_RESPAWN_COOLDOWN
  if not fresh: return
  var key: String=_sector_key(sector)
  if encounter_records.has(key) or sector_cache.has(key):
   CombatPersistence.restore_encounter(self,CombatPersistence.read_cached_encounter(self,key))
   return
  var kind: String=str(sector.get("kind","regular"))
+ # M13: a descriptor with a wave plan (every campaign node) spawns through the queue; a hand-built
+ # one without `waves` (tests, showcases) keeps the old everything-at-once spawn below.
+ var waved: bool=sector.has("waves")
  # Spec §8: the origin's freebies must never exceed what the level has
  # revealed - the descriptor names them, never a hard-coded element list.
  if kind=="origin":
   var starters: Array=sector.get("starter_pickups",[])
   for i: int in range(starters.size()): _drop_pickup(arena.center+Vector2((i-1)*64,190),str(starters[i]),5)
-  cleared_emitted=true
-  return
+  if not waved or Array(sector.waves).is_empty():
+   cleared_emitted=true
+   return
  # A defeated boss never respawns; regular/elite content always repopulates
  # on return (spec §7: enemies respawn on a cooldown, the light pool does
  # not follow - the pool itself is reflected in resource_budget, below).
@@ -678,6 +742,11 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   return
  var element: String=str(sector.get("element","lightning"))
  var tier: int=clampi(int(sector.get("tier",1)),1,GameTuning.MAX_TIER)
+ if waved:
+  _begin_waves(kind)
+  if kind!="origin":
+   for i: int in range(3): _drop_pickup(arena.center+Vector2(_rng.randf_range(-400,400),_rng.randf_range(-220,220)),element,1)
+  return
  var enemy_hulls: Array=sector.get("enemy_hulls",[])
  for i: int in range(enemy_hulls.size()):
   var p: Vector2=arena.center+Vector2.from_angle(TAU*i/maxi(1,enemy_hulls.size()))*(arena.radius*0.55)
@@ -690,6 +759,25 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
  if kind=="boss" and not boss_hull.is_empty():
   _spawn_named_enemy(boss_hull,element,tier,arena.center+Vector2(0,-230),true,false)
  for i: int in range(3): _drop_pickup(arena.center+Vector2(_rng.randf_range(-400,400),_rng.randf_range(-220,220)),element,1)
+
+## M16b: two presentation states the sim only reports, never reads (FeelDirector routes them).
+## `boss_engage` fires the first tick the player comes within BOSS_ENGAGE_RANGE of a live rival,
+## once per actor (the "engaged" key is outside ACTOR_ALLOW; BossIntro dedupes per campaign).
+## Low light enters below `low_light_enter_fraction` of capacity and exits only above
+## `low_light_exit_fraction`: the gap is the hysteresis that stops a state flicker at the line.
+const BOSS_ENGAGE_RANGE: float = 620.0
+var low_light_enter_fraction: float = 0.15
+var low_light_exit_fraction: float = 0.22
+var low_light: bool = false
+func _update_feel_states() -> void:
+ for actor: Dictionary in enemies:
+  if bool(actor.rival) and not bool(actor.dead) and not actor.has("engaged") and Vector2(actor.pos).distance_to(player.pos)<=BOSS_ENGAGE_RANGE:
+   actor["engaged"]=true
+   feel_event.emit(&"boss_engage",actor.pos,1.0,int(actor.id))
+ var fraction: float=light_total/maxf(1.0,player_max_hp)
+ if low_light==(fraction<(low_light_exit_fraction if low_light else low_light_enter_fraction)): return
+ low_light=not low_light
+ feel_event.emit(&"low_light_enter" if low_light else &"low_light_exit",player.pos,fraction,0)
 
 ## Time-scale broker (M1). A request is keyed by reason, so re-requesting replaces and releasing
 ## removes only that reason's request.
@@ -793,6 +881,7 @@ func _physics_process(delta: float) -> void:
  player_position=player.pos
  player.hp=light_total
  bullet_count=bullets.count()
+ _update_feel_states() # M16b: boss_engage, low_light_enter/exit (presentation events only)
  if benchmark_mode and bullet_count<benchmark_target: _fill_benchmark(benchmark_target-bullet_count)
  if profile_sections:
   section_ms.visual_sync_refill=(Time.get_ticks_usec()-section_start)/1000.0
@@ -813,23 +902,24 @@ func _physics_process(delta: float) -> void:
  if profile_sections:
   section_ms.upload=(Time.get_ticks_usec()-section_start)/1000.0
   section_ms.total=simulation_ms
+## M12: ScreenRouter holds these while the evolution cards are open in slow motion: the player
+## still moves, but fires nothing (the mouse is picking a card) and cannot engage a warp.
+var fire_suppressed: bool = false
+var warp_engage_blocked: bool = false
 func _update_player(dt: float) -> void:
+ if bool(player.get("dead",false)): return # M12 death beat: the world runs on without its dead player
  _tick_cooldowns(player,dt)
- _update_warp(dt) # phase machine first: settles warp_phase/warp_direction/warp_commit_speed for this tick
+ _update_warp(dt) # phase machine first: settles warp_phase/warp_direction/position for this tick
  var locked: bool=warp_locked()
  if locked:
-  # Control locked (spec §12 commit..zoom-out): momentum carries straight
-  # through along `warp_heading` at the speed measured at commit. Position
-  # during the locked phases is owned entirely by `_update_warp` (it must
-  # keep moving through the node swap, at a speed `_update_player`'s own
-  # arena-relative clamp cannot reason about mid-swap), so nothing else here
-  # touches position, aim or firing.
-  player.vel=warp_heading*warp_commit_speed
+  # Control locked (BREAK, TRAVEL, FADE). Position and velocity are owned entirely by
+  # `_update_warp` (the ship flies through the node swap at a speed the arena-relative clamp below
+  # cannot reason about), so nothing else here touches position, aim or firing.
   _finish_follow_motion(player)
   return
  var thrusters: float=1.2 if _has_ability(player,"thrusters") else 1.0
  var input_dir: Vector2=command.movement.limit_length(1.0)
- var warp_scale: float=WARP_PUSH_SPEED_SCALE if warp_phase==WARP_PUSH else 1.0
+ var warp_scale: float=GameTuning.feel("warp.push_speed_scale") if warp_phase==WARP_PUSH else 1.0
  var hull_top: float=player_top_speed()
  var top_speed: float=hull_top*warp_scale*_slow_multiplier(player)
  var taus: Dictionary=GameTuning.movement_taus(str(player.definition.role) if player.get("definition")!=null else "standard")
@@ -851,7 +941,7 @@ func _update_player(dt: float) -> void:
  # While pushing into a membrane (spec §12: "the rim arc deforms outward at
  # the contact point"), the rim is soft, not a wall - skip the sealed-wall
  # clamp/friction entirely rather than fighting the 40% speed scale with a
- # second, contradictory resistance. Bounded on its own: PUSH lasts <=0.30s
+ # second, contradictory resistance. Bounded on its own: PUSH lasts <=0.20s
  # at <=40% top speed, so the overshoot (well under 40px for every current
  # role) stays inside the 80px dead-space margin outside the rim.
  var touching: bool=false
@@ -882,9 +972,9 @@ func _update_player(dt: float) -> void:
   var speed_turn: float=float(player.turn_rate)*thrusters
   player.aim=Vector2.from_angle(rotate_toward(Vector2(player.aim).angle(),command.aim.angle(),speed_turn*dt))
  _finish_follow_motion(player)
- if command.fire: _fire_primary(player,dt)
+ if command.fire and not fire_suppressed: _fire_primary(player,dt)
  for index: int in range(mini(command.secondaries.size(),player.secondaries.size())):
-  if command.secondaries[index]: _use_secondary(player,index)
+  if command.secondaries[index] and not fire_suppressed: _use_secondary(player,index)
  _passives(player,dt)
 ## Spec §2: the player's top speed in px/s - `player_top_speed` scaled by the hull's authored speed
 ## (220 is the base hull), Thrusters included; slow and the warp push apply on top.
@@ -949,116 +1039,165 @@ func dashing() -> bool: return int(player.get("dash_burst_q",0))>0
 func dash_ready_fraction() -> float:
  var cooldown: int=roundi(GameTuning.feel("dash.cooldown_s")*SIM_Q_PER_SECOND)
  return 1.0-clampf(float(player.get("dash_cooldown_q",0))/float(maxi(1,cooldown)),0.0,1.0)
-## --- The warp (spec §12) ------------------------------------------------
-func warp_locked() -> bool: return warp_phase!=WARP_NONE and warp_phase!=WARP_PUSH
-## Called once per tick from `_update_player`, before the locked check, so
-## `warp_phase`/`warp_direction`/`warp_commit_speed` are settled before the
-## rest of the tick reads them. Owns every phase transition.
+## --- The warp (camera/movement spec §7, modernization M9) --------------
+## Control is locked in BREAK, TRAVEL and FADE only; ARRIVAL is already playable.
+func warp_locked() -> bool: return warp_phase==WARP_BREAK or warp_phase==WARP_TRAVEL or warp_phase==WARP_FADE
+## A `warp.*` feel key in sim_q.
+func _warp_q(key: String) -> int: return maxi(1,roundi(GameTuning.feel(key)*SIM_Q_PER_SECOND))
+## Speed along `warp_heading` while locked: flung at `warp.speed_ratio` x top speed, or, in the
+## reduced cross-fade, the approach speed (no fling).
+func _warp_speed() -> float:
+ if warp_phase==WARP_FADE: return warp_approach.length()
+ return GameTuning.feel("warp.speed_ratio")*player_top_speed()
+## Where the inbound ship is while it flies in toward the arrival point: `speed` x the time left to
+## the deadline short of it, so it reaches `arena.entry_point` exactly when the deadline lands, at
+## any tick rate, and a restore mid-flight puts it back on the same line.
+func _warp_inbound_position() -> Vector2:
+ var entry: Vector2=arena.entry_point(warp_direction,warp_exit_point)
+ return entry-warp_heading*_warp_speed()*float(maxi(0,warp_deadline_q-sim_q))/SIM_Q_PER_SECOND
+## Called once per tick from `_update_player`, before the locked check, so the phase is settled
+## before the rest of the tick reads it. Owns every phase transition; every one is a sim_q deadline.
 func _update_warp(dt: float) -> void:
  if warp_phase==WARP_NONE or warp_phase==WARP_PUSH:
   _update_warp_push(dt)
   return
- _warp_timer+=dt
- _warp_locked_accum+=dt
+ while warp_phase!=WARP_NONE and warp_phase!=WARP_PUSH and sim_q>=warp_deadline_q: _warp_advance()
+ if not warp_locked():
+  if warp_phase==WARP_ARRIVAL: warp_progress=clampf(float(sim_q-warp_phase_start_q)/float(maxi(1,warp_deadline_q-warp_phase_start_q)),0.0,1.0)
+  return
+ var span: int=_warp_q("warp.reduced_s") if warp_phase==WARP_FADE else warp_deadline_q-warp_phase_start_q
+ warp_progress=clampf(float(sim_q-warp_phase_start_q)/float(maxi(1,span)),0.0,1.0)
+ player.vel=warp_heading*_warp_speed()
+ if warp_teleported: player.pos=_warp_inbound_position()
+ else: player.pos=Vector2(player.pos)+Vector2(player.vel)*dt
+## One deadline has landed: move to the next phase. Leaving the old node and arriving in the new
+## one both need the swap confirmed; without it the membrane springs the ship back.
+func _warp_advance() -> void:
+ if warp_phase!=WARP_ARRIVAL and not _warp_swap_done:
+  _warp_spring_back()
+  return
  match warp_phase:
-  WARP_ZOOM_IN:
-   warp_progress=clampf(_warp_timer/WARP_ZOOM_IN_SECONDS,0.0,1.0)
-   if _warp_timer>=WARP_ZOOM_IN_SECONDS:
-    warp_phase=WARP_TRAVEL
-    _warp_timer=0.0
-  WARP_TRAVEL:
-   warp_progress=clampf(_warp_timer/WARP_TRAVEL_SECONDS,0.0,1.0)
-   player.pos=Vector2(player.pos)+warp_heading*warp_commit_speed*dt
-   if _warp_timer>=WARP_TRAVEL_SECONDS:
-    if not _warp_swap_done:
-     _warp_spring_back()
-     return
-    warp_phase=WARP_ARRIVAL
-    _warp_timer=0.0
-    _warp_arrive()
-  WARP_ARRIVAL:
-   warp_progress=clampf(_warp_timer/WARP_ARRIVAL_SECONDS,0.0,1.0)
-   player.pos=Vector2(player.pos)+warp_heading*warp_commit_speed*dt
-   if _warp_timer>=WARP_ARRIVAL_SECONDS:
-    warp_phase=WARP_ZOOM_OUT
-    _warp_timer=0.0
-  WARP_ZOOM_OUT:
-   warp_progress=clampf(_warp_timer/WARP_ZOOM_OUT_SECONDS,0.0,1.0)
-   player.pos=Vector2(player.pos)+warp_heading*warp_commit_speed*dt
-   if _warp_timer>=WARP_ZOOM_OUT_SECONDS: _warp_finish()
+  WARP_BREAK:
+   warp_phase=WARP_TRAVEL
+   warp_phase_start_q=warp_deadline_q
+   warp_deadline_q+=_warp_q("warp.warp_s")
+   _warp_teleport()
+   feel_event.emit(&"warp_rush",player.pos,1.0,0)
   WARP_FADE:
-   warp_progress=clampf(_warp_timer/WARP_REDUCED_SECONDS,0.0,1.0)
-   if _warp_timer>=WARP_REDUCED_SECONDS:
-    if not _warp_swap_done:
-     _warp_spring_back()
-     return
+   if warp_teleported:
     _warp_arrive()
-    _warp_finish()
-## Places the player just inside the far rim at entry speed (spec §12:
-## "moving at entry speed, so momentum carries through"), timed to the end of
-## the travel phase. Modernization M3: the arrival mirrors the exit - the
-## committed rim point reflected (`arena.entry_point`) and the committed
-## velocity kept unless it points more than 60 deg off the travel bearing
-## (`arena.entry_velocity`). Speed stays the committed speed.
+    return
+   warp_deadline_q=warp_phase_start_q+_warp_q("warp.reduced_s")
+   _warp_teleport()
+  WARP_TRAVEL: _warp_arrive()
+  WARP_ARRIVAL: _warp_finish()
+## Into the new node: the ship jumps to the start of its inbound line, and the player's trail moves
+## by the same delta, so it stays one continuous ribbon (the camera rig treats the jump as a
+## teleport and moves with it).
+func _warp_teleport() -> void:
+ warp_teleported=true
+ var to: Vector2=_warp_inbound_position()
+ var delta: Vector2=to-Vector2(player.pos)
+ player.pos=to
+ var trail: Variant=trail_pool.trails.get(0)
+ if trail!=null:
+  var points: PackedVector2Array=trail.points
+  for index: int in range(points.size()): points[index]+=delta
+  trail.points=points
+## The arrival (spec §7 "the ship's momentum carries it into the new node"): exactly on the committed
+## rim point reflected (`arena.entry_point`), with the APPROACH velocity - the one the ship had when
+## the press began - turned into the entry cone (`arena.entry_velocity`). From here the ship is
+## flown again; only the invulnerability runs on to the end of ARRIVAL.
 func _warp_arrive() -> void:
- warp_entry_speed=warp_commit_speed
  player.pos=arena.entry_point(warp_direction,warp_exit_point)
- var heading: Vector2=arena.entry_velocity(warp_direction,warp_exit_velocity).normalized()
- warp_heading=heading if heading.length_squared()>0.5 else Vector2(warp_direction).normalized()
- player.vel=warp_heading*warp_commit_speed
+ player.vel=arena.entry_velocity(warp_direction,warp_approach)
+ warp_phase=WARP_ARRIVAL
+ warp_phase_start_q=warp_deadline_q
+ warp_deadline_q=warp_end_q
+ warp_progress=0.0
+ feel_event.emit(&"warp_arrive",player.pos,1.0,0)
  warp_arrived.emit()
-## Push accumulation while the player presses into the rim (spec §12 Push:
-## 0.30 s, resists, ~40% speed, releasing before the threshold springs back).
+## Push accumulation while the player presses into the rim (spec §7 Push:
+## `warp.push_s` = 0.20 s since M9, resists, ~40% speed, releasing before the
+## threshold springs back).
 ## Modernization M3: the press may slide along the rim - depth keeps filling
 ## while ANY arc engages, and `warp_direction` tracks the arc under the contact
 ## point (the predicted destination), so the destination is the arc at the
 ## commit tick. Reads the CURRENT position/input directly so it has no
 ## ordering dependency on the accel/drag movement computed afterward.
+##
+## M9: depth is counted in sim_q (the step's own quanta, like the dash, so a test stepping
+## `_update_player` alone still fills it). The approach velocity is taken on the press's first
+## tick, before the push's slowdown touches it. Each filling tick emits `warp_strain` (magnitude =
+## depth); the first draining tick emits `warp_release` (the strain cue stops, the rim wobbles).
 func _update_warp_push(dt: float) -> void:
  var dir: Vector2i=_warp_engage_direction()
+ var step_q: int=maxi(1,roundi(dt*SIM_Q_PER_SECOND))
+ var push_total: int=_warp_q("warp.push_s")
  if warp_phase==WARP_NONE:
   if dir==Vector2i.ZERO: return
   warp_phase=WARP_PUSH
-  _warp_push_depth=0.0
+  warp_push_q=0
+  warp_approach=Vector2(player.vel)
  if dir!=Vector2i.ZERO:
   warp_direction=dir
-  _warp_push_depth=minf(WARP_PUSH_SECONDS,_warp_push_depth+dt)
+  warp_contact_angle=(Vector2(player.pos)-arena.center).angle()
+  warp_push_q=mini(push_total,warp_push_q+step_q)
+  warp_filling=true
+  feel_event.emit(&"warp_strain",player.pos,float(warp_push_q)/float(push_total),0)
  else:
-  _warp_push_depth=maxf(0.0,_warp_push_depth-dt*WARP_PUSH_RELEASE_RATE)
- warp_progress=_warp_push_depth/WARP_PUSH_SECONDS
- if _warp_push_depth<=0.0:
+  if warp_filling: _warp_released(float(warp_push_q)/float(push_total))
+  warp_push_q=maxi(0,warp_push_q-step_q*WARP_PUSH_RELEASE_RATE)
+ warp_progress=float(warp_push_q)/float(push_total)
+ if warp_push_q<=0:
   warp_phase=WARP_NONE
   warp_direction=Vector2i.ZERO
   warp_progress=0.0
   return
- if _warp_push_depth>=WARP_PUSH_SECONDS: _warp_commit()
+ if warp_push_q>=push_total: _warp_commit()
+## A press that ended without committing (or a spring-back): stamps the rim's wobble and cuts the
+## strain cue.
+func _warp_released(depth: float) -> void:
+ warp_filling=false
+ warp_release_q=sim_q
+ warp_release_depth=depth
+ feel_event.emit(&"warp_release",player.pos,depth,0)
 func _warp_engage_direction() -> Vector2i:
  var pos: Vector2=Vector2(player.pos)
  var offset: Vector2=pos-arena.center
  var dist: float=offset.length()
- if dist<arena.radius-60.0 or dist<=0.001: return Vector2i.ZERO
+ if warp_engage_blocked or dist<arena.radius-60.0 or dist<=0.001: return Vector2i.ZERO
  var outward: Vector2=offset/dist
  if command.movement.limit_length(1.0).dot(outward)<warp_engage_dot: return Vector2i.ZERO
  return arena.arc_of(offset.angle())
-## Commit (spec §12): control locks, player becomes invulnerable for exactly
-## the locked window's length (so the EXISTING `player_invulnerable` decay in
-## `_physics_process` is what ends the lock - no second timer), and every
-## enemy projectile in the old node is discarded.
+## Commit (spec §7 Break): control locks, every deadline is set from this tick's sim_q, the player
+## is invulnerable from here to the end of ARRIVAL (one grant through the choke point, sized to that
+## deadline), and every enemy projectile in the old node is discarded. The heading BREAK and TRAVEL
+## fly along is the arrival velocity's, so the ship leaves and enters on one line. The listener
+## swaps the sector synchronously inside `warp_committed` (and saves); the swap's encounter clear
+## would drop the player's trail, so it is carried across.
 func _warp_commit() -> void:
  var reduced: bool=warp_reduced
- warp_phase=WARP_FADE if reduced else WARP_ZOOM_IN
+ warp_phase=WARP_FADE if reduced else WARP_BREAK
+ warp_commit_q=sim_q
+ warp_phase_start_q=sim_q
+ var fade: int=_warp_q("warp.reduced_s")
+ warp_deadline_q=sim_q+(floori(fade/2.0) if reduced else _warp_q("warp.break_s"))
+ warp_end_q=sim_q+(fade if reduced else _warp_q("warp.break_s")+_warp_q("warp.warp_s"))+_warp_q("warp.arrival_s")
  warp_progress=0.0
- _warp_timer=0.0
- _warp_locked_accum=0.0
+ warp_teleported=false
  _warp_swap_done=false
- warp_commit_speed=Vector2(player.vel).length()
+ warp_filling=false
  warp_exit_point=Vector2(player.pos)
- warp_exit_velocity=Vector2(player.vel)
- warp_heading=Vector2(warp_direction).normalized()
- var locked_total: float=WARP_REDUCED_SECONDS if reduced else (WARP_ZOOM_IN_SECONDS+WARP_TRAVEL_SECONDS+WARP_ARRIVAL_SECONDS+WARP_ZOOM_OUT_SECONDS)
- _grant_invulnerability(locked_total,&"warp")
+ var heading: Vector2=arena.entry_velocity(warp_direction,warp_approach).normalized()
+ warp_heading=heading if heading.length_squared()>0.5 else Vector2(warp_direction).normalized()
+ player.vel=warp_heading*_warp_speed()
+ _grant_invulnerability(float(warp_end_q-sim_q)/SIM_Q_PER_SECOND,&"warp")
  _discard_enemy_projectiles()
+ feel_event.emit(&"warp_snap",player.pos,1.0,0)
+ var kept_trail: Variant=trail_pool.trails.get(0)
  warp_committed.emit(warp_direction)
+ if kept_trail!=null and not trail_pool.trails.has(0): trail_pool.trails[0]=kept_trail
 ## Enemy-only discard (spec §12: "all enemy projectiles in the old node are
 ## discarded" - the player's own shots are not enemy projectiles). Returns
 ## the count discarded so callers/tests can measure it directly.
@@ -1073,27 +1212,23 @@ func _discard_enemy_projectiles() -> int:
  return discarded
 ## Called by the node-swap listener (spec P6 item 5, main.gd/run_controller)
 ## once the sector has actually been swapped. If this never arrives before
-## the travel phase ends, `_update_warp` springs back instead of deadlocking.
+## the ship would leave the old node (the end of BREAK, or the FADE midpoint) - or, for a restored
+## save whose flag was lost, before it arrives - `_warp_advance` springs back instead of deadlocking.
 func confirm_warp_swap() -> void: _warp_swap_done=true
+## No swap: the membrane throws the ship back inside the rim it left, at rest, unprotected.
 func _warp_spring_back() -> void:
- warp_phase=WARP_NONE
- warp_progress=0.0
- warp_direction=Vector2i.ZERO
- _warp_push_depth=0.0
- _warp_timer=0.0
- _warp_swap_done=false
+ player.pos=arena.clamp_point(Vector2(player.pos),3.0)
+ player.vel=Vector2.ZERO
  player_invulnerable=0.0
- warp_commit_speed=0.0
- warp_heading=Vector2.ZERO
+ _warp_finish()
+ _warp_released(1.0)
 func _warp_finish() -> void:
- warp_locked_measured=_warp_locked_accum
  warp_phase=WARP_NONE
  warp_progress=0.0
  warp_direction=Vector2i.ZERO
- _warp_push_depth=0.0
- _warp_timer=0.0
+ warp_push_q=0
+ warp_teleported=false
  _warp_swap_done=false
- warp_commit_speed=0.0
  warp_heading=Vector2.ZERO
 ## Trails (spec §13/§19/§23): the player always leaves one, longer at higher
 ## speed (see trail_pool.gd's sampling rule); enemies leave shorter ones and
@@ -1101,20 +1236,25 @@ func _warp_finish() -> void:
 ## survives a crowded fight; the player is never dropped).
 func _update_trails(dt: float) -> void:
  if not visuals_enabled: return
- var ribbon: bool=warp_phase==WARP_TRAVEL or warp_phase==WARP_ZOOM_IN
+ # M9: BREAK and TRAVEL draw an uncapped ribbon (translated across the node swap by
+ # `_warp_teleport`); ARRIVAL reels it back in to the ordinary length instead of cutting it.
+ var ribbon: bool=warp_phase==WARP_BREAK or warp_phase==WARP_TRAVEL
  var player_speed: float=Vector2(player.vel).length()
  var player_top: float=maxf(1.0,player_top_speed())
  var player_width: float=2.6*clampf(player_speed/player_top,0.35,1.0)
  if ribbon: player_width*=1.8
- trail_pool.request(0,player.pos,1.0e9,player_width,PLAYER_COLOR,TrailPool.PLAYER_MAX_POINTS*(3 if ribbon else 1),INF if ribbon else trail_length(player_speed,player_top))
+ var player_length: float=INF if ribbon else trail_length(player_speed,player_top)
+ if warp_phase==WARP_ARRIVAL: player_length=lerpf(GameTuning.feel("trail.len_dash")*2.0,player_length,warp_progress)
+ trail_pool.request(0,player.pos,1.0e9,player_width,PLAYER_COLOR,TrailPool.PLAYER_MAX_POINTS*(3 if ribbon or warp_phase==WARP_ARRIVAL else 1),player_length)
  var enemy_scale: float=GameTuning.feel("trail.enemy_scale")
  for actor: Dictionary in enemies:
   if bool(actor.dead): continue
   var speed: float=Vector2(actor.vel).length()
   if speed<1.0: continue
-  var width: float=1.6*clampf(speed/float(maxf(1.0,actor.speed)),0.3,1.0)
+  var top: float=maxf(1.0,CombatAI.top_speed(self,actor)) # M8: the real top speed, not the hull's authoring unit
+  var width: float=1.6*clampf(speed/top,0.3,1.0)
   var priority: float=(500.0 if bool(actor.get("elite",false)) or bool(actor.get("rival",false)) else 100.0)-Vector2(actor.pos).distance_to(player.pos)*0.05
-  trail_pool.request(int(actor.id),actor.pos,priority,width,_actor_color(actor),TrailPool.ENEMY_MAX_POINTS,enemy_scale*trail_length(minf(speed,float(actor.speed)),float(actor.speed)))
+  trail_pool.request(int(actor.id),actor.pos,priority,width,_actor_color(actor),TrailPool.ENEMY_MAX_POINTS,enemy_scale*trail_length(minf(speed,top),top))
  trail_pool.update(dt)
 ## Spec §5: a trail's arc length for a ship moving at `speed` whose top speed is `top`. 0 at rest,
 ## `trail.len_top` at top speed, rising on to `trail.len_dash` at the dash's peak ratio.
@@ -1235,26 +1375,27 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
   "pulse_cannon":
    var regular: bool=int(actor.id)!=0 and not bool(actor.rival) and not bool(actor.elite)
    if regular and str(actor.element)=="plasma":
-    for i: int in range(4): _shoot(actor,Vector2.from_angle(float(actor.age)*1.5+TAU*i/4.0),220.0,damage,-1.0,0,at)
+    for i: int in range(4): _shoot(actor,Vector2.from_angle(float(actor.age)*1.5+TAU*i/4.0),shot_speed(actor,"plasma"),damage,-1.0,0,at)
     if actor.body_features.has("projectile_orbit") and float(actor.cooldowns.get("pattern_orbit",0.0))<=0.0:
      actor.cooldowns.pattern_orbit=3.0
-     for i: int in range(3): _shoot(actor,Vector2.from_angle(TAU*i/3.0),220.0,damage,-1.0,Pool.ORBIT,at)
+     for i: int in range(3): _shoot(actor,Vector2.from_angle(TAU*i/3.0),shot_speed(actor,"orbit"),damage,-1.0,Pool.ORBIT,at)
    elif regular and str(actor.element)=="void":
-    for i: int in range(2): _shoot(actor,aim.rotated((i-0.5)*0.35),155.0,damage,-1.0,0,at)
+    for i: int in range(2): _shoot(actor,aim.rotated((i-0.5)*0.35),shot_speed(actor,"void"),damage,-1.0,0,at)
    else:
-    _shoot(actor,aim,570.0 if int(actor.id)==0 else 250.0,damage,-1.0,Pool.INFECT if regular and str(actor.element)=="corruption" else 0,at)
-  "ricochet": _shoot(actor,aim,500.0,damage,-1.0,Pool.RICOCHET,at)
+    _shoot(actor,aim,shot_speed(actor,"pulse"),damage,-1.0,Pool.INFECT if regular and str(actor.element)=="corruption" else 0,at)
+  "ricochet": _shoot(actor,aim,shot_speed(actor,"ricochet"),damage,-1.0,Pool.RICOCHET,at)
   "flame_cone":
-   for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.12),420.0,damage,definition.range_pixels/420.0,0,at)
-  "bolt": _shoot(actor,aim,780.0,damage,-1.0,Pool.CHAIN,at)
+   var flame_speed: float=shot_speed(actor,"flame")
+   for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.12),flame_speed,damage,definition.range_pixels/flame_speed,0,at)
+  "bolt": _shoot(actor,aim,shot_speed(actor,"bolt"),damage,-1.0,Pool.CHAIN,at)
   "beam","homing_beam": _beam(actor,id,_last_dt,at,aim)
   "virus":
    var target: Dictionary=_nearest(actor,at)
    if not target.is_empty() and at.distance_to(target.pos)<=definition.range_pixels: _attach_virus(actor,int(target.id),damage,0)
   "seeker_missiles":
-   for i: int in range(3): _shoot(actor,aim.rotated((i-1)*0.2),310.0,damage,-1.0,Pool.HOMING,at)
+   for i: int in range(3): _shoot(actor,aim.rotated((i-1)*0.2),shot_speed(actor,"seeker"),damage,-1.0,Pool.HOMING,at)
   "rocket_launcher":
-   for i: int in range(5): _shoot(actor,aim.rotated((i-2)*0.15),220.0,damage,-1.0,Pool.WANDER|Pool.ROCKET,at)
+   for i: int in range(5): _shoot(actor,aim.rotated((i-2)*0.15),shot_speed(actor,"rocket"),damage,-1.0,Pool.WANDER|Pool.ROCKET,at)
   "shield": actor.shield=GameTuning.SHIELD_DURATION
   "explosives": _queue_attack(actor,"explosive",arena.clamp_point(at+aim*260.0,100.0),Vector2.ZERO,1.2,damage,definition.range_pixels,-1,mount)
   "laser_prong": _queue_attack(actor,"laser",at,_ray_end(at,aim),0.8,damage,0.0,-1,mount)
@@ -1272,20 +1413,21 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
    if int(actor.id)==0:
     # Two shots weaving about the aim: the spiral is the sine of the shot count.
     var weave: float=0.30*sin(float(int(actor.get("shots_fired",0)))*0.9)
-    _shoot(actor,aim.rotated(weave),520.0,damage,-1.0,0,at)
-    _shoot(actor,aim.rotated(-weave),520.0,damage,-1.0,0,at)
+    _shoot(actor,aim.rotated(weave),shot_speed(actor,"spiral"),damage,-1.0,0,at)
+    _shoot(actor,aim.rotated(-weave),shot_speed(actor,"spiral"),damage,-1.0,0,at)
    else:
-    for i: int in range(4): _shoot(actor,Vector2.from_angle(float(actor.age)*1.5+TAU*i/4.0),220.0,damage,-1.0,0,at)
+    for i: int in range(4): _shoot(actor,Vector2.from_angle(float(actor.age)*1.5+TAU*i/4.0),shot_speed(actor,"spiral"),damage,-1.0,0,at)
   "pulse_ring":
-   for i: int in range(12): _shoot(actor,Vector2.from_angle(TAU*i/12.0),240.0,damage,definition.range_pixels/240.0,0,at)
-  "chain_infection": _shoot(actor,aim,420.0,damage,-1.0,Pool.CHAIN|Pool.INFECT,at)
+   var ring_speed: float=shot_speed(actor,"ring")
+   for i: int in range(12): _shoot(actor,Vector2.from_angle(TAU*i/12.0),ring_speed,damage,definition.range_pixels/ring_speed,0,at)
+  "chain_infection": _shoot(actor,aim,shot_speed(actor,"pulse"),damage,-1.0,Pool.CHAIN|Pool.INFECT,at)
   "overcharge":
    # Every fourth shot is the charged one: triple damage and it chains.
    actor.charge=int(actor.get("charge",0))+1
    var charged: bool=int(actor.charge)%4==0
-   _shoot(actor,aim,600.0,damage*(3.0 if charged else 1.0),-1.0,Pool.CHAIN if charged else 0,at)
-  "phase_shot": _shoot(actor,aim,560.0 if int(actor.id)==0 else 250.0,damage,-1.0,Pool.PHASE,at)
-  "void_orb": _shoot(actor,aim,155.0,damage,-1.0,Pool.PIERCING,at)
+   _shoot(actor,aim,shot_speed(actor,"pulse"),damage*(3.0 if charged else 1.0),-1.0,Pool.CHAIN if charged else 0,at)
+  "phase_shot": _shoot(actor,aim,shot_speed(actor,"pulse"),damage,-1.0,Pool.PHASE,at)
+  "void_orb": _shoot(actor,aim,GameTuning.feel("orb.void")*GameTuning.feel("player_top_speed"),damage,-1.0,Pool.PIERCING,at)
   "drone_hatch": _spawn_drones(actor,2,damage,at)
   "drone_swarm":
    var first: int=drones.size()
@@ -1338,7 +1480,20 @@ func _activate_component(actor: Dictionary, id: String, at: Vector2, aim: Vector
   "turret_ring":
    for i: int in range(6):
     var direction: Vector2=Vector2.from_angle(float(actor.age)*0.5+TAU*i/6.0)
-    _shoot(actor,direction,250.0,damage,-1.0,0,at+direction*definition.range_pixels)
+    _shoot(actor,direction,shot_speed(actor,"ring"),damage,-1.0,0,at+direction*definition.range_pixels)
+## Camera/movement spec §2 (M8): every travelling shot's speed is a ratio of the player's top speed,
+## by side (the player, id 0, or anyone else) and weapon family (`GameTuning` "shot.<side>.<family>").
+## Two drifting hazards stay outside the shot rules: `black_hole_shot` keeps its 120 px/s, and
+## `void_orb` flies at "orb.void" x the player's top speed on either side.
+const SHOT_FAMILY: Dictionary = {"pulse_cannon":"pulse","ricochet":"ricochet","flame_cone":"flame","bolt":"bolt",
+ "seeker_missiles":"seeker","rocket_launcher":"rocket","spiral_shot":"spiral","pulse_ring":"ring","chain_infection":"pulse",
+ "overcharge":"pulse","phase_shot":"pulse","turret_ring":"ring","orbital_seekers":"seeker","egg":"seeker","nova_pulse":"ring"}
+func shot_speed(actor: Dictionary, family: String) -> float:
+ return GameTuning.projectile_speed(int(actor.get("id",-1))==0,family)
+## The speed of the shot an ability fires (what an elite leads by); a beam or a field reads as a pulse.
+func shot_speed_of(actor: Dictionary, ability_id: String) -> float:
+ if ability_id=="void_orb": return GameTuning.feel("orb.void")*GameTuning.feel("player_top_speed")
+ return shot_speed(actor,str(SHOT_FAMILY.get(ability_id,"pulse")))
 ## Per-weapon visual size (spec §19 "projectile interiors ... above ~7 px").
 ## Collision radius (the 3.0 passed to `bullets.add` below) is UNCHANGED by
 ## this - only the drawn size moves, via `BulletPool.visual_radii`.
@@ -1525,7 +1680,7 @@ func _damage_part(actor: Dictionary, index: int, amount: float, source: Dictiona
  if rig.ability_id[index]=="egg" and not ai_firing_disabled and float(actor.part_egg_cd[index])<=0.0:
   actor.part_egg_cd[index]=2.0
   var aim: Vector2=actor.part_aim[index]
-  for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.25),330.0,15.0,-1.0,Pool.HOMING,_part_position(actor,index))
+  for i: int in range(7): _shoot(actor,aim.rotated((i-3)*0.25),shot_speed(actor,"seeker"),15.0,-1.0,Pool.HOMING,_part_position(actor,index))
  actor.part_hp[index]=maxf(0.0,float(actor.part_hp[index])-amount)
  _flare(actor,index)
  _maybe_collar(_part_position(actor,index),amount)
@@ -1695,7 +1850,7 @@ func _passives(actor: Dictionary, dt: float) -> void:
    actor.orbit_cd=1.0
   var target: Dictionary=_nearest(actor,actor.pos)
   if not target.is_empty() and Vector2(target.pos).distance_to(actor.pos)<320.0 and int(actor.orbit_stock)>0:
-   _shoot(actor,(Vector2(target.pos)-Vector2(actor.pos)).normalized(),320.0,_ability("orbital_seekers").damage*_damage_scale(actor),-1.0,Pool.HOMING)
+   _shoot(actor,(Vector2(target.pos)-Vector2(actor.pos)).normalized(),shot_speed(actor,"seeker"),_ability("orbital_seekers").damage*_damage_scale(actor),-1.0,Pool.HOMING)
    actor.orbit_stock=int(actor.orbit_stock)-1
  if _has_ability(actor,"forcefield"): _radial_damage(actor,actor.pos,45.0,18.0*_damage_scale(actor)*dt)
  # Element pattern identity for regular enemies is separate from player presets.
@@ -1716,10 +1871,13 @@ func _update_actor_status(actor: Dictionary, dt: float) -> void:
 ## Spec §7, one system: decay, combo drain and enemy respawn all live here,
 ## called once per tick from _physics_process right after actor status.
 func _update_pace(dt: float) -> void:
- if not active or player.is_empty(): return
- # Combo (spec §7.2): the 2.5s window resets on every kill (_kill_reward);
+ if not active or player.is_empty() or bool(player.get("dead",false)): return # M12: not during the death beat
+ # Combo (spec §7.2): the window resets on every kill (_kill_reward);
  # once it expires the count drains 1 per 0.25s instead of resetting hard.
- if combo_timer>0.0:
+ # M13: frozen while the warp is locked, so chaining nodes keeps the combo.
+ if warp_locked():
+  pass
+ elif combo_timer>0.0:
   combo_timer=maxf(0.0,combo_timer-dt)
   if combo_timer<=0.0 and combo_count>0: feel_event.emit(&"combo_break",player.pos,float(combo_count),0)
  elif combo_count>0:
@@ -1740,22 +1898,220 @@ func _update_pace(dt: float) -> void:
    light_total=maxf(GameTuning.DECAY_FLOOR,light_total-rate*dt)
    player.hp=light_total
    _check_regression()
- _update_respawns(dt)
+ _update_waves(dt)
+
+## --- Waves and rim spawns (modernization M13) ---------------------------
+## The descriptor's `waves` are released one at a time into `_wave_pending`; the alive cap moves
+## pending entries into `spawn_queue` with a rim position and an `encounter_q` deadline; the queue
+## telegraphs each one SPAWN_TELEGRAPH_SECONDS ahead and spawns it on its deadline. Respawns take
+## the same path, so there is ONE way an enemy enters a waved node.
+static func _q(seconds: float) -> int: return roundi(seconds*SIM_Q_PER_SECOND)
+func _begin_waves(kind: String) -> void:
+ # A swap made at a warp commit happens while the player is still in flight: hold the wave clock
+ # until the arrival, and keep wave 1 clear of the rim point the player will arrive at.
+ _wave_arrival_hold=warp_locked()
+ _wave_clear_from=arena.entry_point(warp_direction,warp_exit_point) if _wave_arrival_hold else player_position
+ var first: float=float(sector.get("wave_first_s",GameTuning.WAVE_FIRST_SECONDS))
+ var boss_hull: String=str(sector.get("boss_hull",""))
+ if kind=="boss" and not boss_hull.is_empty():
+  spawn_queue.append({"hull":boss_hull,"element":str(sector.get("element","lightning")),"tier":int(sector.get("tier",1)),"elite":false,"rival":true,"pos":arena.center+Vector2(0,-230),"due_q":encounter_q+_q(first),"tele":0,"tele_left":0})
+ if Array(sector.get("wave_boss_hp",[])).is_empty() and not Array(sector.get("waves",[])).is_empty(): _release_wave(first,_wave_clear_from)
+func _on_wave_arrival() -> void: _wave_arrival_hold=false
+func _update_waves(dt: float) -> void:
+ if benchmark_mode: return
+ if _wave_arrival_hold:
+  if warp_phase!=WARP_NONE: return
+  _wave_arrival_hold=false # the warp finished or sprang back without an arrival signal
+ encounter_q+=_q(dt)
+ _advance_waves()
+ _update_respawns()
+ _queue_pending(GameTuning.SPAWN_TELEGRAPH_SECONDS,player.pos)
+ _update_spawn_queue()
+## Releases the next wave when its rule says so: the boss's HP for a boss node's add waves, else
+## "at most a third of the last wave is left" or the gap deadline. Never while a release is still
+## held back by the cap.
+func _advance_waves() -> void:
+ var waves: Array=sector.get("waves",[])
+ if wave_index>=waves.size() or not _wave_pending.is_empty(): return
+ var boss_hp: Array=sector.get("wave_boss_hp",[])
+ if wave_index<boss_hp.size():
+  var boss: Dictionary=_living_boss()
+  if boss.is_empty():
+   if not _boss_queued(): wave_index=waves.size() # the boss is down: its adds never come
+   return
+  if float(boss.hp)>float(boss_hp[wave_index])*float(boss.max_hp): return
+ elif wave_index>0 and float(_wave_alive())>float(_wave_last_size)*GameTuning.WAVE_ADVANCE_ALIVE_FRACTION and encounter_q<_wave_due_q:
+  return
+ _release_wave(GameTuning.SPAWN_TELEGRAPH_SECONDS,player.pos)
+func _release_wave(lead_seconds: float, clear_from: Vector2) -> void:
+ var wave: Array=Array(sector.get("waves",[]))[wave_index]
+ var enemy_hulls: Array=sector.get("enemy_hulls",[])
+ var elite_hulls: Array=sector.get("elite_hulls",[])
+ for item: Variant in wave:
+  var index: int=int(item)
+  var elite: bool=index>=enemy_hulls.size()
+  var hull: String=str(elite_hulls[index-enemy_hulls.size()]) if elite else str(enemy_hulls[index])
+  _wave_pending.append({"hull":hull,"element":str(sector.get("element","lightning")),"tier":clampi(int(sector.get("tier",1)),1,GameTuning.MAX_TIER),"elite":elite,"rival":false})
+ _wave_last_size=wave.size()
+ _wave_due_q=encounter_q+_q(float(sector.get("wave_gap_s",GameTuning.WAVE_GAP_SECONDS)))
+ wave_index+=1
+ _queue_pending(lead_seconds,clear_from)
 ## Spec §7.3: "enemies respawn on a cooldown; the pool does not follow" - a
 ## defeated enemy comes back on ENEMY_RESPAWN_COOLDOWN regardless of how
 ## depleted the node's light pool is; what depletes is the LOOT (routed
 ## through _spend_energy/_drop_pickup), not the enemy count. Bosses never
 ## respawn (spec §14 "no respawn"); their kind never appends to the list.
-func _update_respawns(dt: float) -> void:
- if _dead_enemy_records.is_empty(): return
- _respawn_timer-=dt
- if _respawn_timer>0.0: return
- _respawn_timer=GameTuning.ENEMY_RESPAWN_COOLDOWN
+## M13: the cooldown is an encounter_q deadline, and a respawn enters through the wave queue.
+func _update_respawns() -> void:
+ if _dead_enemy_records.is_empty():
+  _respawn_due_q=0
+  return
+ if _respawn_due_q<=0: _respawn_due_q=encounter_q+_q(GameTuning.ENEMY_RESPAWN_COOLDOWN)
+ if encounter_q<_respawn_due_q: return
+ _respawn_due_q=encounter_q+_q(GameTuning.ENEMY_RESPAWN_COOLDOWN)
  var record: Dictionary=_dead_enemy_records.pop_front()
- var point: Vector2=arena.center+Vector2.from_angle(_rng.randf()*TAU)*arena.radius*0.85
- if point.distance_to(player.pos)<400.0: point=arena.center*2.0-point
- var spawned: Dictionary=_spawn_named_enemy(str(record.hull_id),str(record.element),int(record.tier),point,false,bool(record.elite))
- if not spawned.is_empty(): _add_effect("spawn",point,_actor_color(spawned),0.5,40.0)
+ _wave_pending.append({"hull":str(record.hull_id),"element":str(record.element),"tier":int(record.tier),"elite":bool(record.elite),"rival":false})
+## Moves pending spawns into the queue while the alive cap has room, fanned around one bearing that
+## keeps SPAWN_CLEAR_DEGREES clear of `clear_from`, SPAWN_STAGGER_SECONDS apart.
+func _queue_pending(lead_seconds: float, clear_from: Vector2) -> void:
+ if _wave_pending.is_empty(): return
+ var room: int=wave_alive_cap()-_alive_total()
+ if room<=0: return
+ var batch: Array=_wave_pending.slice(0,room)
+ _wave_pending=_wave_pending.slice(room)
+ var angles: Array[float]=spawn_angles(batch.size(),clear_from)
+ var due: int=encounter_q+_q(lead_seconds)
+ for i: int in range(batch.size()):
+  var entry: Dictionary=batch[i]
+  entry.pos=arena.center+Vector2.from_angle(angles[i])*(arena.radius-GameTuning.SPAWN_RIM_INSET)
+  entry.due_q=due+_q(i*GameTuning.SPAWN_STAGGER_SECONDS)
+  entry.tele=0
+  entry.tele_left=0
+  spawn_queue.append(entry)
+## `count` bearings SPAWN_SPACING_DEG apart, the whole fan inside the arc that keeps
+## SPAWN_CLEAR_DEGREES from the bearing of `clear_from` (no constraint when it sits near the
+## centre, e.g. a reboot at the origin). Draws from the sim RNG, so it is deterministic per seed.
+func spawn_angles(count: int, clear_from: Vector2) -> Array[float]:
+ var result: Array[float]=[]
+ if count<=0: return result
+ var offset: Vector2=clear_from-arena.center
+ var clear: float=deg_to_rad(GameTuning.SPAWN_CLEAR_DEGREES)
+ var spacing: float=deg_to_rad(GameTuning.SPAWN_SPACING_DEG)
+ var centre: float
+ if offset.length()<arena.radius*0.25:
+  centre=_rng.randf()*TAU
+ else:
+  var allowed: float=TAU-2.0*clear
+  spacing=minf(spacing,allowed/maxf(1.0,float(count-1))) if count>1 else spacing
+  var spread: float=spacing*(count-1)
+  centre=offset.angle()+clear+spread*0.5+_rng.randf()*(allowed-spread)
+ for i: int in range(count): result.append(centre+(i-(count-1)*0.5)*spacing)
+ return result
+## Telegraphs (two converging pulses of the spawn_telegraph template, the second only when the
+## first had time to read) and spawns each queued entry on its deadline.
+func _update_spawn_queue() -> void:
+ if spawn_queue.is_empty(): return
+ var lead: int=_q(GameTuning.SPAWN_TELEGRAPH_SECONDS)
+ var waiting: Array=[]
+ for entry: Dictionary in spawn_queue:
+  var left: int=int(entry.due_q)-encounter_q
+  if left<=0:
+   _spawn_from_queue(entry)
+   continue
+  waiting.append(entry)
+  if int(entry.tele)==0 and left<=lead:
+   entry.tele=1
+   entry.tele_left=left
+   _spawn_telegraph(entry,1.0)
+  elif int(entry.tele)==1 and left<=_q(0.25) and int(entry.tele_left)>=_q(0.45):
+   entry.tele=2
+   _spawn_telegraph(entry,0.6)
+ spawn_queue=waiting
+func _spawn_telegraph(entry: Dictionary, scale: float) -> void:
+ var size: float=(110.0 if bool(entry.rival) else (64.0 if bool(entry.elite) else 46.0))*scale
+ var color: Color=COLORS[maxi(0,ELEMENTS.find(str(entry.element)))]
+ var at: Vector2=entry.pos
+ # Converging: the ring closes onto the spawn point (r0 > r1), the inverse of the landing burst.
+ fx.emit("spawn_telegraph",at,color,_fx_rng,{"r0":size,"r1":size*0.18})
+ # The first pulse also tears in from the rim, so the eye reads where it is coming from.
+ if scale>=1.0 and at.distance_to(arena.center)>1.0: fx.emit("chain_line",arena.center+(at-arena.center).normalized()*arena.radius,color,_fx_rng,{"to":at})
+func _spawn_from_queue(entry: Dictionary) -> void:
+ var at: Vector2=entry.pos
+ var spawned: Dictionary=_spawn_named_enemy(str(entry.hull),str(entry.element),int(entry.tier),at,bool(entry.rival),bool(entry.elite))
+ if spawned.is_empty(): return
+ spawned.aim=(arena.center-at).normalized() if at.distance_to(arena.center)>1.0 else Vector2.DOWN
+ _add_effect("spawn",spawned.pos,_actor_color(spawned),0.5,48.0 if not bool(entry.rival) else 110.0)
+func wave_alive_cap() -> int:
+ if alive_cap_override>0: return alive_cap_override
+ return mini(GameTuning.WAVE_ALIVE_CAP_MAX,GameTuning.WAVE_ALIVE_CAP_BASE+clampi(int(sector.get("tier",1)),1,GameTuning.MAX_TIER)/2)
+## Everything the cap counts: live enemies (the boss included) and spawns already queued.
+func _alive_total() -> int:
+ var count: int=spawn_queue.size()
+ for actor: Dictionary in enemies:
+  if not bool(actor.dead): count+=1
+ return count
+## What the "a third of the last wave" rule counts: live non-boss enemies, queued and pending ones.
+func _wave_alive() -> int:
+ var count: int=_wave_pending.size()
+ for entry: Dictionary in spawn_queue:
+  if not bool(entry.rival): count+=1
+ for actor: Dictionary in enemies:
+  if not bool(actor.dead) and not bool(actor.rival): count+=1
+ return count
+func _living_boss() -> Dictionary:
+ for actor: Dictionary in enemies:
+  if bool(actor.rival) and not bool(actor.dead): return actor
+ return {}
+func _boss_queued() -> bool:
+ for entry: Dictionary in spawn_queue:
+  if bool(entry.rival): return true
+ return false
+## True once every wave has been released and every release has landed.
+func waves_complete() -> bool:
+ return wave_index>=Array(sector.get("waves",[])).size() and _wave_pending.is_empty() and spawn_queue.is_empty()
+func _reset_waves() -> void:
+ encounter_q=0
+ _wave_arrival_hold=false
+ wave_index=0
+ _wave_last_size=0
+ _wave_due_q=0
+ _wave_pending.clear()
+ spawn_queue.clear()
+ _wave_clear_from=Vector2.ZERO
+ _respawn_due_q=0
+ _dead_enemy_records.clear()
+## The encounter snapshot's wave block (CombatPersistence). Deadlines are encounter_q values and
+## encounter_q itself is saved, so a restore resumes every countdown exactly.
+func wave_snapshot() -> Dictionary:
+ return CombatPersistence.json_value({"encounter_q":encounter_q,"hold":_wave_arrival_hold,"index":wave_index,"last_size":_wave_last_size,"due_q":_wave_due_q,"pending":_wave_pending,"queue":spawn_queue,"clear_from":_wave_clear_from,"dead":_dead_enemy_records,"respawn_due_q":_respawn_due_q})
+func wave_restore(data: Dictionary) -> void:
+ _reset_waves()
+ if data.is_empty(): return
+ var decoded: Dictionary=CombatPersistence.decode_value(data)
+ encounter_q=int(decoded.get("encounter_q",0))
+ _wave_arrival_hold=bool(decoded.get("hold",false))
+ wave_index=int(decoded.get("index",0))
+ _wave_last_size=int(decoded.get("last_size",0))
+ _wave_due_q=int(decoded.get("due_q",0))
+ _wave_pending.assign(decoded.get("pending",[]))
+ spawn_queue.assign(decoded.get("queue",[]))
+ var clear_from: Variant=decoded.get("clear_from",Vector2.ZERO)
+ _wave_clear_from=clear_from if clear_from is Vector2 else Vector2.ZERO
+ _dead_enemy_records.assign(decoded.get("dead",[]))
+ _respawn_due_q=int(decoded.get("respawn_due_q",0))
+## Music intensity 0..3 for Soundscape.set_music_intensity (M13, M17's adaptive stems): a live boss,
+## a crowd or a long combo is 3; a fight or a chain is 2; a straggler or an incoming wave is 1.
+func music_intensity() -> int:
+ var alive: int=0
+ var boss: bool=false
+ for actor: Dictionary in enemies:
+  if bool(actor.dead): continue
+  alive+=1
+  boss=boss or bool(actor.rival)
+ if boss or alive>=8 or combo_count>=7: return 3
+ if alive>=4 or combo_count>=3: return 2
+ if alive>0 or not spawn_queue.is_empty(): return 1
+ return 0
 func _attach_virus(source: Dictionary, target_id: int, damage: float, generation: int) -> void:
  if viruses.size()<128: viruses.append({"target":target_id,"damage":damage,"generation":generation,"owner":int(source.id),"faction":int(source.faction),"element":str(source.element),"pos":actors_by_id[target_id].pos})
 func _update_viruses(dt: float) -> void:
@@ -1829,7 +2185,7 @@ func _update_telegraphs(dt: float) -> void:
     elif attack.kind=="nova":
      for ring: int in range(2):
       for shot: int in range(12):
-       bullets.add(attack.from,Vector2.from_angle(TAU*(float(shot)+0.5*float(ring))/12.0)*(230.0-40.0*float(ring)),-1.0,float(attack.damage),3.0,int(attack.owner),int(attack.faction),maxi(0,ELEMENTS.find(attack.element)),0)
+       bullets.add(attack.from,Vector2.from_angle(TAU*(float(shot)+0.5*float(ring))/12.0)*shot_speed(owner,"ring")*(1.0-0.17*float(ring)),-1.0,float(attack.damage),3.0,int(attack.owner),int(attack.faction),maxi(0,ELEMENTS.find(attack.element)),0)
     # `incendiary_spores`: each spore blooms into a small burning cloud where it lands.
     elif attack.kind=="spore" and clouds.size()<80:
      clouds.append({"pos":attack.from,"radius":float(attack.radius),"time":3.0,"damage":float(attack.damage),"owner":int(attack.owner),"faction":int(attack.faction),"element":str(attack.element)})
@@ -1859,7 +2215,7 @@ func _update_drones(dt: float) -> void:
   var source: Dictionary={"id":drone.owner,"faction":drone.faction}
   var target: Dictionary=_nearest(source,drone.pos)
   if not target.is_empty():
-   drone.pos=Vector2(drone.pos).move_toward(target.pos,dt*170.0)
+   drone.pos=Vector2(drone.pos).move_toward(target.pos,dt*GameTuning.projectile_speed(int(drone.owner)==0,"bay_drone"))
    if Vector2(drone.pos).distance_to(target.pos)<14.0:
     _damage_actor(target,float(drone.damage),int(drone.owner),int(drone.faction))
     drone.hp=0.0
@@ -1888,6 +2244,40 @@ func _update_black_holes(dt: float) -> void:
  black_holes=alive
 
 func _rebuild_actor_grid() -> void: _broadphase.rebuild()
+## A seeker's heading after one tick (spec §8: "their turn rate limited so weaving beats them").
+## Pursuit and weave together turn at most `seeker.turn_rate` rad/s, scaled by speed over the enemy
+## seeker's so every seeker has the same turn radius. Path identity (spec §19 table): "weaving sine,
+## tightening near the target" - the seeker steers for the bearing plus `weave_amp` x sin(`weave_freq`
+## x t), so the weave is an angle it tracks, not a kick it receives: the same amplitude at every tick
+## rate, and never a turn beyond the limit. It shrinks as range closes. Before M8 the weave added
+## 0.35 x sin(...) rad per TICK after a 2.8 rad/s limit: 23.8 rad/s peak at 60 Hz and 44.8 at 120
+## (P11a's measurement), a seeker that turned on a pin and weaved twice as hard at twice the rate.
+## It steers for the intercept point (the target's velocity x the time a straight run at this speed
+## meets it, capped at SEEKER_LEAD_MAX): at 0.57 x the player's speed a seeker chasing the bearing
+## never catches a ship that simply flies on, so without the lead holding a line would beat it as
+## surely as a weave.
+const SEEKER_LEAD_MAX: float = 1.0
+func _seeker_heading(heading: float, from: Vector2, target: Dictionary, index: int, speed: float, dt: float) -> float:
+ var gap: Vector2=Vector2(target.pos)-from
+ var target_vel: Vector2=target.get("vel",Vector2.ZERO)
+ var to_target: Vector2=gap+target_vel*minf(_intercept_time(gap,target_vel,speed),SEEKER_LEAD_MAX)
+ var limit: float=GameTuning.feel("seeker.turn_rate")*maxf(1.0,speed/maxf(1.0,GameTuning.projectile_speed(false,"seeker")))*dt
+ var weave: float=GameTuning.feel("seeker.weave_amp")*clampf(gap.length()/220.0,0.15,1.0)*sin(elapsed*GameTuning.feel("seeker.weave_freq")+index*2.3)
+ if seeker_weave_per_tick: return rotate_toward(heading,to_target.angle(),limit)+weave # test-only: the pre-M8 defect
+ return rotate_toward(heading,to_target.angle()+weave,limit)
+## The earliest t >= 0 at which a shot leaving now at `speed` in a straight line meets a target at
+## `gap` moving at `velocity`: |gap + velocity t| = speed t. 0 when no such meeting exists.
+static func _intercept_time(gap: Vector2, velocity: Vector2, speed: float) -> float:
+ var a: float=velocity.length_squared()-speed*speed
+ var b: float=2.0*gap.dot(velocity)
+ var c: float=gap.length_squared()
+ if absf(a)<0.001: return -c/b if b<0.0 else 0.0
+ var disc: float=b*b-4.0*a*c
+ if disc<0.0: return 0.0
+ var root: float=sqrt(disc)
+ var first: float=minf((-b-root)/(2.0*a),(-b+root)/(2.0*a))
+ var second: float=maxf((-b-root)/(2.0*a),(-b+root)/(2.0*a))
+ return first if first>=0.0 else maxf(second,0.0)
 func _update_bullets(dt: float) -> void:
  for slot: int in range(bullets.active_indices.size()-1,-1,-1):
   var index: int=bullets.active_indices[slot]
@@ -1899,14 +2289,8 @@ func _update_bullets(dt: float) -> void:
   if (flag & Pool.HOMING)!=0:
    var target: Dictionary=_nearest(source,from)
    if not target.is_empty():
-    var angle: float=rotate_toward(velocity.angle(),(Vector2(target.pos)-from).angle(),2.8*dt)
-    # Path identity (spec §19 table): "weaving sine, tightening near the
-    # target" - the weave's own amplitude shrinks as range closes, so the
-    # seeker still reads as a seeker right up to impact but does not swing
-    # wildly at point-blank range.
-    var tighten: float=clampf(Vector2(target.pos).distance_to(from)/220.0,0.15,1.0)
-    angle+=sin(elapsed*9.0+index*2.3)*0.35*tighten
-    velocity=Vector2.from_angle(angle)*velocity.length()
+    var speed: float=velocity.length()
+    velocity=Vector2.from_angle(_seeker_heading(velocity.angle(),from,target,index,speed,dt))*speed
   if (flag & Pool.WANDER)!=0:
    # Path identity: rocket's "slow wallow, wide curve" - slower and wider
    # than a generic wander would be (WANDER is only ever paired with ROCKET,
@@ -2209,7 +2593,7 @@ func _update_pickups(dt: float) -> void:
  # Light flies to the player faster than the player can flee (M7); enemy collectors keep the floor.
  var pull_min: float=GameTuning.feel("pickup.pull_min")
  var player_pull: float=maxf(pull_min,GameTuning.feel("pickup.pull_ratio")*player_top_speed())
- if light_total<GameTuning.capacity(player_tier,max_player_tier) and active:
+ if _player_can_collect() and active: # M13: a full bar still collects into the bank
   player.collect_radius_squared=pow(_magnet_radius(player),2)
   _pickup_collectors.append(player)
  for actor: Dictionary in enemies:
@@ -2236,7 +2620,7 @@ func _update_pickups(dt: float) -> void:
   var consumed: float
   if int(collector.id)==0:
    consumed=collect_light(float(pickup.value),str(pickup.element))
-   if light_total>=GameTuning.capacity(player_tier,max_player_tier): _pickup_collectors.erase(collector)
+   if not _player_can_collect(): _pickup_collectors.erase(collector)
   else:
    var multiplier: float=1.25 if _has_ability(collector,"siphon") else 1.0
    consumed=minf(float(pickup.value),maxf(0.0,float(collector.max_hp)-float(collector.hp))/multiplier)
@@ -2259,7 +2643,8 @@ func _cleanup_dead() -> void:
    actors_by_id.erase(int(actor.id))
    _break_actor_cycles(actor)
    enemies.remove_at(i)
- if enemies.is_empty() and not cleared_emitted:
+ # M13: cleared only once every wave has been released and has landed, and none is alive.
+ if enemies.is_empty() and not cleared_emitted and waves_complete():
   cleared_emitted=true
   sector_cleared.emit()
 func _break_actor_cycles(actor: Dictionary) -> void:
@@ -2267,10 +2652,12 @@ func _break_actor_cycles(actor: Dictionary) -> void:
  actor.erase("mouth_collider")
  for i: int in range(3): actor.erase("blocker_%d" % i)
  actor.erase("part_colliders")
+## M13: everything still to fight here - live enemies, queued and held-back spawns, and the waves
+## not yet released - so "clear" never reads true in the gap between two waves.
 func remaining_enemies() -> int:
- var count: int=0
- for actor: Dictionary in enemies:
-  if not bool(actor.dead): count+=1
+ var count: int=_alive_total()+_wave_pending.size()
+ var waves: Array=sector.get("waves",[])
+ for index: int in range(wave_index,waves.size()): count+=Array(waves[index]).size()
  return count
 func _clamp_point(point: Vector2, margin: float = 0.0) -> Vector2: return arena.clamp_point(point,-margin)
 
@@ -2347,6 +2734,7 @@ func _clear_encounter() -> void:
  _broadphase.clear()
  contact_timer=0.0
  trail_pool.clear()
+ _reset_waves()
 func _exit_tree() -> void:
  _flush_debris()
  for actor: Dictionary in actors_by_id.values(): _break_actor_cycles(actor)
@@ -2359,6 +2747,12 @@ func _sector_key(description: Dictionary) -> String:
 func snapshot() -> Dictionary: return CombatPersistence.snapshot(self)
 func restore(data: Dictionary) -> void: CombatPersistence.restore(self,data)
 func debug_clear() -> void:
+ # M13: a full clear lands every queued spawn now (the boss included, so killing it still completes
+ # the level) and drops the waves still to come, so it clears the NODE, not only what has landed.
+ for entry: Dictionary in spawn_queue: _spawn_from_queue(entry)
+ spawn_queue.clear()
+ _wave_pending.clear()
+ wave_index=Array(sector.get("waves",[])).size()
  for actor: Dictionary in enemies:
   for i: int in actor.gun_indices: actor.part_hp[i]=0.0
   # A boss's shield generator/sub-cores are not guns, but a debug full-clear

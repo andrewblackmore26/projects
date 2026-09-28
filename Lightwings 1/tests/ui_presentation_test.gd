@@ -1,5 +1,20 @@
 extends SceneTree
 ## Layout and animated-preview regression coverage; every actual catalogue hull is sampled.
+##
+## Restated in modernization M15 (Options became pad-operable spinner rows in five tabs):
+## - retired "Options has four clear categories" (tab count 4, Audio/Display/Gameplay/Controls)
+##   -> five, the same four in the same places plus Accessibility last (options_tab indices and the
+##   captures keep their meaning);
+## - retired "Master, effects, interface and ambience can each be adjusted" (exactly 4 HSliders in
+##   Options: Accessibility's shake, flash and rumble rows now carry sliders too) -> the Audio tab
+##   has the four bus rows (Master/Music/Effects/Interface = volume/ambience/effects/interface
+##   settings), each an OptionRow that left/right step with focus kept on the row, each still
+##   carrying a mouse slider;
+## - retired "Every input action remains available for rebinding" (any non-toggle Button counted,
+##   which the spinner rows now satisfy on their own) -> one Bind_<action> row per InputBindings
+##   action;
+## - "Primary menu action starts focused" still reads "BEGIN" on a fresh profile: the capsule's text
+##   is now just BEGIN/CONTINUE (was "BEGIN CAMPAIGN").
 var failures: int = 0
 var checks: int = 0
 
@@ -23,6 +38,7 @@ func _run() -> void:
 	SaveService.storage_root = "user://ui-presentation-%d" % Time.get_ticks_usec()
 	var app: Node = load("res://scripts/main.gd").new()
 	app.testing = true
+	app.settings_path = SaveService.storage_root + ".cfg" # M15: the steps below write settings
 	root.add_child(app)
 	for i: int in range(4): await process_frame
 	var previews: Array[ShipPreview] = []
@@ -41,17 +57,30 @@ func _run() -> void:
 	app._show_options()
 	for i: int in range(3): await process_frame
 	var tabs: TabContainer = app.overlay.get_node("OptionsTabs")
-	_check(tabs.get_tab_count() == 4,"Options has four clear categories")
+	_check(tabs.get_tab_count() == 5,"Options has five clear categories")
 	var tab_titles: PackedStringArray = []
 	for i: int in range(tabs.get_tab_count()): tab_titles.append(tabs.get_tab_title(i))
-	_check(tab_titles == PackedStringArray(["Audio","Display","Gameplay","Controls"]),"Options categories remain in their intended order")
-	var sliders: int = 0
-	var controls: int = 0
+	_check(tab_titles == PackedStringArray(["Audio","Display","Gameplay","Controls","Accessibility"]),"Options categories remain in their intended order")
+	tabs.current_tab = 0
+	for i: int in range(2): await process_frame
+	var buses: int = 0
+	for key: String in ["volume","ambience_volume","effects_volume","interface_volume"]:
+		var row: Node = tabs.get_node("Audio").find_child("Row_"+key,true,false)
+		if row is OptionRow and row.slider != null:
+			buses += 1
+			var before: Variant = app.settings[key]
+			row.grab_focus()
+			var step := InputEventAction.new()
+			step.action = "ui_left" if float(before) > 0.0 else "ui_right"
+			step.pressed = true
+			root.push_input(step)
+			_check(root.gui_get_focus_owner() == row and app.settings[key] != before,"The %s row steps on left/right and keeps focus" % key)
+			row.step(1 if step.action == "ui_left" else -1)
+	_check(buses == 4,"Master, music, effects and interface each have a pad row with a mouse slider")
+	var bindings: int = 0
 	for node: Node in _descendants(tabs):
-		if node is HSlider: sliders += 1
-		if node is Button and not node is CheckButton: controls += 1
-	_check(sliders == 4,"Master, effects, interface and ambience can each be adjusted")
-	_check(controls >= InputBindings.ACTIONS.size(),"Every input action remains available for rebinding")
+		if node is Button and str(node.name).begins_with("Bind_"): bindings += 1
+	_check(bindings == InputBindings.ACTIONS.size(),"Every input action remains available for rebinding")
 	tabs.current_tab = 3
 	for i: int in range(3): await process_frame
 	for node: Node in _descendants(tabs):

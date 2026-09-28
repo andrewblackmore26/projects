@@ -60,7 +60,8 @@ func run(app: Node) -> void:
 	app.combat.light_total = 100.0
 	app.combat.absorption = {"fire":20.0,"corruption":20.0,"plasma":20.0}
 	app._show_evolution()
-	check(tree.paused and app.overlay_kind=="evolution", "Evolution overlay opens from packaged resources")
+	# M12: the cards slow the sim to 0.25 instead of pausing it.
+	check(not tree.paused and app.overlay_kind=="evolution" and app.combat.time_scale() < 1.0, "Evolution overlay opens from packaged resources, in slow motion")
 	check(app.pending_offers.size() == 3,"Three packaged preset cards")
 	app._choose_evolution(app.pending_offers[0])
 	check(not tree.paused and app.combat.player_tier==2, "Evolution works in export")

@@ -80,7 +80,7 @@ func _vignette_case() -> void:
 	await _frame()
 	var baseline: Image = _capture()
 	print("measure: capture %dx%d format %d" % [baseline.get_width(), baseline.get_height(), baseline.get_format()])
-	t.check(baseline.get_size() == Vector2i(1280, 800), "the capture is the full 1280x800 (got %s)" % baseline.get_size())
+	t.check(baseline.get_size() == root.size, "the capture is the full root.size %s (got %s)" % [root.size, baseline.get_size()])
 	var base_ratio: float = _vignette_ratio(baseline)
 	var base_centre: float = _lum(baseline, Vector2i(640, 400))
 	_fresh_post()

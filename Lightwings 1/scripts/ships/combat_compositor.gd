@@ -29,7 +29,9 @@ var view_shake_offset: Vector2 = Vector2.ZERO
 var view_shake_rotation: float = 0.0
 var _shake_tick: int = -1
 var _shake_hitstop: int = 0
-const SCREEN_CENTER: Vector2 = Vector2(640, 400)
+## M6: the visible rect (logical px) the stages were last sized for. The camera centres on its
+## middle, so a 16:9 or 21:9 window shows more of the world sideways instead of letterboxing.
+var view_size: Vector2 = UiLayout.BASE_SIZE
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -44,7 +46,7 @@ func attach(combat: CombatWorld) -> void:
 	_original_process_mode = world.process_mode
 	background_viewport = SubViewport.new()
 	background_viewport.name = "BackgroundHDR"
-	background_viewport.size = Vector2i(1280, 800)
+	background_viewport.size_2d_override_stretch = true
 	background_viewport.use_hdr_2d = true
 	background_viewport.own_world_3d = true
 	background_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -66,8 +68,10 @@ func attach(combat: CombatWorld) -> void:
 	background_image = TextureRect.new()
 	background_image.name = "ProcessedBackground"
 	background_image.position = Vector2.ZERO
-	background_image.size = Vector2(1280, 800)
+	background_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background_image.stretch_mode = TextureRect.STRETCH_SCALE
 	background_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fit_view()
 	background_image.texture = background_viewport.get_texture()
 	var shader_material: ShaderMaterial = ShaderMaterial.new()
 	shader_material.shader = preload("res://shaders/ship_background.gdshader")
@@ -92,20 +96,39 @@ func _process(_delta: float) -> void:
 	if not is_instance_valid(world) or world.is_queued_for_deletion():
 		if background_viewport != null: queue_free()
 		return
+	_fit_view()
 	_sync_foreground()
 	_update_camera()
+
+## M6: sizes the HDR background stage to the visible rect. It renders at the window's PHYSICAL
+## resolution (size_2d_override keeps its canvas in logical px), so the hulls drawn there are as
+## sharp as the foreground at 1080p and above instead of an upscaled 1280x800 texture.
+func _fit_view() -> void:
+	if background_viewport == null: return
+	var viewport: Viewport = get_viewport()
+	var logical: Vector2 = viewport.get_visible_rect().size if viewport != null else UiLayout.BASE_SIZE
+	var stretch: Vector2 = viewport.get_final_transform().get_scale() if viewport != null else Vector2.ONE
+	var physical: Vector2i = Vector2i((logical * stretch).round()).maxi(1)
+	view_size = logical
+	if background_viewport.size != physical: background_viewport.size = physical
+	if background_viewport.size_2d_override != Vector2i(logical.round()): background_viewport.size_2d_override = Vector2i(logical.round())
+	if background_image.size != logical: background_image.size = logical
+
+## The screen point the camera centres on: the middle of the visible rect.
+func screen_center() -> Vector2:
+	return view_size * 0.5
 
 func _update_camera() -> void:
 	_step_rig()
 	_step_shake()
 	zoom = rig.zoom if follow_player else 1.0
 	var focus: Vector2 = rig.focus if follow_player else Vector2.ZERO
-	var screen_center: Vector2 = SCREEN_CENTER if follow_player else Vector2.ZERO
-	camera_offset = screen_center - focus * zoom
+	var centre: Vector2 = screen_center()
+	camera_offset = (centre if follow_player else Vector2.ZERO) - focus * zoom
 	var xform := Transform2D(0.0, Vector2.ZERO).scaled(Vector2(zoom, zoom))
 	xform.origin = camera_offset
 	if follow_player and (view_shake_offset != Vector2.ZERO or view_shake_rotation != 0.0):
-		xform = Transform2D(view_shake_rotation, SCREEN_CENTER + view_shake_offset) * Transform2D(0.0, -SCREEN_CENTER) * xform
+		xform = Transform2D(view_shake_rotation, centre + view_shake_offset) * Transform2D(0.0, -centre) * xform
 	background_viewport.canvas_transform = xform
 	foreground.transform = xform
 
@@ -126,9 +149,9 @@ func _step_rig() -> void:
 func _warp_mode() -> StringName:
 	match world.warp_phase:
 		world.WARP_PUSH: return &"push"
-		world.WARP_ZOOM_IN: return &"break"
+		world.WARP_BREAK: return &"break"
 		world.WARP_TRAVEL: return &"warp"
-		world.WARP_ARRIVAL, world.WARP_ZOOM_OUT: return &"arrival"
+		world.WARP_ARRIVAL: return &"arrival"
 		_: return &""
 
 ## One shake step per sim step, and a hitstop step counts: the freeze is exactly when a hit's shake

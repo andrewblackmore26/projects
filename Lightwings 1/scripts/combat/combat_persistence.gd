@@ -17,9 +17,13 @@ const ACTOR_ALLOW: Array = [
  "desired","desired_aim","age","dead","invulnerable","reward_remaining","reward_damage",
  "reward_unpaid_limb","_reward_split","cooldowns","shield","blockers","blocker_hits",
  "orbit_stock","orbit_cd","slow","stored","stolen","infected","infection_damage",
- "infection_owner","infection_faction","charge","hull_id","beam_contact","core_id","part_seed"
+ "infection_owner","infection_faction","charge","hull_id","beam_contact","core_id","part_seed",
+ # M7 movement state (added by M9): a restore mid-slide keeps its one contact, mid-dash its burst.
+ "rim_contact","dash_burst_q","dash_cooldown_q","dash_dir"
 ]
 const PARTS_VERSION: int = 1
+## Snapshot schema. 4 (M9): the warp on sim_q deadlines, with sim_q itself; 3 still restores.
+const VERSION: int = 4
 
 static func encode_parts(actor: Dictionary) -> Dictionary:
  var rig: ShipMotion.ShipRig = actor.get("rig")
@@ -124,7 +128,7 @@ static func drone_snapshots(world: Node) -> Array:
 static func encounter_snapshot(world: Node, include_transients: bool = true) -> Dictionary:
  var actors: Array=[]
  for actor: Dictionary in world.enemies: actors.append(actor_snapshot(world,actor))
- return {"enemies":actors,"pickups":json_value(world.pickups),"drones":drone_snapshots(world) if include_transients else [],"telegraphs":json_value(world.telegraphs) if include_transients else [],"viruses":json_value(world.viruses) if include_transients else [],"clouds":json_value(world.clouds) if include_transients else [],"bullets":world.bullets.to_array() if include_transients else [],"cleared":world.cleared_emitted,"resource_remaining":world.sector_energy_remaining,"resource_paid":world.sector_energy_paid}
+ return {"enemies":actors,"pickups":json_value(world.pickups),"drones":drone_snapshots(world) if include_transients else [],"telegraphs":json_value(world.telegraphs) if include_transients else [],"viruses":json_value(world.viruses) if include_transients else [],"clouds":json_value(world.clouds) if include_transients else [],"bullets":world.bullets.to_array() if include_transients else [],"cleared":world.cleared_emitted,"resource_remaining":world.sector_energy_remaining,"resource_paid":world.sector_energy_paid,"wave_state":world.wave_snapshot()}
 static func restore_encounter(world: Node, data: Dictionary) -> void:
  world._clear_encounter()
  for item: Variant in Array(data.get("enemies",[])).slice(0,world.MAX_ACTORS):
@@ -151,13 +155,18 @@ static func restore_encounter(world: Node, data: Dictionary) -> void:
  world.clouds=decode_value(data.get("clouds",[]))
  world.bullets.from_array(data.get("bullets",[]))
  world.cleared_emitted=bool(data.get("cleared",false))
+ # M13: the wave clock, pending/queued spawns and the dead-enemy respawn records (the last was the
+ # P10 finding: it was never saved, so a node left mid-respawn came back empty for good).
+ world.wave_restore(data.get("wave_state",{}) if data.get("wave_state") is Dictionary else {})
  world.sector_energy_remaining=int(data.get("resource_remaining",0))
  world.sector_energy_paid=int(data.get("resource_paid",0))
  world.bullet_count=world.bullets.count()
 static func snapshot(world: Node) -> Dictionary:
  world._flush_debris() # light must not ride along as an object reference; pay it out first (spec item 3)
  var result: Dictionary=encounter_snapshot(world)
- result.merge({"version":3,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"tick":world.tick,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_commit_speed":world.warp_commit_speed,"warp_reduced":world.warp_reduced,"warp_exit_point":[world.warp_exit_point.x,world.warp_exit_point.y],"warp_exit_velocity":[world.warp_exit_velocity.x,world.warp_exit_velocity.y],"warp_heading":[world.warp_heading.x,world.warp_heading.y]})
+ result.merge({"version":VERSION,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"tick":world.tick,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier})
+ result.merge(warp_snapshot(world))
+ result["light_bank"]=world.light_bank # M13 overflow bank
  return result
 static func restore(world: Node, data: Dictionary) -> void:
  # P4a bumped the schema to 3 (per-circle allow-listed state). An older
@@ -189,6 +198,7 @@ static func restore(world: Node, data: Dictionary) -> void:
  apply_parts(world,world.player,player_parts)
  _restore_chain(world, world.player, restored.get("chain_motion", {}))
  world.light_total=float(data.get("light_total",40.0))
+ world.light_bank=maxf(0.0,float(data.get("light_bank",0.0)))
  world.player.hp=world.light_total
  world.player_position=world.player.pos
  world.elapsed=float(data.get("elapsed",0.0))
@@ -215,38 +225,78 @@ static func restore(world: Node, data: Dictionary) -> void:
  world._rng.state=int(str(data.get("rng_state","1")))
  world.active=bool(data.get("active",true)) and world.light_total>0.0
  world.benchmark_mode=false
- # Warp state (spec P6 item 6: saving must be safe DURING the locked phase).
- # Sub-phase timers are not carried across a save/restore boundary - a
- # restore mid-warp resumes the same phase from its start rather than the
- # exact millisecond, which is a deliberate simplification (a save only
- # happens at commit, not on every tick of the lock).
- world.warp_phase=int(data.get("warp_phase",world.WARP_NONE))
+ restore_warp(world,data)
+
+## Modernization M9: the warp as saved state. Every phase ends on a sim_q deadline, so the snapshot
+## carries sim_q itself and every deadline: a restore resumes the SAME tick of the same phase
+## (before M9 a restore restarted the phase from its start). Saving is safe in every phase.
+static func warp_snapshot(world: Node) -> Dictionary:
+ return {"sim_q":world.sim_q,"warp_phase":world.warp_phase,"warp_direction":[world.warp_direction.x,world.warp_direction.y],"warp_reduced":world.warp_reduced,
+  "warp_push_q":world.warp_push_q,"warp_commit_q":world.warp_commit_q,"warp_phase_start_q":world.warp_phase_start_q,"warp_deadline_q":world.warp_deadline_q,
+  "warp_invulnerable_q":world.warp_end_q,"warp_contact_angle":world.warp_contact_angle,"warp_exit_point":[world.warp_exit_point.x,world.warp_exit_point.y],
+  "warp_approach":[world.warp_approach.x,world.warp_approach.y],"warp_heading":[world.warp_heading.x,world.warp_heading.y],
+  "warp_teleported":world.warp_teleported,"warp_swap_done":world._warp_swap_done}
+
+static func restore_warp(world: Node, data: Dictionary) -> void:
  var wd: Array=data.get("warp_direction",[0,0])
  world.warp_direction=Vector2i(int(wd[0]),int(wd[1]))
- world.warp_commit_speed=float(data.get("warp_commit_speed",0.0))
  world.warp_reduced=bool(data.get("warp_reduced",false))
- # Modernization M3: the committed rim point and velocity the arrival reflects, and the locked
- # phases' heading. A save from before M3 has none of them; it falls back to the zero-offset
- # arrival along the travel bearing, exactly what that save's warp would have done.
  var bearing: Vector2=Vector2(world.warp_direction).normalized()
  world.warp_exit_point=_vector2_field(data,"warp_exit_point",world.arena.center+bearing*world.arena.radius)
- world.warp_exit_velocity=_vector2_field(data,"warp_exit_velocity",bearing*world.warp_commit_speed)
- world.warp_heading=_vector2_field(data,"warp_heading",bearing)
- world._warp_timer=0.0
- world._warp_locked_accum=0.0
- world._warp_push_depth=0.0
- # Review finding 3: a save can only ever land on a phase past WARP_PUSH via
- # `_on_warp_committed`, which calls `confirm_warp_swap()` SYNCHRONOUSLY
- # before `_save_game()` even runs (main.gd:796 then :812) - the sector swap
- # (campaign.on_enter + combat.start_sector) always happens before the warp
- # locks the player in. So whenever the saved phase is past PUSH, the swap
- # is a settled fact of the save, not something to re-derive from the phase
- # - the previous formula had this backwards (false exactly when it needed
- # to be true), which meant _update_warp's own TRAVEL-phase check
- # (`if not _warp_swap_done: _warp_spring_back()`) fired on every restore
- # taken past commit, pushing the player out along the exit direction into
- # a phantom warp instead of ever reaching `_warp_arrive()`.
- world._warp_swap_done=not (world.warp_phase==world.WARP_NONE or world.warp_phase==world.WARP_PUSH)
+ world.warp_contact_angle=float(data.get("warp_contact_angle",(world.warp_exit_point-world.arena.center).angle()))
+ if int(data.get("version",0))>=4:
+  world.sim_q=int(data.get("sim_q",0))
+  world.warp_phase=int(data.get("warp_phase",world.WARP_NONE))
+  world.warp_push_q=int(data.get("warp_push_q",0))
+  world.warp_commit_q=int(data.get("warp_commit_q",0))
+  world.warp_phase_start_q=int(data.get("warp_phase_start_q",0))
+  world.warp_deadline_q=int(data.get("warp_deadline_q",0))
+  world.warp_end_q=int(data.get("warp_invulnerable_q",0))
+  world.warp_approach=_vector2_field(data,"warp_approach",Vector2.ZERO)
+  world.warp_heading=_vector2_field(data,"warp_heading",bearing)
+  world.warp_teleported=bool(data.get("warp_teleported",false))
+  world._warp_swap_done=bool(data.get("warp_swap_done",false))
+  return
+ _restore_legacy_warp(world,data,bearing)
+
+## A version-3 save (before M9) stored the phase and speed but no clock. Its phases map onto the new
+## ones - ZOOM_IN and TRAVEL (2, 3) -> TRAVEL, its locked ARRIVAL (4) -> the playable ARRIVAL,
+## ZOOM_OUT (5) -> done, FADE (6) -> FADE - and restart from the mapped phase's start, as a v3
+## restore always did. P10's rule holds for them: a v3 save can only land past PUSH from inside the
+## commit handler, after `confirm_warp_swap()`, so past PUSH the swap is a settled fact of the save
+## and is never re-fired or re-derived as missing (that backwards derivation sprang every restored
+## warp back into a phantom node).
+static func _restore_legacy_warp(world: Node, data: Dictionary, bearing: Vector2) -> void:
+ var legacy: int=int(data.get("warp_phase",0))
+ var speed: float=float(data.get("warp_commit_speed",0.0))
+ world.warp_approach=_vector2_field(data,"warp_exit_velocity",bearing*speed)
+ var heading: Vector2=world.arena.entry_velocity(world.warp_direction,world.warp_approach).normalized()
+ world.warp_heading=heading if heading.length_squared()>0.5 else bearing
+ world.warp_push_q=0
+ world.warp_teleported=false
+ world._warp_swap_done=legacy>=2
+ world.warp_commit_q=world.sim_q
+ world.warp_phase_start_q=world.sim_q
+ var arrival: int=world._warp_q("warp.arrival_s")
+ match legacy:
+  2, 3:
+   world.warp_phase=world.WARP_TRAVEL
+   world.warp_deadline_q=world.sim_q+world._warp_q("warp.warp_s")
+   world.warp_end_q=world.warp_deadline_q+arrival
+   world._warp_teleport()
+  4:
+   world.warp_phase=world.WARP_ARRIVAL
+   world.warp_deadline_q=world.sim_q+arrival
+   world.warp_end_q=world.warp_deadline_q
+  6:
+   var fade: int=world._warp_q("warp.reduced_s")
+   world.warp_phase=world.WARP_FADE
+   world.warp_deadline_q=world.sim_q+floori(fade/2.0)
+   world.warp_end_q=world.sim_q+fade+arrival
+  _:
+   world._warp_finish()
+   return
+ world._grant_invulnerability(float(world.warp_end_q-world.sim_q)/world.SIM_Q_PER_SECOND,&"warp")
 static func _vector2_field(data: Dictionary, key: String, fallback: Vector2) -> Vector2:
  var value: Variant=data.get(key)
  if value is Array and value.size()==2: return Vector2(float(value[0]),float(value[1]))

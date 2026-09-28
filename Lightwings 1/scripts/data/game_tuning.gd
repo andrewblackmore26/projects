@@ -38,9 +38,40 @@ const ARCHETYPE_TABLE: Array[Dictionary] = [
 	{"transit": 0.22, "skirmish": 0.30, "dense": 0.33, "elite_lair": 0.15},
 	{"transit": 0.12, "skirmish": 0.26, "dense": 0.37, "elite_lair": 0.25},
 ]
-const ARCHETYPE_ENEMY_BASE: Dictionary = {"transit": 1, "skirmish": 2, "dense": 4, "elite_lair": 1, "boss": 1}
+## Modernization M13 (h): enemies per node before the ring term, which is ring / ENEMY_RING_DIVISOR.
+## An elite lair's figure is its escort; the lair's elite comes on top. A boss's figure is its ADDS,
+## split over the BOSS_ADD_WAVE_HP waves (the boss itself is not counted). Was 1/2/4/1/1 + ring/3.
+const ARCHETYPE_ENEMY_BASE: Dictionary = {"transit": 3, "skirmish": 5, "dense": 9, "elite_lair": 3, "boss": 2}
+const ENEMY_RING_DIVISOR: int = 2
 const ARCHETYPE_ELITE_BASE: Dictionary = {"transit": 0.0, "skirmish": 0.06, "dense": 0.16, "elite_lair": 0.65, "boss": 0.0}
-const ARCHETYPE_POOL_BASE: Dictionary = {"transit": 60.0, "skirmish": 120.0, "dense": 220.0, "elite_lair": 180.0, "boss": 400.0}
+## M13 (h): doubled (was 60/120/220/180/400) so the denser waves have light to pay out.
+const ARCHETYPE_POOL_BASE: Dictionary = {"transit": 120.0, "skirmish": 240.0, "dense": 440.0, "elite_lair": 360.0, "boss": 800.0}
+## --- Waves (modernization M13). All (h) until the play census measures them. ------------------
+## A node's enemies arrive in waves split by these fractions (cumulative boundaries, rounded).
+const WAVE_SPLIT: Array[float] = [0.4, 0.3, 0.3]
+## The next wave is released when at most this fraction of the previous wave is still alive (or
+## queued), or WAVE_GAP_SECONDS after the previous release, whichever comes first.
+const WAVE_ADVANCE_ALIVE_FRACTION: float = 1.0 / 3.0
+const WAVE_GAP_SECONDS: float = 8.0
+## Wave 1 lands this long after arrival (the sector swap happens at the warp commit; the wave clock
+## is held until the arrival, see CombatWorld._update_waves).
+const WAVE_FIRST_SECONDS: float = 0.2
+## Every life starts in a fight: the origin's training wave of T1 drones.
+const ORIGIN_TRAINING_COUNT: int = 3
+const ORIGIN_TRAINING_DELAY_SECONDS: float = 1.0
+## A boss node's add waves are released as the boss's core falls to these fractions of its HP.
+const BOSS_ADD_WAVE_HP: Array[float] = [0.66, 0.33]
+## Alive cap: WAVE_ALIVE_CAP_BASE + tier / 2, at most WAVE_ALIVE_CAP_MAX. Queued spawns count as alive.
+const WAVE_ALIVE_CAP_BASE: int = 8
+const WAVE_ALIVE_CAP_MAX: int = 12
+## Rim spawns: telegraphed this long ahead, this far inside the rim, never within this many degrees
+## of the arrival point (wave 1) or the player's bearing (later spawns), and a batch fans out at
+## SPAWN_SPACING_DEG with SPAWN_STAGGER_SECONDS between landings.
+const SPAWN_TELEGRAPH_SECONDS: float = 0.6
+const SPAWN_RIM_INSET: float = 60.0
+const SPAWN_CLEAR_DEGREES: float = 60.0
+const SPAWN_SPACING_DEG: float = 16.0
+const SPAWN_STAGGER_SECONDS: float = 0.08
 ## Spec §7: "finite light pool that refills slowly (tune: 20% per minute)."
 const NODE_POOL_REFILL_PER_MINUTE: float = 0.20
 ## Spec §7: "Enemies respawn on a cooldown; the pool does not follow." Tune.
@@ -67,10 +98,14 @@ const SHIELD_COOLDOWN: float = 8.0
 const DECAY_RATE_PER_SECOND: float = 0.004
 const DECAY_SUPPRESSION_SECONDS: float = 3.0
 const DECAY_FLOOR: float = 10.0
-## Kill combo: x1.0 -> x2.5 at 10 consecutive kills. The 2.5s window resets
+## Kill combo: x1.0 -> x2.5 at 10 consecutive kills. The window resets
 ## on every kill; once it expires the count drains 1 per 0.25s rather than
-## resetting hard (approved preamble).
-const COMBO_WINDOW_SECONDS: float = 2.5
+## resetting hard (approved preamble). M13: 2.5 -> 3.0 s, and frozen while the
+## warp is locked so chaining nodes keeps the combo.
+const COMBO_WINDOW_SECONDS: float = 3.0
+## M13 (h): light collected on a full bar is banked, up to this fraction of the NEXT tier's
+## threshold, and paid into the bar on evolve.
+const LIGHT_BANK_FRACTION: float = 0.25
 const COMBO_MAX_COUNT: int = 10
 const COMBO_MULTIPLIER_MAX: float = 2.5
 const COMBO_DRAIN_INTERVAL_SECONDS: float = 0.25
@@ -79,11 +114,8 @@ const COMBO_DRAIN_INTERVAL_SECONDS: float = 0.25
 ## size, not value, or a 3x drop looks like a bigger pickup than it is).
 const PICKUP_SIZES: Array[int] = [1, 5, 20]
 const ENEMY_DROP_MULTIPLIER: float = 3.0
-## Frictionless death (spec §7.4/§24): 1.2s non-pausing card, dismissed on a
-## FRESH press only, after a short guard so a held button cannot skip a card
-## the player never saw (M1 acceptance: "death-to-flying-again under 2s").
-const DEATH_CARD_SECONDS: float = 1.2
-const DEATH_INPUT_GUARD_SECONDS: float = 0.35
+## Frictionless death: M12 replaced P7's 1.2 s card (DEATH_CARD_SECONDS, DEATH_INPUT_GUARD_SECONDS)
+## with a death beat and a no-press reboot; its timings are RunController.DEATH_*.
 
 ## --- Feel: camera and movement (docs/LIGHTSHIP_CAMERA_MOVEMENT_SPEC.md) -------------------------
 ## Every number that spec gives, in the spec's own terms, in ONE flat table. Everything that moves is
@@ -127,34 +159,49 @@ const FEEL_DEFAULTS: Dictionary = {
 	# never outrun its own light. 330 was the flat pull before M7, when top speed was 220.
 	"pickup.pull_min": 330.0,
 	"pickup.pull_ratio": 1.3,
-	# §7, sim side. Control returns at the START of arrival.
+	# §7, sim side. Control returns at the START of arrival. M9 turns each into a sim_q deadline
+	# (x720, rounded): 144 / 43 / 216 / 144 q, which is 12 / 4 / 18 / 12 ticks at 60 Hz (break is
+	# 43 q = 3.6 ticks, so its deadline lands on the 4th). Reduced motion replaces break + warp with
+	# one 0.20 s cross-fade (was 0.25 s before M9).
 	"warp.push_s": 0.20,
 	"warp.break_s": 0.06,
 	"warp.warp_s": 0.30,
 	"warp.arrival_s": 0.20,
-	"warp.reduced_s": 0.25,
+	"warp.reduced_s": 0.20,
 	"warp.speed_ratio": 3.0,
 	"warp.push_speed_scale": 0.4,
-	# §2 and §8: top speed as a ratio of the player's. Chains are not in the spec's table.
+	# §2 and §8: top speed as a ratio of the player's, keyed by CombatAI.archetype_of. Chains and the
+	# heavy elite are not in the spec's table: chains take 0.22, the heavy elite the elite row.
+	# M8 replaced the hull-authored speed x 0.45 (x 0.85 for a boss): drone 108, elite 90, boss 187 px/s.
 	"enemy_ratio.drone": 0.29,
 	"enemy_ratio.sentry": 0.0,
 	"enemy_ratio.chain": 0.22,
 	"enemy_ratio.radial": 0.16,
 	"enemy_ratio.irregular": 0.16,
+	"enemy_ratio.heavy": 0.16,
 	"enemy_ratio.boss": 0.11,
-	# §8 "accelerate slowly and turn slowly": seconds to 90 % of their own top speed, and rad/s of
-	# heading. Hypotheses until P11c measures them against the disengage and seeker tests.
+	# §8 "accelerate slowly and turn slowly": seconds to 90 % of their own top speed (one exponential
+	# approach), and rad/s of the unicycle heading. Hypotheses the M8 disengage test holds them to.
 	"enemy_t90.drone": 0.5,
 	"enemy_t90.chain": 0.6,
 	"enemy_t90.radial": 0.9,
 	"enemy_t90.irregular": 0.9,
+	"enemy_t90.heavy": 0.9,
 	"enemy_t90.boss": 1.2,
 	"enemy_turn.drone": 3.0,
 	"enemy_turn.chain": 2.5,
 	"enemy_turn.radial": 1.5,
 	"enemy_turn.irregular": 1.5,
+	"enemy_turn.heavy": 1.5,
 	"enemy_turn.boss": 1.0,
-	"seeker.turn_rate": 1.8,        # rad/s, the TOTAL angular rate including the weave
+	# A seeker's TOTAL angular rate, pursuit and weave together, rad/s at the enemy seeker's speed (a
+	# faster seeker turns proportionally faster: one turn radius). M8 derived 3.0 from a sweep of
+	# 1.2-6.0 (movement_feel_test `_seeker_hits`): the lowest rate that hits a ship charging it in a
+	# straight line from 500 px 18 times in 20; 1.8 hit 14. The weave is a heading offset of
+	# amp x sin(freq x t) the seeker steers for, so its amplitude does not depend on the tick rate.
+	"seeker.turn_rate": 3.0,
+	"seeker.weave_amp": 0.30,       # rad
+	"seeker.weave_freq": 4.0,       # rad/s
 	# §2 projectiles, keyed by faction then weapon. Player 1.43-1.70, enemy 0.50-0.71, so the
 	# slowest player shot is 2.01x the fastest enemy shot (rule b) by construction.
 	"shot.player.bolt": 1.70,
@@ -166,8 +213,11 @@ const FEEL_DEFAULTS: Dictionary = {
 	"shot.player.ring": 1.43,
 	"shot.player.orbit": 1.43,
 	"shot.player.bay_drone": 0.57,
+	"shot.player.spiral": 1.48,
 	"shot.enemy.bolt": 0.71,
 	"shot.enemy.pulse": 0.60,
+	"shot.enemy.ricochet": 0.60,
+	"shot.enemy.spiral": 0.52,
 	"shot.enemy.ring": 0.60,
 	"shot.enemy.orbit": 0.60,
 	"shot.enemy.seeker": 0.57,
@@ -176,6 +226,10 @@ const FEEL_DEFAULTS: Dictionary = {
 	"shot.enemy.void": 0.50,
 	"shot.enemy.rocket": 0.50,
 	"shot.enemy.bay_drone": 0.29,
+	# The void orb's identity is "one slow heavy orb" (piercing): like the black hole it is a drifting
+	# hazard, not a shot dodged or landed on reaction, so it sits outside the shot rules on both sides.
+	# 0.34 keeps its authored 155 px/s at the base speed.
+	"orb.void": 0.34,
 	# §6 camera. Fractions are of the viewport half-width (640 px). "Smoothing time" is a time
 	# constant; "over X s" and "recentre time" are 95 % settle times, so tau = X/3.
 	"cam.lag_tau": 0.22,

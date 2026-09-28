@@ -15,6 +15,10 @@ extends RefCounted
 ## The sum of lag and aim is clamped to `cam.total_clamp`. Screen-space fractions are converted to
 ## world px through the current zoom, so a clamp means the same thing on screen at every zoom.
 
+## The reference half-width every screen fraction is taken of: the 16:10 design width over 2. Kept
+## fixed under M6's "expand" stretch on purpose. The logical height is 800 at every aspect and the
+## clamps are RADIAL (limit_length), so scaling this with a 21:9 window would let the ship drift
+## further vertically on wide monitors. One number keeps the feel identical on every display.
 const HALF_WIDTH: float = 640.0
 ## A ship step longer than this in one tick is a teleport (the warp's node swap), not flight: the
 ## camera jumps with it, so the player sees the lag and never the swap.

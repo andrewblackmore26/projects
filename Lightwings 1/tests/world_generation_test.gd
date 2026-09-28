@@ -199,8 +199,12 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 				if int(scan.tiers[coord]) != expected_tier: tier_ok = false
 				var ring_now: int = Campaign.ring(coord)
 				if ring_now != previous_ring:
-					if previous_ring >= 0 and ring_now > previous_ring and campaign.enemy_count_for(coord) < previous_count - 4: enemy_count_rising_ok = false
-					previous_count = campaign.enemy_count_for(coord)
+					# M13 restated: the archetype bases now span 3..9, so a dense node followed by a transit
+					# one drops 6 by design and the old "never falls by more than 4" retired. What must
+					# rise with the ring is the ring term: the count above the node's archetype base.
+					var ring_term: int = campaign.enemy_count_for(coord) - int(GameTuning.ARCHETYPE_ENEMY_BASE.get(campaign.archetype_of(coord), 0))
+					if previous_ring >= 0 and ring_now > previous_ring and ring_term < previous_count: enemy_count_rising_ok = false
+					previous_count = ring_term
 					previous_ring = ring_now
 				if str(scan.elements[coord]) not in pool: element_pool_ok = false
 
@@ -212,7 +216,7 @@ func _run_full_scan(make_campaign: Callable, h: Variant, label: String, seed_cou
 	h.check(total_nodes > 0 and census_failures == 0, "%s: every node has 3 neighbours at a corner, 5 on an edge, 8 inside (%d of %d wrong)" % [label, census_failures, total_nodes])
 	h.check(boss_distance_failures == 0, "%s: BFS distance to the boss is its Chebyshev ring (%d mismatches)" % [label, boss_distance_failures])
 	h.check(tier_ok, "%s: tier == 1 + ring/2, clamped to MAX_TIER, on every sampled node" % label)
-	h.check(enemy_count_rising_ok, "%s: enemy count does not fall sharply as ring rises" % label)
+	h.check(enemy_count_rising_ok, "%s: the enemy count's ring term never falls as ring rises" % label)
 	h.check(element_pool_ok, "%s: every rolled element stays inside the level's revealed prefix" % label)
 	boss_distances.sort()
 	if not boss_distances.is_empty():

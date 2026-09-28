@@ -83,6 +83,8 @@ func _run() -> void:
 	var normal := _renderer(AT, 1.0)
 	_renderer(Vector2(850, 400), 0.65)
 	var before: Image = await _frame()
+	# M6 (aspect "expand"): the capture is the whole window, never a letterboxed part of it.
+	_check(before.get_size() == root.size, "the capture is exactly root.size %s (got %s)" % [root.size, before.get_size()])
 	var body: float = _peak(before, Vector2i(AT + Vector2(-34, 0)))
 	var guide: float = _guide_peak(before)
 	var background: float = _brightness(before.get_pixel(50, 50))

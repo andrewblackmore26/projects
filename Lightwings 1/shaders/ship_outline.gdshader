@@ -27,6 +27,14 @@ uniform float guide_width = 1.0;
 uniform float guide_opacity = 0.28;
 uniform float guide_dash = 2.0;
 uniform float guide_period = 7.0;
+// M12, render only: the evolved hull assembles core-out. At assembly_t 1 (the default) every
+// circle is at full size, so nothing else changes; below 1 a circle's radius and its distance from
+// the core scale by smoothstep of how far the wavefront (assembly_t, widened by assembly_band) has
+// passed its own reach d / assembly_extent (reach = rest distance + radius; the extent is the
+// hull's largest reach). Lines follow their end circles.
+uniform float assembly_t = 1.0;
+uniform float assembly_extent = 1.0;
+uniform float assembly_band = 0.35;
 
 varying vec4 base_color;
 varying vec3 running_color;
@@ -37,9 +45,21 @@ varying float perimeter_pixels;
 varying float path_pixels;
 varying float flare_amount; // P8 target feedback: part_offsets[part].w on a circle rim, 0 on lines/core
 
+float assembly(int part) {
+	if (assembly_t >= 1.0) return 1.0;
+	// A circle's reach (centre distance plus radius), so a wide ring round the core comes late.
+	float d = clamp((length(part_centers[part]) + part_geometry[part].x) / max(assembly_extent, 0.001), 0.0, 1.0);
+	return smoothstep(0.0, 1.0, clamp((assembly_t * (1.0 + assembly_band) - d) / assembly_band, 0.0, 1.0));
+}
+
+// A circle's rest centre, drawn in toward the core while it assembles.
+vec2 assembled_center(int part) {
+	return part_centers[part] * mix(0.55, 1.0, assembly(part));
+}
+
 float rim(int part, vec2 direction) {
 	vec4 geometry = part_geometry[part];
-	float scale = max(part_offsets[part].z, 0.0);
+	float scale = max(part_offsets[part].z * assembly(part), 0.0);
 	return 1.0 / max(length(direction / max(geometry.xy * scale, vec2(0.001))), 0.001);
 }
 
@@ -61,9 +81,9 @@ void vertex() {
 	} else {
 		int part = int(CUSTOM0.z + 0.5);
 		light_data = light_parameters[part];
-		float scale = part_offsets[part].z;
+		float scale = part_offsets[part].z * assembly(part);
 		vec2 local = VERTEX - part_centers[part];
-		position = part_centers[part] + local * max(scale, 0.0) + part_offsets[part].xy;
+		position = assembled_center(part) + local * max(scale, 0.0) + part_offsets[part].xy;
 		part_visible = scale > 0.0001 ? 1.0 : 0.0;
 		normal = CUSTOM0.xy;
 		flare_amount = clamp(part_offsets[part].w, 0.0, 1.0);
@@ -74,8 +94,8 @@ void vertex() {
 		int packed = int(CUSTOM1.w + 0.5);
 		int from_part = packed % 128;
 		int to_part = packed / 128;
-		vec2 from_position = part_centers[from_part] + part_offsets[from_part].xy;
-		vec2 to_position = part_centers[to_part] + part_offsets[to_part].xy;
+		vec2 from_position = assembled_center(from_part) + part_offsets[from_part].xy;
+		vec2 to_position = assembled_center(to_part) + part_offsets[to_part].xy;
 		float amount = UV.x / max(perimeter, 0.0001);
 		vec2 direction = to_position - from_position;
 		float center_distance = length(direction);
@@ -91,8 +111,8 @@ void vertex() {
 		position = mix(from_position, to_position, amount);
 		normal = vec2(-direction.y, direction.x) / max(perimeter, 0.0001) * UV.y;
 		path = amount * perimeter;
-		float from_visible = part_offsets[from_part].z > 0.0001 ? 1.0 : 0.0;
-		float to_visible = part_offsets[to_part].z > 0.0001 ? 1.0 : 0.0;
+		float from_visible = part_offsets[from_part].z * assembly(from_part) > 0.0001 ? 1.0 : 0.0;
+		float to_visible = part_offsets[to_part].z * assembly(to_part) > 0.0001 ? 1.0 : 0.0;
 		part_visible *= from_visible * to_visible;
 	}
 	perimeter_pixels = perimeter * body_scale * canvas_scale;
@@ -117,6 +137,9 @@ void fragment() {
 		float alpha = 1.0 - smoothstep(pulsed - 0.5, pulsed + 0.5 + flare_amount * 1.5, radius);
 		float ready_pulse = evolution_ready ? 1.0 + 0.10 * (0.5 - 0.5 * cos(visual_time * 3.141592)) : 1.0;
 		vec3 core_rgb = core_color.rgb * 1.15 * ready_pulse + flare_amount * vec3(1.6, 1.55, 1.5);
+		// M12 assembly: the core ignites first and burns hot while the hull builds around it.
+		core_rgb += (1.0 - clamp(assembly_t, 0.0, 1.0)) * vec3(1.4, 1.45, 1.6);
+		alpha *= smoothstep(0.0, 0.08, assembly_t);
 		COLOR = vec4(core_rgb, alpha * part_visible);
 	} else if (primitive_kind < -0.5) {
 		COLOR = vec4(base_color.rgb, base_color.a * part_visible);
