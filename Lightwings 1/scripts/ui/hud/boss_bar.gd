@@ -31,9 +31,9 @@ func _init(owner: Node) -> void:
 func build(parent: Control) -> void:
 	root = Hud.cluster(parent, "Boss")
 	root.draw.connect(_draw)
-	name_label = UiKit.label(root, "RIVAL", Vector2.ZERO, Vector2(200, 20), 15, VisualStyle.TEXT)
+	name_label = UiKit.label(root, "RIVAL", Vector2.ZERO, Vector2(200, 20), UiTokens.TEXT_M, UiTokens.INK)
 	name_label.add_theme_font_override("font", Hud.font(&"display_wide"))
-	phase_label = UiKit.label(root, "", Vector2.ZERO, Vector2(120, 16), 11, VisualStyle.MUTED)
+	phase_label = UiKit.label(root, "", Vector2.ZERO, Vector2(120, 16), UiTokens.TEXT_XS, UiTokens.INK_MUTED)
 	phase_label.add_theme_font_override("font", Hud.font(&"body"))
 	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	for label: Label in [name_label, phase_label]: label.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -87,7 +87,7 @@ func update(dt: float, actor: Dictionary) -> bool:
 			var meter := GhostMeter.new()
 			meter.reset(float(segment.hp) / float(segment.max))
 			meters.append(meter)
-		_ink = VisualStyle.PALETTE.get(str(actor.get("element", "")), VisualStyle.CORAL)
+		_ink = ElementStyle.color(str(actor.get("element", ""))) if str(actor.get("element", "")) in ElementStyle.NAMES else VisualStyle.CORAL
 		name_label.add_theme_color_override("font_color", _ink.lerp(Color.WHITE, 0.35))
 		LightBar._set_text(name_label, str(DialogueDirector.RIVAL_NAMES.get(str(actor.get("element", "")), "RIVAL")))
 	for index: int in range(segments.size()):

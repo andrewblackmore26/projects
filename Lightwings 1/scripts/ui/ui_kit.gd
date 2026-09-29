@@ -43,7 +43,7 @@ static func build_theme() -> Theme:
 	result.set_type_variation(UiTokens.KICKER_LABEL, "Label")
 	result.set_font("font", UiTokens.KICKER_LABEL, kicker)
 	result.set_font_size("font_size", UiTokens.KICKER_LABEL, UiTokens.TEXT_XS)
-	result.set_color("font_color", UiTokens.KICKER_LABEL, UiTokens.FOCUS)
+	result.set_color("font_color", UiTokens.KICKER_LABEL, UiTokens.KICKER)
 	result.set_type_variation(UiTokens.MONO_LABEL, "Label")
 	result.set_font("font", UiTokens.MONO_LABEL, mono)
 
@@ -146,15 +146,15 @@ static func build_theme() -> Theme:
 	result.set_color("font_unselected_color", "TabContainer", UiTokens.INK_MUTED)
 	result.set_color("font_disabled_color", "TabContainer", UiTokens.INK_DISABLED)
 
-	# Sliders: a thin rounded track, a gold fill and a round knob.
+	# Sliders: a thin rounded track, a blue value fill (gold is focus: the lit knob) and a round knob.
 	var slider_track: StyleBoxFlat = glass_box(UiTokens.TRACK, Color(0, 0, 0, 0), 0, UiTokens.RADIUS_SMALL)
 	slider_track.shadow_size = 0
 	slider_track.content_margin_top = 3
 	slider_track.content_margin_bottom = 3
 	var slider_fill: StyleBoxFlat = slider_track.duplicate()
-	slider_fill.bg_color = UiTokens.FOCUS
+	slider_fill.bg_color = UiTokens.VALUE
 	var slider_fill_lit: StyleBoxFlat = slider_fill.duplicate()
-	slider_fill_lit.bg_color = UiTokens.FOCUS.lightened(0.2)
+	slider_fill_lit.bg_color = UiTokens.VALUE.lightened(0.2)
 	result.set_stylebox("slider", "HSlider", slider_track)
 	result.set_stylebox("grabber_area", "HSlider", slider_fill)
 	result.set_stylebox("grabber_area_highlight", "HSlider", slider_fill_lit)
@@ -275,12 +275,12 @@ static func _button_ink(theme: Theme, kind: String, rest: Color, lit: Color, pre
 static func _cover(distance: float) -> float:
 	return clampf(0.5 - distance, 0.0, 1.0)
 
-## A toggle switch: a capsule track (gold when on) and a round knob at the end it is set to.
+## A toggle switch: a capsule track (the value blue when on) and a round knob at the end it is set to.
 static func switch_icon(on: bool, is_disabled: bool) -> ImageTexture:
 	var width: int = 42
 	var height: int = 24
 	var radius: float = height * 0.5
-	var track: Color = UiTokens.FOCUS if on else UiTokens.TRACK
+	var track: Color = UiTokens.VALUE if on else UiTokens.TRACK
 	var knob: Color = UiTokens.CANVAS if on else UiTokens.INK
 	if is_disabled:
 		track.a *= 0.4

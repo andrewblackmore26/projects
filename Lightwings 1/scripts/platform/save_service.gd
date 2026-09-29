@@ -7,13 +7,36 @@ static var storage_root: String = "user://saves"
 static var last_load_source: String = ""
 static var last_error: String = ""
 
-static func save_snapshot(profile: Dictionary, run: Dictionary, slot: String = "campaign") -> Error:
+## `meta` (M19, optional): {"play_seconds": total play time} for the envelope, beside the
+## `saved_at` it always carries; the cloud conflict card reads both (read_meta). A save whose state
+## and play time are both unchanged is not rewritten.
+static func save_snapshot(profile: Dictionary, run: Dictionary, slot: String = "campaign", meta: Dictionary = {}) -> Error:
 	if not _valid_slot(slot):
 		return ERR_INVALID_PARAMETER
 	var state: Dictionary = {"profile": profile.duplicate(true), "run": run.duplicate(true)}
-	if _read_snapshot(snapshot_path(slot)) == state:
+	if _read_snapshot(snapshot_path(slot)) == state and (not meta.has("play_seconds") or int(load_meta(slot).play_seconds) == int(meta.play_seconds)):
 		return OK
-	return _atomic_write(snapshot_path(slot), encode_snapshot(state))
+	return _atomic_write(snapshot_path(slot), encode_snapshot(state, meta))
+
+## The envelope metadata of `bytes`: {saved_at: unix seconds, play_seconds}, each -1 when the save
+## does not carry it (older saves have no play time; v1 development saves have neither).
+static func read_meta(bytes: PackedByteArray) -> Dictionary:
+	var result: Dictionary = {"saved_at": -1, "play_seconds": -1}
+	if bytes.is_empty() or bytes.size() > MAX_SAVE_BYTES: return result
+	var parsed: Variant = JSON.parse_string(bytes.get_string_from_utf8())
+	if not parsed is Dictionary: return result
+	result.saved_at = int((parsed as Dictionary).get("saved_at", -1))
+	result.play_seconds = int((parsed as Dictionary).get("play_seconds", -1))
+	return result
+
+## The metadata of the slot's save on disk (the same candidate order load_snapshot tries).
+static func load_meta(slot: String = "campaign") -> Dictionary:
+	if not _valid_slot(slot): return read_meta(PackedByteArray())
+	for candidate: String in [snapshot_path(slot), snapshot_path(slot) + ".bak", snapshot_path(slot) + ".tmp"]:
+		if not FileAccess.file_exists(candidate): continue
+		var meta: Dictionary = read_meta(FileAccess.get_file_as_bytes(candidate))
+		if int(meta.saved_at) >= 0: return meta
+	return read_meta(PackedByteArray())
 
 static func load_snapshot(slot: String = "campaign") -> Dictionary:
 	last_load_source = ""
@@ -127,9 +150,12 @@ static func preview_migration(snapshot: Dictionary) -> Dictionary:
 		if not retained.is_empty(): run["seen_lines"] = retained
 	return {"profile": campaign.to_dict(), "run": run}
 
-static func encode_snapshot(snapshot: Dictionary) -> PackedByteArray:
+static func encode_snapshot(snapshot: Dictionary, meta: Dictionary = {}) -> PackedByteArray:
 	var payload: PackedByteArray = var_to_bytes(snapshot)
 	var envelope: Dictionary = {"format": "lightship_snapshot", "version": SCHEMA_VERSION, "saved_at": int(Time.get_unix_time_from_system()), "encoding": "godot_variant_base64", "sha256": _digest(payload), "payload": Marshalls.raw_to_base64(payload)}
+	# M19: play time rides in the envelope, outside the hashed payload, so older builds (and
+	# decode_snapshot) read these saves exactly as before.
+	if meta.has("play_seconds"): envelope["play_seconds"] = maxi(0, int(meta.play_seconds))
 	return JSON.stringify(envelope, "\t").to_utf8_buffer()
 
 static func decode_snapshot(bytes: PackedByteArray) -> Dictionary:

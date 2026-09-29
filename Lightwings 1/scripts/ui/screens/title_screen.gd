@@ -112,7 +112,7 @@ func build() -> void:
 	left.custom_minimum_size.x = 440
 	left.add_theme_constant_override("separation", 12)
 	columns.add_child(left)
-	var kicker: Label = menu_label(left, "AN INSTANCE AWAKENS", UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = menu_label(left, "AN INSTANCE AWAKENS", UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	var wordmark := HBoxContainer.new()
 	wordmark.name = "Wordmark"

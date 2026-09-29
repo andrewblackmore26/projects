@@ -183,7 +183,8 @@ func _ready() -> void:
 			combat.absorption = {"fire":20.0,"corruption":20.0,"plasma":20.0}
 			_show_evolution()
 		elif (arg == "--show-options" or arg.begins_with("--show-options=")) and OS.has_feature("editor"):
-			if arg.contains("="): options_tab = maxi(0,["audio","display","gameplay","controls","accessibility"].find(arg.get_slice("=",1)))
+			# M19: Gameplay's rows live on Accessibility now; "gameplay" still opens them.
+			if arg.contains("="): options_tab = maxi(0,OptionsScreen.TAB_TITLES.find(arg.get_slice("=",1).capitalize().replace("Gameplay","Accessibility")))
 			_show_options()
 		elif arg == "--show-pause" and OS.has_feature("editor"):
 			_new_game(false)
@@ -442,7 +443,6 @@ func _process(delta: float) -> void:
 		combat.warp_phase_start_q = combat.sim_q-108
 		combat.warp_deadline_q = combat.sim_q+108
 	elapsed_ui += delta
-	run_controller.step_death(delta) # M12: the death beat and its no-press reboot
 	screen_router.tick(delta) # M12: Evolution's hold ring and auto-close (real time)
 	if platform != null:
 		platform.set_input_context(mode != "play" or get_tree().paused)
@@ -457,6 +457,7 @@ func _process(delta: float) -> void:
 			# every play tick and only ever shows a line the director allows.
 			_update_dialogue(delta)
 			sound.set_music_intensity(combat.music_intensity()) # M13: alive count, combo, boss
+			run_controller.play_seconds += delta # M19: the save's play time (cloud conflict card)
 	if benchmark_mode and is_instance_valid(combat) and not get_tree().paused:
 		var now_usec: int = Time.get_ticks_usec()
 		if benchmark_started_usec == 0:
@@ -475,9 +476,12 @@ func _process(delta: float) -> void:
 		if capture_ticks == _capture_at_tick:
 			_capture.call_deferred()
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if mode != "play" or not is_instance_valid(combat) or get_tree().paused or benchmark_mode:
 		return
+	# M12: the death beat and its no-press reboot, on physics steps (review fix 5: on `_process` the
+	# reboot's tick, and so the sim's trace, depended on the render rate).
+	run_controller.step_death(delta)
 	if _input_swallow_frames > 0:
 		_input_swallow_frames -= 1
 		combat.set_command(ShipCommand.new())
@@ -635,8 +639,9 @@ func _show_level_complete(result: Dictionary) -> void:
 func _on_sector_clear() -> void:
 	sound.play("clear")
 	_toast("NODE CLEAR · "+CampaignState.coord_key(campaign.current_sector))
-	_save_game() # calm moment (plan P6 item 6): once per node, not per tick
-	_save_game()
+	# Calm moment (plan P6 item 6): once per node, not per tick, and on the next frame rather than
+	# inside the physics tick that cleared it (review fix 8: this saved twice, synchronously).
+	run_controller.save_game_next_frame()
 
 func _show_evolution() -> void:
 	if mode != "play" or not is_instance_valid(combat) or combat.light_total <= 0: return

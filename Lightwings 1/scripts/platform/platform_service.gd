@@ -152,7 +152,8 @@ func inspect_cloud(slot: String = "campaign") -> Dictionary:
 		return {"state": "invalid", "local": local}
 	var compatible_remote: Dictionary = Saves.preview_migration(remote)
 	var state: String = "remote_only" if local.is_empty() else "same" if local == compatible_remote else "conflict"
-	return {"state": state, "local": local, "remote": compatible_remote, "remote_bytes": bytes, "local_summary": snapshot_summary(local), "remote_summary": snapshot_summary(compatible_remote)}
+	# M19: each side's envelope metadata (last saved, play time) for the conflict cards.
+	return {"state": state, "local": local, "remote": compatible_remote, "remote_bytes": bytes, "local_summary": snapshot_summary(local), "remote_summary": snapshot_summary(compatible_remote), "local_meta": Saves.load_meta(slot), "remote_meta": Saves.read_meta(bytes)}
 
 func resolve_cloud(choice: String, slot: String = "campaign", remote_bytes: PackedByteArray = PackedByteArray()) -> Error:
 	if slot not in ["campaign", "demo"]:

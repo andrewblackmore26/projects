@@ -68,8 +68,8 @@ func build(parent: Control) -> void:
 	tier_label = UiKit.label(cluster, "T1", Vector2.ZERO, Vector2(EMBLEM, 24), 20, VisualStyle.TEXT)
 	tier_label.add_theme_font_override("font", Hud.font(&"display"))
 	tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sector_label = UiKit.label(cluster, "ORIGIN", Vector2(BAR_X, 0), Vector2(200, 17), 12, VisualStyle.MUTED)
-	status_label = UiKit.label(cluster, "", Vector2(BAR_X, 0), Vector2(120, 17), 12, Color(0.78, 0.88, 1.0))
+	sector_label = UiKit.label(cluster, "ORIGIN", Vector2(BAR_X, 0), Vector2(200, 17), UiTokens.TEXT_XS, UiTokens.INK_MUTED)
+	status_label = UiKit.label(cluster, "", Vector2(BAR_X, 0), Vector2(120, 17), UiTokens.TEXT_XS, UiTokens.INK)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	for single: Label in [tier_label, sector_label, status_label]:
 		single.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -80,7 +80,7 @@ func build(parent: Control) -> void:
 	evolve.name = "EvolveCapsule"
 	evolve.focus_mode = Control.FOCUS_NONE
 	evolve.clip_text = false
-	evolve.add_theme_font_size_override("font_size", 13)
+	evolve.add_theme_font_size_override("font_size", UiTokens.TEXT_S)
 	evolve.add_theme_font_override("font", Hud.font(&"display"))
 	evolve.add_theme_constant_override("icon_max_width", 22)
 	evolve.add_theme_constant_override("h_separation", 6)
@@ -91,7 +91,7 @@ func build(parent: Control) -> void:
 	_capsule_style.content_margin_bottom = 4
 	_capsule_style.shadow_color = UiTokens.FOCUS_GLOW
 	for state: String in ["normal", "hover", "pressed", "hover_pressed", "focus"]: evolve.add_theme_stylebox_override(state, _capsule_style)
-	for ink: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]: evolve.add_theme_color_override(ink, Color(1.0, 0.93, 0.7))
+	for ink: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]: evolve.add_theme_color_override(ink, UiTokens.INK)
 	evolve.draw.connect(_draw_bank)
 	evolve.visible = false
 
@@ -111,9 +111,9 @@ func layout(origin: Vector2, size: Vector2) -> float:
 	var tier_size: Vector2 = tier_label.get_minimum_size()
 	tier_label.size = tier_size
 	tier_label.position = _emblem_center() - tier_size * 0.5
-	var pip_line: float = float(UiLayout.text_px(11)) * 1.4
+	var pip_line: float = float(UiLayout.text_px(UiTokens.TEXT_XS)) * 1.4
 	cluster.position = origin
-	cluster.size = Vector2(BAR_X + width, maxf(_emblem_center().y + EMBLEM * 0.5, bar_y + BAR_HEIGHT + 20.0 + pip_line))
+	cluster.size = Vector2(BAR_X + width, maxf(_emblem_center().y + EMBLEM * 0.5, bar_y + BAR_HEIGHT + 22.0 + pip_line))
 	evolve.size = Vector2(evolve.get_minimum_size().x, CAPSULE_HEIGHT)
 	evolve.position = origin + Vector2(BAR_X + width + CAPSULE_GAP, bar_y + BAR_HEIGHT * 0.5 - CAPSULE_HEIGHT * 0.5)
 	return evolve.position.x + evolve.size.x
@@ -239,14 +239,15 @@ func _draw() -> void:
 		Hud.draw_pill(canvas, Rect2(BAR_X + 2.0, top + 2.0, maxf(0.0, fill_x - BAR_X - 4.0), height * 0.32), Color(1.0, 1.0, 1.0, 0.22))
 		canvas.draw_line(Vector2(fill_x - 1.0, top + 1.0), Vector2(fill_x - 1.0, top + height - 1.0), Color(LEAD, 0.9), 2.0)
 	var font: Font = Hud.font(&"body")
-	var tick_size: int = UiLayout.text_px(10)
+	var tick_font: Font = Hud.font(&"display_semibold")
+	var tick_size: int = UiLayout.text_px(UiTokens.TEXT_XS)
 	for tick: Dictionary in ticks(_tier, app.mode_config.max_tier(), width):
 		var x: float = BAR_X + float(tick.x)
 		var flash: float = clampf(float(_flash.get(int(tick.index), 0.0)) / FLASH_SECONDS, 0.0, 1.0)
 		var ink: Color = Color(0.05, 0.06, 0.09, 0.9).lerp(GOLD, flash)
 		canvas.draw_line(Vector2(x, top + 1.0), Vector2(x, top + height - 1.0), ink, 2.0 + 2.0 * flash)
 		canvas.draw_line(Vector2(x, top + height + 1.0), Vector2(x, top + height + 4.0), Color(VisualStyle.MUTED, 0.8).lerp(GOLD, flash), 1.0)
-		canvas.draw_string(font, Vector2(x - 20.0, top + height + 5.0 + tick_size), str(tick.label), HORIZONTAL_ALIGNMENT_CENTER, 40.0, tick_size, Color(VisualStyle.MUTED, 0.9).lerp(GOLD, flash))
+		canvas.draw_string(tick_font, Vector2(x - 20.0, top + height + 5.0 + tick_size), str(tick.label), HORIZONTAL_ALIGNMENT_CENTER, 40.0, tick_size, UiTokens.INK_MUTED.lerp(GOLD, flash))
 	var floor_value: float = GameTuning.regression_floor(_tier)
 	if floor_value > 0.0:
 		var warning: bool = combat.light_total < floor_value * FLOOR_WARNING
@@ -254,31 +255,28 @@ func _draw() -> void:
 		var floor_x: float = _x(floor_value)
 		canvas.draw_line(Vector2(floor_x, top - 4.0), Vector2(floor_x, top + height + 4.0), Color(CORAL, alpha), 2.0)
 		canvas.draw_colored_polygon(PackedVector2Array([Vector2(floor_x - 4.0, top - 7.0), Vector2(floor_x + 4.0, top - 7.0), Vector2(floor_x, top - 2.0)]), Color(CORAL, alpha))
-	_draw_pips(canvas, font, top + height + 11.0 + tick_size)
+	_draw_pips(canvas, font, top + height + 13.0 + tick_size)
 	Hud.draw_usec += Time.get_ticks_usec() - started
 
-## The three leading absorptions since the last evolution, as element pips.
+## The (up to) three leading absorptions since the last evolution, as element pips. Only what was
+## absorbed shows: an element at 0 % (or an empty slot) is not drawn at all.
 func _draw_pips(canvas: Control, font: Font, y: float) -> void:
 	var absorbed: Dictionary = app.combat.absorption
-	var leading: Array = absorbed.keys()
-	leading.sort_custom(func(a: String, b: String) -> bool: return float(absorbed[a]) > float(absorbed[b]))
 	var total: float = 0.0
 	for key: Variant in absorbed: total += float(absorbed[key])
-	var size: int = UiLayout.text_px(11)
+	var leading: Array = absorbed.keys().filter(func(key: Variant) -> bool: return roundi(100.0 * float(absorbed[key]) / maxf(0.001, total)) > 0)
+	leading.sort_custom(func(a: String, b: String) -> bool: return float(absorbed[a]) > float(absorbed[b]))
+	var size: int = UiLayout.text_px(UiTokens.TEXT_XS)
 	var x: float = BAR_X + 5.0
 	var line: float = y + size * 0.7
-	for index: int in range(PIPS):
+	for index: int in range(mini(PIPS, leading.size())):
 		var at := Vector2(x, line - size * 0.35)
-		if index >= leading.size():
-			canvas.draw_arc(at, 4.0, 0.0, TAU, 16, Color(VisualStyle.MUTED, 0.45), 1.0, true)
-			x += 22.0
-			continue
 		var element: String = str(leading[index])
-		var ink: Color = ShipCatalog.get_color(element)
+		var ink: Color = ElementStyle.color(element)
 		canvas.draw_circle(at, 6.5, Color(ink, 0.18))
 		canvas.draw_circle(at, 4.0, ink)
 		var text: String = "%s %d%%" % [element.to_upper(), roundi(100.0 * float(absorbed[element]) / maxf(0.001, total))]
-		canvas.draw_string(font, Vector2(x + 10.0, line), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0.8, 0.84, 0.9))
+		canvas.draw_string(font, Vector2(x + 10.0, line), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, UiTokens.INK)
 		x += 10.0 + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 16.0
 
 ## The light bank (M13): what overflowed a full bar, paid in on evolve. A gold line along the

@@ -58,7 +58,10 @@ Add-Gate 'benchmark budgets' ($bench.ExitCode -eq 0 -and $lines.Total -gt 0 -and
 
 # P7 acceptance bots (spec §27 M1/M5): the spec's own acceptance language as
 # measured numbers, >=20 seeds each, written to artifacts/acceptance_v03.json.
-$acceptance = Invoke-Godot '--headless --script "res://tests/acceptance_bot.gd"' $logDir 'acceptance' 900
+# Timeout from measurement: 752-903 s before M18; M18's flying bots, the travel/fighter/boss lines
+# and their controls (and bots that now fire secondaries) measured 1724 and 1777 s alone, plus a
+# ~40 s control added after -> 2400 s is ~30 % over.
+$acceptance = Invoke-Godot '--headless --script "res://tests/acceptance_bot.gd"' $logDir 'acceptance' 2400
 $accPos = Measure-Lines $acceptance.Out 'acceptance_(?!negative)'
 Add-Gate 'acceptance bots' ($acceptance.ExitCode -eq 0 -and $accPos.Total -gt 0 -and $accPos.Failed -eq 0) $acceptance.Seconds (Get-LastLine $acceptance.Out '^ACCEPTANCE V0\.3:')
 if (-not $Quick) {

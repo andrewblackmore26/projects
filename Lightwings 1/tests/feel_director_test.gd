@@ -225,40 +225,49 @@ func _slow_mo(t: RefCounted) -> void:
 	var rig: Array = _rig(FakeSound.new())
 	var world: CombatWorld = rig[1]
 	var director: FeelDirector = rig[2]
+	world.visuals_enabled = false
+	root.add_child(world) # stepped below: _ready wires the broadphase
+	world.set_physics_process(false)
+	# Review fix 5: the slow motion runs on the world's physics steps (60 Hz here), not on the render
+	# step, so these times are counted in physics steps.
 	world.feel_event.emit(&"elite_kill", Vector2.ZERO, 1.0, 5)
 	var during: float = world.time_scale()
-	director.step(0.10)
+	_physics(world, director, 6)
 	var held: float = world.time_scale()
-	director.step(0.15)
+	_physics(world, director, 9)
 	var easing: float = world.time_scale()
-	director.step(0.11)
+	_physics(world, director, 7)
 	var after: float = world.time_scale()
-	print("measure: elite kill time scale %.3f -> %.3f at 0.10 s -> %.3f at 0.25 s -> %.3f at 0.36 s" % [during, held, easing, after])
+	print("measure: elite kill time scale %.3f -> %.3f at 0.10 s -> %.3f at 0.25 s -> %.3f at 0.37 s" % [during, held, easing, after])
 	t.check(is_equal_approx(during, 0.35) and is_equal_approx(held, 0.35), "an elite kill slows the sim to 0.35 and holds it (%.3f, %.3f)" % [during, held])
 	t.check(easing > 0.35 and easing < 1.0, "the last 40%% eases back toward 1 (%.3f at 0.25 s)" % easing)
-	t.check(after == 1.0 and director.slow_mo_remaining == 0.0, "the request is released after 0.35 s real time (%.3f)" % after)
+	t.check(after == 1.0 and director.slow_mo_remaining == 0.0, "the request is released after 0.35 s of physics steps (%.3f)" % after)
 	world.feel_event.emit(&"boss_kill", Vector2.ZERO, 1.0, 5)
 	var boss: float = world.time_scale()
-	director.step(0.5)
+	_physics(world, director, 30)
 	var boss_mid: float = world.time_scale()
-	director.step(0.31)
-	t.check(is_equal_approx(boss, 0.25) and boss_mid < 1.0 and world.time_scale() == 1.0, "a boss kill runs longer and lower: %.2f, still %.3f at 0.5 s, released by 0.81 s" % [boss, boss_mid])
+	_physics(world, director, 19)
+	t.check(is_equal_approx(boss, 0.25) and boss_mid < 1.0 and world.time_scale() == 1.0, "a boss kill runs longer and lower: %.2f, still %.3f at 0.5 s, released by 0.82 s" % [boss, boss_mid])
 	world.feel_event.emit(&"boss_kill", Vector2.ZERO, 1.0, 5)
 	world.player_died.emit()
 	t.check(world.time_scale() == 1.0 and director.slow_mo_remaining == 0.0, "death releases a slow motion in progress (%.3f)" % world.time_scale())
 	world.feel_event.emit(&"elite_kill", Vector2.ZERO, 1.0, 5)
-	world.sector = {"id": "b"}
-	director.step(0.01)
-	t.check(world.time_scale() == 1.0, "a sector change releases it on the next frame (%.3f)" % world.time_scale())
+	world.start_sector({"id": "b"})
+	t.check(world.time_scale() == 1.0, "a sector change releases it (%.3f)" % world.time_scale())
 	world.feel_event.emit(&"elite_kill", Vector2.ZERO, 1.0, 5)
 	director.bind(null)
 	t.check(world.time_scale() == 1.0, "letting go of the world releases it (%.3f)" % world.time_scale())
 	director.bind(world)
 	director.slow_mo_release_enabled = false
 	world.feel_event.emit(&"elite_kill", Vector2.ZERO, 1.0, 5)
-	director.step(1.0)
+	_physics(world, director, 60)
 	t.control("the timer's release removed: the scale stays at %.3f after 1 s" % world.time_scale(), world.time_scale() != 1.0)
+	world._clear_encounter()
 	_free(rig)
+
+func _physics(world: CombatWorld, director: FeelDirector, steps: int) -> void:
+	for i: int in range(steps): world._physics_process(1.0 / 60.0)
+	director.step(0.0)
 
 func _low_light(t: RefCounted) -> void:
 	var fractions: Array[float] = [0.40, 0.14, 0.16, 0.14, 0.16, 0.14, 0.16, 0.40]

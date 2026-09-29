@@ -115,6 +115,15 @@ func _card_case() -> void:
 func _capture() -> Image:
 	return root.get_texture().get_image()
 
+## An HDR 2D readback is linear half-float (tasks/lessons.md); saved as-is its anti-aliased edges
+## lose their mid-tones and type looks jagged. The saved looks are encoded to sRGB first.
+func _srgb(image: Image) -> Image:
+	if image.get_format() in [Image.FORMAT_RGBA8, Image.FORMAT_RGB8]: return image
+	var encoded := Image.create(image.get_width(), image.get_height(), false, Image.FORMAT_RGB8)
+	for y: int in range(image.get_height()):
+		for x: int in range(image.get_width()): encoded.set_pixel(x, y, image.get_pixel(x, y).linear_to_srgb())
+	return encoded
+
 ## A big kill's flash is brightest where the kill happened.
 func _radial_flash_case() -> void:
 	_rect(Rect2(0, 0, 1280, 800), Color(0.2, 0.2, 0.2))
@@ -166,7 +175,7 @@ func _combat_capture() -> void:
 	for moment: Array in [[0.12, "bars"], [0.30, "typing"], [0.90, "full"]]:
 		card.step(float(moment[0]) - maxf(0.0, card.elapsed))
 		await _frame()
-		_capture().save_png("res://artifacts/boss_intro_%s.png" % moment[1])
+		_srgb(_capture()).save_png("res://artifacts/boss_intro_%s.png" % moment[1])
 	print("measure: saved artifacts/boss_intro_{bars,typing,full}.png")
 	card.free()
 	post.free()

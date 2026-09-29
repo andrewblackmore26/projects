@@ -15,6 +15,10 @@ extends SceneTree
 ##   action;
 ## - "Primary menu action starts focused" still reads "BEGIN" on a fresh profile: the capsule's text
 ##   is now just BEGIN/CONTINUE (was "BEGIN CAMPAIGN").
+## Restated in the M19 UX review (Gameplay's two rows joined Accessibility):
+## - retired "Options has five clear categories" (Audio/Display/Gameplay/Controls/Accessibility)
+##   -> four (Audio/Display/Controls/Accessibility), plus a new check that Auto-fire and the element
+##   labels are rows of Accessibility.
 var failures: int = 0
 var checks: int = 0
 
@@ -57,10 +61,12 @@ func _run() -> void:
 	app._show_options()
 	for i: int in range(3): await process_frame
 	var tabs: TabContainer = app.overlay.get_node("OptionsTabs")
-	_check(tabs.get_tab_count() == 5,"Options has five clear categories")
+	_check(tabs.get_tab_count() == 4,"Options has four clear categories")
 	var tab_titles: PackedStringArray = []
 	for i: int in range(tabs.get_tab_count()): tab_titles.append(tabs.get_tab_title(i))
-	_check(tab_titles == PackedStringArray(["Audio","Display","Gameplay","Controls","Accessibility"]),"Options categories remain in their intended order")
+	_check(tab_titles == PackedStringArray(["Audio","Display","Controls","Accessibility"]),"Options categories remain in their intended order")
+	var access: Node = tabs.get_node("Accessibility")
+	_check(access.find_child("Row_auto_fire",true,false) != null and access.find_child("Row_show_elements",true,false) != null,"Auto-fire and the element labels live on Accessibility")
 	tabs.current_tab = 0
 	for i: int in range(2): await process_frame
 	var buses: int = 0

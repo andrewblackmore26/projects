@@ -15,9 +15,17 @@ const PX_PER_METRE: float = 10.0
 ## A queued spawn is shown from this many telegraph leads before it is due.
 const SPAWN_LOOKAHEAD: float = 2.5
 
+## A rival counts as on screen (no chevron, no distance) while this share of its body's reach is
+## inside the view: its hull is what the player is looking at, so a label on it is noise.
+const BODY_SHOWN: float = 0.5
+
 var app: Node
 var root: Control
+## Rects (this Control's coordinates) no chevron may sit in: the dock and the open dialogue panel
+## (Hud.keep_out_rects, every frame). A chevron that lands in one is moved the shortest way out.
+var keep_out: Array[Rect2] = []
 var _markers: Array[Dictionary] = []
+static var _reach: Dictionary = {}
 
 func _init(owner: Node) -> void:
 	app = owner
@@ -64,10 +72,12 @@ func markers(include_visible: bool = false) -> Array[Dictionary]:
 		if bool(actor.get("dead", false)): continue
 		var rival: bool = bool(actor.get("rival", false))
 		if not rival and not radar: continue
-		var marker: Dictionary = _place(view, rim, ship, Vector2(actor.pos), include_visible)
+		var shown_view: Rect2 = view
+		if rival: shown_view = view.grow(body_reach(actor.get("definition")) * _world_to_ui() * BODY_SHOWN)
+		var marker: Dictionary = _place(shown_view, rim, ship, Vector2(actor.pos), include_visible)
 		if marker.is_empty(): continue
 		marker.kind = "boss" if rival else "enemy"
-		marker.colour = ShipCatalog.get_color(str(actor.element))
+		marker.colour = ElementStyle.color(str(actor.element))
 		marker.distance = Vector2(actor.pos).distance_to(combat.player_position) / PX_PER_METRE
 		result.append(marker)
 	var lead: float = GameTuning.SPAWN_TELEGRAPH_SECONDS * SPAWN_LOOKAHEAD * CombatWorld.SIM_Q_PER_SECOND
@@ -77,7 +87,7 @@ func markers(include_visible: bool = false) -> Array[Dictionary]:
 		var marker: Dictionary = _place(view, rim, ship, Vector2(entry.pos), include_visible)
 		if marker.is_empty(): continue
 		marker.kind = "spawn"
-		marker.colour = VisualStyle.CORAL if not bool(entry.get("rival", false)) else ShipCatalog.get_color(str(entry.get("element", "")))
+		marker.colour = VisualStyle.CORAL if not bool(entry.get("rival", false)) else ElementStyle.color(str(entry.get("element", "")))
 		marker.urgency = clampf(1.0 - left / maxf(1.0, lead), 0.0, 1.0)
 		marker.elite = bool(entry.get("elite", false)) or bool(entry.get("rival", false))
 		result.append(marker)
@@ -88,7 +98,40 @@ func _place(view: Rect2, rim: Rect2, ship: Vector2, world: Vector2, include_visi
 	if view.has_point(at) and not include_visible: return {}
 	var direction: Vector2 = (at - ship).normalized()
 	if direction.is_zero_approx(): direction = Vector2.UP
-	return {"at": rim_point(rim, ship, at), "direction": direction, "urgency": 1.0, "distance": 0.0}
+	return {"at": clear_of(rim_point(rim, ship, at), keep_out, rim), "direction": direction, "urgency": 1.0, "distance": 0.0}
+
+## `point` moved the shortest way (up, down, left or right) out of every rect of `rects` it lies in,
+## staying inside `rim`: a chevron under the dock rides up to the dock's top less the clearance.
+static func clear_of(point: Vector2, rects: Array[Rect2], rim: Rect2) -> Vector2:
+	var result: Vector2 = point
+	for rect: Rect2 in rects:
+		if not rect.has_point(result): continue
+		var best: Vector2 = result
+		var shortest: float = INF
+		for candidate: Vector2 in [Vector2(result.x, rect.position.y), Vector2(result.x, rect.end.y), Vector2(rect.position.x, result.y), Vector2(rect.end.x, result.y)]:
+			if not rim.grow(0.5).has_point(candidate): continue
+			var moved: float = candidate.distance_to(result)
+			if moved < shortest:
+				shortest = moved
+				best = candidate
+		result = best
+	return result
+
+## UI px per world px at the current camera.
+func _world_to_ui() -> float:
+	var to_ui: float = 1.0 / maxf(0.0001, app.ui_layer.scale.x) if app.ui_layer != null else 1.0
+	var zoom: float = float(app.compositor.zoom) if is_instance_valid(app.compositor) else 1.0
+	return zoom * to_ui
+
+## How far a hull reaches from its centre (world px): its parts' farthest edge (part positions are
+## in ship space; parent_id is authoring only). Cached per definition id.
+static func body_reach(definition: ShipDefinition) -> float:
+	if definition == null: return 0.0
+	if _reach.has(definition.id): return _reach[definition.id]
+	var reach: float = definition.hull_radius
+	for part: PartDefinition in definition.parts: reach = maxf(reach, part.position.length() + part.radius)
+	_reach[definition.id] = reach
+	return reach
 
 func update() -> void:
 	_markers = markers()
@@ -114,11 +157,12 @@ func _draw() -> void:
 				_chevron(root, at, direction, 13.0, Color(0.02, 0.02, 0.03, 0.8))
 				_chevron(root, at - direction * 1.5, direction, 10.5, ink)
 				_chevron(root, at - direction * 12.0, direction, 7.0, Color(ink, 0.55))
-				var size: int = UiLayout.text_px(13)
+				var size: int = UiLayout.text_px(UiTokens.TEXT_S)
 				var text: String = "%d m" % roundi(float(marker.distance))
 				var box: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size)
 				var label_at: Vector2 = at - direction * 36.0
 				label_at = label_at.clamp(Vector2(box.x * 0.5 + 2.0, size), root.size - Vector2(box.x * 0.5 + 2.0, 4.0))
+				label_at = clear_of(label_at, keep_out, Rect2(Vector2.ZERO, root.size))
 				root.draw_string_outline(font, label_at + Vector2(-box.x * 0.5, size * 0.35), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 4, Color(0.0, 0.0, 0.02, 0.85))
 				root.draw_string(font, label_at + Vector2(-box.x * 0.5, size * 0.35), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, ink.lerp(Color.WHITE, 0.35))
 			"enemy":

@@ -167,6 +167,9 @@ static func snapshot(world: Node) -> Dictionary:
  result.merge({"version":VERSION,"light_total":world.light_total,"hull_id":world.hull_id,"hull_history":world.hull_history,"absorption":world.absorption,"player":actor_snapshot(world,world.player),"position":[world.player_position.x,world.player_position.y],"element":world.player_element,"tier":world.player_tier,"energy":world.light_total,"hp":world.light_total,"stolen":[],"elapsed":world.elapsed,"tick":world.tick,"sector":json_value(world.sector),"encounter_records":world.encounter_records,"encounter_epoch":world.encounter_epoch,"next_actor_id":world.next_actor_id,"player_invulnerable":world.player_invulnerable,"reshape_remaining":world.reshape_remaining,"rng_state":str(world._rng.state),"active":world.active,"max_player_tier":world.max_player_tier})
  result.merge(warp_snapshot(world))
  result["light_bank"]=world.light_bank # M13 overflow bank
+ # Review fix 11: the pace state (spec §7.1/§7.2). A restore used to reset the combo and hand back
+ # a full decay suppression, so save/load mid-chain changed the next kill's reward.
+ result["pace"]={"combo_count":world.combo_count,"combo_timer":world.combo_timer,"combo_drain":world._combo_drain_accum,"decay_suppress":world.decay_suppress_timer}
  return result
 static func restore(world: Node, data: Dictionary) -> void:
  # P4a bumped the schema to 3 (per-circle allow-listed state). An older
@@ -199,6 +202,11 @@ static func restore(world: Node, data: Dictionary) -> void:
  _restore_chain(world, world.player, restored.get("chain_motion", {}))
  world.light_total=float(data.get("light_total",40.0))
  world.light_bank=maxf(0.0,float(data.get("light_bank",0.0)))
+ var pace: Dictionary=data.get("pace",{}) if data.get("pace") is Dictionary else {}
+ world.combo_count=clampi(int(pace.get("combo_count",0)),0,GameTuning.COMBO_MAX_COUNT)
+ world.combo_timer=maxf(0.0,float(pace.get("combo_timer",0.0)))
+ world._combo_drain_accum=maxf(0.0,float(pace.get("combo_drain",0.0)))
+ world.decay_suppress_timer=maxf(0.0,float(pace.get("decay_suppress",GameTuning.DECAY_SUPPRESSION_SECONDS)))
  world.player.hp=world.light_total
  world.player_position=world.player.pos
  world.elapsed=float(data.get("elapsed",0.0))
@@ -238,9 +246,17 @@ static func warp_snapshot(world: Node) -> Dictionary:
   "warp_teleported":world.warp_teleported,"warp_swap_done":world._warp_swap_done}
 
 static func restore_warp(world: Node, data: Dictionary) -> void:
+ _restore_warp_phases(world,data)
+ # M18: the re-arm latch is not saved (no snapshot change); a restore inside ARRIVAL re-derives it.
+ world.warp_rearm=world.warp_rearm_enabled and world.warp_phase==world.WARP_ARRIVAL
+
+static func _restore_warp_phases(world: Node, data: Dictionary) -> void:
  var wd: Array=data.get("warp_direction",[0,0])
  world.warp_direction=Vector2i(int(wd[0]),int(wd[1]))
- world.warp_reduced=bool(data.get("warp_reduced",false))
+ # Review fix 7: `warp_reduced` is the player's setting (main.gd applies it to every world), so a
+ # restore never overwrites it. A warp in flight needs no saved flag: a reduced one is saved as
+ # WARP_FADE, and every phase after the commit reads its phase, never the option. The key stays in
+ # the snapshot so older readers and the golden trace see the same payload.
  var bearing: Vector2=Vector2(world.warp_direction).normalized()
  world.warp_exit_point=_vector2_field(data,"warp_exit_point",world.arena.center+bearing*world.arena.radius)
  world.warp_contact_angle=float(data.get("warp_contact_angle",(world.warp_exit_point-world.arena.center).angle()))
@@ -256,6 +272,9 @@ static func restore_warp(world: Node, data: Dictionary) -> void:
   world.warp_heading=_vector2_field(data,"warp_heading",bearing)
   world.warp_teleported=bool(data.get("warp_teleported",false))
   world._warp_swap_done=bool(data.get("warp_swap_done",false))
+  # Review fix 3: the warp's protection is its sim_q deadline, and both are saved; a restore is not
+  # a grant, so it assigns the deadline directly (the float was restored with the rest).
+  world.invulnerable_until_q=world.warp_end_q if world.warp_phase!=world.WARP_NONE and world.warp_phase!=world.WARP_PUSH else 0
   return
  _restore_legacy_warp(world,data,bearing)
 
@@ -296,7 +315,7 @@ static func _restore_legacy_warp(world: Node, data: Dictionary, bearing: Vector2
   _:
    world._warp_finish()
    return
- world._grant_invulnerability(float(world.warp_end_q-world.sim_q)/world.SIM_Q_PER_SECOND,&"warp")
+ world._grant_invulnerability(float(world.warp_end_q-world.sim_q)/world.SIM_Q_PER_SECOND,&"warp",world.warp_end_q)
 static func _vector2_field(data: Dictionary, key: String, fallback: Vector2) -> Vector2:
  var value: Variant=data.get(key)
  if value is Array and value.size()==2: return Vector2(float(value[0]),float(value[1]))

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d1yapd45ua76e"
-path="res://.godot/imported/keyboard_shift_icon.png-ad119dd7cfb2a2a5a05654410ba91f86.ctex"
+uid="uid://cq6s3hulu0o5e"
+path="res://.godot/imported/keyboard_arrows_all.png-1f4f80a3846a334b4b2e43f0455e407e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prompts/keyboard_mouse/keyboard_shift_icon.png"
-dest_files=["res://.godot/imported/keyboard_shift_icon.png-ad119dd7cfb2a2a5a05654410ba91f86.ctex"]
+source_file="res://assets/prompts/keyboard_mouse/keyboard_arrows_all.png"
+dest_files=["res://.godot/imported/keyboard_arrows_all.png-1f4f80a3846a334b4b2e43f0455e407e.ctex"]
 
 [params]
 

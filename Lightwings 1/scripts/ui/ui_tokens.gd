@@ -55,9 +55,14 @@ const GLASS_PANEL: StringName = &"GlassPanel"
 
 ## Colour roles.
 ## - blue: the player's light;  gold: focus and action;  coral: loss and danger;
-## - element colours (ShipCatalog/VisualStyle.PALETTE) carry element information only.
+## - element colours (ElementStyle.color in the UI) carry element information only.
+## - M19 review: gold is ONLY focus and the call to action. Plain data (kickers, stats, slider and
+##   toggle fills) is neutral ink or the player's blue, so gold on screen always means "this one".
 const INK: Color = VisualStyle.TEXT
 const INK_MUTED: Color = VisualStyle.MUTED
+## A kicker (the small letter-spaced caption over a heading) and a filled value (slider, switch).
+const KICKER: Color = VisualStyle.MUTED
+const VALUE: Color = VisualStyle.BLUE
 const INK_DISABLED: Color = Color(VisualStyle.MUTED, 0.45)
 const PLAYER: Color = VisualStyle.BLUE
 const FOCUS: Color = VisualStyle.ACCENT

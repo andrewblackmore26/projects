@@ -147,6 +147,12 @@ static func _scale_font(control: Control) -> void:
 	# explicit update the box was clamped to the OLD, larger minimum.)
 	control.update_minimum_size()
 	if control is Label and not control.get_parent() is Container: control.size = control.get_meta(BASE_BOX_META)
+	elif control.get_parent() is Container:
+		# M19: a container never shrinks a child it already made bigger (the title's wordmark letters
+		# kept their 110 % widths at 100 % and overlapped by 3 px): drop the box to its new minimum
+		# and let the container lay its children out again.
+		control.size = Vector2.ZERO
+		(control.get_parent() as Container).queue_sort()
 
 ## The width `label`'s text needs on one line, at its current font and size.
 static func text_width(control: Control, text: String) -> float:

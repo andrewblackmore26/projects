@@ -9,6 +9,9 @@ extends Button
 ## `choices` are the stored values, `labels` what the row prints for each; `on_change(value)` is
 ## called with the new stored value (the screen writes the setting, applies and saves it).
 
+## Every Options row's height, spinners and toggles alike (M19: 46 -> 44, so Accessibility's ten
+## rows fit the one panel size every tab shares).
+const ROW_HEIGHT: float = 44.0
 const VALUE_WIDTH: float = 190.0
 const SLIDER_WIDTH: float = 250.0
 const CHEVRON: float = 5.0
@@ -30,7 +33,7 @@ func setup(caption: String, values: Array, names: PackedStringArray, current: Va
 	on_change = changed
 	index = _nearest(current)
 	alignment = HORIZONTAL_ALIGNMENT_LEFT
-	custom_minimum_size.y = 46
+	custom_minimum_size.y = ROW_HEIGHT
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	# The rows dress like the theme's toggle rows (CheckButton): flat until hovered, raised glass

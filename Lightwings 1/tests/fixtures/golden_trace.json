@@ -13,7 +13,7 @@
 			"paused": false,
 			"profile": "76242fbb2b74df20",
 			"sector": "(0, 0)",
-			"snapshot": "2dd42a393d756c75",
+			"snapshot": "f26b7ad574fe8a03",
 			"step": "new_game",
 			"tier": 1
 		},
@@ -29,7 +29,7 @@
 			"paused": false,
 			"profile": "24026384ef9df9c3",
 			"sector": "(1, 0)",
-			"snapshot": "0e08b44216c4c88d",
+			"snapshot": "d43fcfe4ccf5ac58",
 			"step": "origin_flown",
 			"tier": 1
 		},
@@ -45,7 +45,7 @@
 			"paused": false,
 			"profile": "24026384ef9df9c3",
 			"sector": "(1, 0)",
-			"snapshot": "630e329da5629220",
+			"snapshot": "c6934f4541a58094",
 			"step": "entered_1_0",
 			"tier": 1
 		},
@@ -61,7 +61,7 @@
 			"paused": false,
 			"profile": "6d9964dcfab86452",
 			"sector": "(0, -1)",
-			"snapshot": "85e5fe6ce841f67f",
+			"snapshot": "65ec6736c2a8d191",
 			"step": "fought_1_0",
 			"tier": 1
 		},
@@ -81,7 +81,7 @@
 			"paused": false,
 			"profile": "78a48731a4139d0f",
 			"sector": "(0, -1)",
-			"snapshot": "0e6eb374609a2ce0",
+			"snapshot": "de94eb9b28027c15",
 			"step": "evolution_offered",
 			"tier": 1
 		},
@@ -97,7 +97,7 @@
 			"paused": false,
 			"profile": "78a48731a4139d0f",
 			"sector": "(0, -1)",
-			"snapshot": "bbabb84f1dbf258c",
+			"snapshot": "9e7cfd9259332e67",
 			"step": "evolved",
 			"tier": 2
 		},
@@ -113,7 +113,7 @@
 			"paused": false,
 			"profile": "20b4122cb119ac2c",
 			"sector": "(1, 0)",
-			"snapshot": "b4e5376eda685997",
+			"snapshot": "a89a18fb28eac0e2",
 			"step": "fought_as_t2",
 			"tier": 2
 		},
@@ -129,7 +129,7 @@
 			"paused": true,
 			"profile": "20b4122cb119ac2c",
 			"sector": "(1, 0)",
-			"snapshot": "b4e5376eda685997",
+			"snapshot": "a89a18fb28eac0e2",
 			"step": "map_open",
 			"tier": 2
 		},
@@ -145,7 +145,7 @@
 			"paused": false,
 			"profile": "82d590153e3c67e4",
 			"sector": "(2, 0)",
-			"snapshot": "c53bc6b434fea7fb",
+			"snapshot": "5ddd7362925aeb36",
 			"step": "fought_2_0",
 			"tier": 2
 		},
@@ -161,7 +161,7 @@
 			"paused": false,
 			"profile": "82d590153e3c67e4",
 			"sector": "(2, 0)",
-			"snapshot": "82acc860a14f7c4e",
+			"snapshot": "d343b5945bf71c0b",
 			"step": "corruption_motion_group",
 			"tier": 2
 		},
@@ -177,7 +177,7 @@
 			"paused": false,
 			"profile": "8a49adc826055691",
 			"sector": "(0, 0)",
-			"snapshot": "008c76fff9f9e3bc",
+			"snapshot": "e95b249f11b88a4f",
 			"step": "died",
 			"tier": 2
 		},
@@ -193,7 +193,7 @@
 			"paused": false,
 			"profile": "8a49adc826055691",
 			"sector": "(0, 0)",
-			"snapshot": "3d211a62409075d1",
+			"snapshot": "4accf36fecb89d42",
 			"step": "rebooted",
 			"tier": 1
 		}

@@ -229,25 +229,29 @@ static func _clipped_line(into: Array, a: Vector2, b: Vector2, width: float, ink
 	var ink_faded := Color(ink,ink.a*_fade(((p0+p1)*0.5).distance_to(CENTER),clip_radius))
 	into.append({"kind": "line", "a": p0, "b": p1, "width": width, "color": ink_faded})
 
-## The caption's two parts: "RING r · Tt · " and "BOSS dir n" (the bearing MinimapModel reports).
-static func caption_for(campaign: CampaignState, tier: int) -> Dictionary:
+## The caption's two parts: "BOSS " and the bearing "NW · 6" (MinimapModel's). The ring and tier are
+## the light bar's (its node readout and tier emblem); the corner says only what nothing else does.
+## `tier` stays in the signature for the cache key's callers.
+static func caption_for(campaign: CampaignState, _tier: int) -> Dictionary:
 	var delta: Vector2i = campaign.boss_coord()-campaign.current_sector
-	return {"lead": "RING %d · T%d · " % [CampaignState.ring(campaign.current_sector),tier], "boss": "BOSS %s %d" % [MinimapModel.direction_of(delta),CampaignState.ring(delta)]}
+	if delta == Vector2i.ZERO: return {"lead": "", "boss": "BOSS NODE"}
+	return {"lead": "BOSS ", "boss": "%s · %d" % [MinimapModel.direction_of(delta),CampaignState.ring(delta)]}
 
-## "RING · T · BOSS" under the circle, centred, the boss part in gold; a long caption at a large
-## text scale steps its size down until it fits the panel.
+## "BOSS NW · 6" under the circle, centred, in the HUD's body face (the light bar's), the bearing in
+## gold; a long caption at a large text scale steps its size down until it fits the panel, never
+## below the type scale's smallest step.
 func _draw_caption(caption: Dictionary) -> void:
-	if _font == null: _font = UiKit.font(UiTokens.FONT_MONO,UiTokens.WEIGHT_MONO,true)
+	if _font == null: _font = Hud.font(&"body")
 	var lead: String = str(caption.get("lead",""))
 	var boss: String = str(caption.get("boss",""))
-	var px: int = UiLayout.text_px(12)
+	var px: int = UiLayout.text_px(UiTokens.TEXT_XS)
 	var lead_w: float = _font.get_string_size(lead,HORIZONTAL_ALIGNMENT_LEFT,-1,px).x
 	var boss_w: float = _font.get_string_size(boss,HORIZONTAL_ALIGNMENT_LEFT,-1,px).x
-	while px > 9 and lead_w+boss_w > SIZE.x-8.0:
+	while px > UiTokens.TEXT_XS and lead_w+boss_w > SIZE.x-8.0:
 		px -= 1
 		lead_w = _font.get_string_size(lead,HORIZONTAL_ALIGNMENT_LEFT,-1,px).x
 		boss_w = _font.get_string_size(boss,HORIZONTAL_ALIGNMENT_LEFT,-1,px).x
 	var x: float = maxf(4.0,(SIZE.x-lead_w-boss_w)*0.5)
 	var y: float = CENTER.y+CLIP_RADIUS+8.0+_font.get_ascent(px)
-	minimap.draw_string(_font,Vector2(x,y),lead,HORIZONTAL_ALIGNMENT_LEFT,-1,px,Color(VisualStyle.TEXT,0.78))
+	minimap.draw_string(_font,Vector2(x,y),lead,HORIZONTAL_ALIGNMENT_LEFT,-1,px,UiTokens.INK_MUTED)
 	minimap.draw_string(_font,Vector2(x+lead_w,y),boss,HORIZONTAL_ALIGNMENT_LEFT,-1,px,GOLD)

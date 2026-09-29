@@ -17,7 +17,7 @@ func build() -> void:
 	var next_level: int = int(result.get("next_level", level + 1))
 	var revealed: String = str(result.get("revealed_element", ""))
 	var beaten: String = LevelSelectScreen.element_of(level)
-	var kicker: Label = centered_label(host, "LEVEL %d · %s" % [level, ElementStyle.display_name(beaten).to_upper()], Vector2(240, 86), Vector2(800, 20), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = centered_label(host, "LEVEL %d · %s" % [level, ElementStyle.display_name(beaten).to_upper()], Vector2(240, 86), Vector2(800, 20), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	centered_label(host, "LEVEL %d COMPLETE" % level, Vector2(140, 108), Vector2(1000, 56), UiTokens.TEXT_2XL, WHITE)
 	var text: String = "The rival's signal yields. %s light now reveals itself in the world." % ElementStyle.display_name(revealed) if not revealed.is_empty() else "The rival's signal yields."
@@ -30,9 +30,11 @@ func build() -> void:
 	var explore: Button = button(host, "KEEP EXPLORING", Rect2(396, 612, 236, 44), app._close_overlay)
 	var menu: Button = button(host, "SAVE & MAIN MENU", Rect2(648, 612, 236, 44), func() -> void: app._save_game(); app._show_menu())
 	FocusChain.rows([[_focus], [explore, menu]])
-	var hints := PromptHints.new([["ui_accept", "CONTINUE"], ["navigate", "MOVE"]])
-	hints.position = Vector2(64, 712)
-	host.add_child(hints)
+	footer_hints(host, PromptHints.new([["ui_accept", "CONTINUE"], ["navigate", "MOVE"]]))
+
+## M19 review: a centred screen's prompt row is centred too, on the canvas at the footer line.
+static func footer_hints(parent: Control, row: PromptHints) -> PromptHints:
+	return ConfirmScreen.centre_hints(parent, row, Rect2(0, 0, UiLayout.BASE_SIZE.x, 696))
 
 ## A ring in `rect` whose arc floods with each element's colour in turn (one equal segment each),
 ## the first element's glyph glowing in the centre, and a kicker under it. The flood runs on the

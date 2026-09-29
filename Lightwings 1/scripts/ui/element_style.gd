@@ -21,10 +21,18 @@ const SAFE: Dictionary = {
 	"void": Color("c4c4c4"), "plasma": Color("e08fc4"),
 }
 const NAMES: Dictionary = {"lightning": "Lightning", "fire": "Fire", "corruption": "Corruption", "void": "Void", "plasma": "Plasma"}
+## M19 review: the interface's own colour ROLES (UiTokens) are gold for focus and action and coral
+## for danger, and VisualStyle's Lightning gold and Fire coral are those same two hexes, so a
+## Lightning chip read as "focused" and a Fire label as "danger". The UI names those two elements
+## in a pale electric yellow-white and an orange instead. UI only: the world keeps #ffd23f/#ff5436
+## (docs/LIGHTSHIP_SHIP_DESIGN_SPEC.md's palette, elements_test and the ship art pin them), and
+## there gold/coral carry no UI role.
+const UI: Dictionary = {"lightning": Color("f4f1a0"), "fire": Color("ff8a2a")}
 
 ## The UI colour of `element` ("companion", "neutral" and unknown ids are the neutral silver).
 static func color(element: String) -> Color:
 	if colorblind and SAFE.has(element): return SAFE[element]
+	if UI.has(element): return UI[element]
 	if element in ["companion", "neutral", ""]: return VisualStyle.SILVER
 	return ShipCatalog.get_color(element)
 

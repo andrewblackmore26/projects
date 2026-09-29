@@ -6,14 +6,17 @@ extends UiScreen
 ##
 ## M15: one card in the modal style every dialog shares (kicker, title, body, a coral outline on the
 ## action that replaces progress, CANCEL focused so a stray confirm can never destroy anything).
+## M19 review: the kicker names the context, the title asks the question and the button names the
+## act, so the three never repeat one phrase; the card sits on Options' blurred backdrop (router
+## policy) and its prompt row is centred under it.
 
 const CARD: Rect2 = Rect2(330, 220, 620, 340)
 
 func build() -> void:
 	var is_demo: bool = bool(args.get("is_demo", false))
 	var copy: Dictionary = {
-		"new_game": {"kicker": "NEW DEMO" if is_demo else "NEW CAMPAIGN", "title": "BEGIN A NEW DEMO?" if is_demo else "BEGIN A NEW CAMPAIGN?", "body": "Your current progress is kept in a separate archive.", "action": "NEW DEMO" if is_demo else "NEW CAMPAIGN", "call": app._replace_game.bind(is_demo)},
-		"import_demo": {"kicker": "IMPORT DEMO", "title": "REPLACE CAMPAIGN WITH DEMO PROGRESS?", "body": "The current campaign will remain in a separate archive.", "action": "IMPORT DEMO", "call": app._perform_import},
+		"new_game": {"kicker": "FRESH START", "title": "BEGIN A NEW DEMO?" if is_demo else "BEGIN A NEW CAMPAIGN?", "body": "Your current progress is kept in a separate archive.", "action": "START OVER", "call": app._replace_game.bind(is_demo)},
+		"import_demo": {"kicker": "DEMO PROGRESS", "title": "REPLACE CAMPAIGN WITH DEMO PROGRESS?", "body": "The current campaign will remain in a separate archive.", "action": "IMPORT", "call": app._perform_import},
 	}.get(str(args.variant), {})
 	if copy.is_empty(): return
 	card(host, CARD, str(copy.kicker), str(copy.title), str(copy.body))
@@ -29,7 +32,7 @@ func build() -> void:
 static func card(parent: Control, rect: Rect2, kicker_text: String, title_text: String, body_text: String) -> Dictionary:
 	var panel: Panel = UiKit.glass(parent, rect)
 	panel.name = "Card"
-	var kicker: Label = centered_label(parent, kicker_text, rect.position + Vector2(40, 36), Vector2(rect.size.x - 80, 18), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = centered_label(parent, kicker_text, rect.position + Vector2(40, 36), Vector2(rect.size.x - 80, 18), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	var title: Label = centered_label(parent, title_text, rect.position + Vector2(40, 60), Vector2(rect.size.x - 80, 88), UiTokens.TEXT_XL, WHITE)
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -54,7 +57,13 @@ static func danger(target: Button) -> void:
 
 ## The footer hints under a card.
 static func hints(parent: Control, rect: Rect2) -> PromptHints:
-	var result := PromptHints.new([["change", "CHOOSE"], ["ui_accept", "CONFIRM"], ["ui_cancel", "CANCEL"]])
-	result.position = Vector2(rect.position.x + 8, rect.end.y + 16)
-	parent.add_child(result)
-	return result
+	return centre_hints(parent, PromptHints.new([["change", "CHOOSE"], ["ui_accept", "CONFIRM"], ["ui_cancel", "CANCEL"]]), rect)
+
+## Adds `row` centred under the card `rect` (a centred card's prompts centre with it). The row
+## re-centres itself whenever its glyphs change width (a new device, a new text scale).
+static func centre_hints(parent: Control, row: PromptHints, rect: Rect2) -> PromptHints:
+	parent.add_child(row)
+	var place := func() -> void: row.position = Vector2(roundf(rect.get_center().x - row.size.x * 0.5), rect.end.y + 16)
+	row.resized.connect(place)
+	place.call()
+	return row

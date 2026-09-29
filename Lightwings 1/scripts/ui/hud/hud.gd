@@ -31,6 +31,8 @@ const TOP_BAR: float = 88.0
 const BOTTOM_BAR: float = 96.0
 ## Clear space between clusters.
 const GAP: float = 16.0
+## The narrowest centred boss bar the top row may hold before the bar drops under the light bar.
+const BOSS_TOP_MIN: float = 440.0
 const HINT_HEIGHT: float = 30.0
 ## The minimap is a map, not a meter: it redraws at this period, not every frame.
 const MINIMAP_PERIOD: float = 0.1
@@ -73,6 +75,13 @@ func _init(owner: Node, hud_root: Control) -> void:
 func clusters() -> Array[Control]:
 	return [top_left, top_center, top_right, minimap.minimap, slot_overlay, evolution_button]
 
+## M19 review: a screen that lays itself over the run (the evolution cards) fades the top
+## clusters to DIM_ALPHA so its own header reads; the edge indicators (threats) stay at full.
+const DIM_ALPHA: float = 0.25
+func set_dimmed(on: bool) -> void:
+	for item: Control in [top_left, top_center, top_right, minimap.minimap, evolution_button]:
+		if is_instance_valid(item): UiMotion.tween(item).tween_property(item, "modulate:a", DIM_ALPHA if on else 1.0, UiMotion.duration(UiTokens.FAST, true))
+
 static func cluster(parent: Control, name: String) -> Control:
 	var result := Control.new()
 	result.name = name
@@ -81,12 +90,14 @@ static func cluster(parent: Control, name: String) -> Control:
 	return result
 
 ## The HUD's faces: `display` (Exo 2 Bold, tabular), `display_wide` (letter-spaced, for names),
-## `combo` (Exo 2 Black Italic) and `body` (Inter SemiBold, tabular).
+## `display_semibold` (Exo 2 SemiBold, tabular, the light bar's tier ticks), `combo` (Exo 2 Black
+## Italic) and `body` (Inter SemiBold, tabular).
 static func font(role: StringName) -> Font:
 	if _fonts.has(role): return _fonts[role]
 	var result: Font
 	match role:
 		&"display": result = UiKit.font(UiTokens.FONT_DISPLAY, UiTokens.WEIGHT_DISPLAY, true)
+		&"display_semibold": result = UiKit.font(UiTokens.FONT_DISPLAY, UiTokens.WEIGHT_BUTTON, true)
 		&"display_wide": result = UiKit.font(UiTokens.FONT_DISPLAY, UiTokens.WEIGHT_DISPLAY, false, 3)
 		&"combo": result = UiKit.font(FONT_DISPLAY_ITALIC, 900, true)
 		_: result = UiKit.font(UiTokens.FONT_BODY, UiTokens.WEIGHT_BODY_STRONG, true)
@@ -147,7 +158,7 @@ func _hint(parent: Control, word: String, action: Callable) -> Button:
 	result.focus_mode = Control.FOCUS_NONE
 	# Sized to its content by layout(), so it never clips (a clipping Button reports no text width).
 	result.clip_text = false
-	result.add_theme_font_size_override("font_size", 11)
+	result.add_theme_font_size_override("font_size", UiTokens.TEXT_XS)
 	result.add_theme_font_override("font", font(&"body"))
 	# icon_max_width scales the 64 px glyph down AND counts it in the minimum size; expand_icon
 	# would leave the icon out of the minimum, and layout() sizes the capsule to its minimum.
@@ -202,14 +213,48 @@ func layout() -> void:
 	# Top centre: the combo or the boss bar, centred on the screen in the room between the corners.
 	var room_from: float = left_end + GAP
 	var room_to: float = corner.position.x - GAP
-	var slot: Vector2 = boss_bar.layout(room_to - room_from) if boss_mode else combo.layout()
-	top_center.size = slot
 	combo.root.position = Vector2.ZERO
 	boss_bar.root.position = Vector2.ZERO
-	var left: float = clampf(size.x * 0.5 - slot.x * 0.5, room_from, maxf(room_from, room_to - slot.x))
-	top_center.position = Vector2(roundf(left), safe.position.y)
+	if boss_mode:
+		_layout_boss(size, safe, room_from, room_to)
+	else:
+		var slot: Vector2 = combo.layout()
+		top_center.size = slot
+		var left: float = clampf(size.x * 0.5 - slot.x * 0.5, room_from, maxf(room_from, room_to - slot.x))
+		top_center.position = Vector2(roundf(left), safe.position.y)
 	dock.layout(size, safe)
 	edges.layout(safe)
+	# The toasts stack under the top clusters: they follow the boss bar when it comes and goes.
+	var toasts: Variant = app.get("toast_stack")
+	if toasts != null and not toasts.toasts.is_empty(): toasts.layout(toasts.parent.size, true)
+
+## The boss bar is always centred on the screen. It takes the top row when a centred bar at least
+## BOSS_TOP_MIN wide fits between the corner clusters (21:9); otherwise (16:9, 16:10: the light bar
+## and its EVOLVE reserve reach past the centre line's room) it drops to the row under the light
+## bar, still centred, where only the minimap column limits it.
+func _layout_boss(size: Vector2, safe: Rect2, room_from: float, room_to: float) -> void:
+	var centre: float = size.x * 0.5
+	var top_room: float = 2.0 * minf(centre - room_from, room_to - centre)
+	var y: float = safe.position.y
+	var room: float = top_room
+	if top_room < BOSS_TOP_MIN:
+		y = top_left.position.y + top_left.size.y + GAP
+		room = 2.0 * minf(centre - safe.position.x, room_to - centre)
+	var slot: Vector2 = boss_bar.layout(maxf(0.0, room))
+	top_center.size = slot
+	top_center.position = Vector2(roundf(centre - slot.x * 0.5), roundf(y))
+
+## What the edge chevrons must not draw over, in the EdgeIndicators' own coordinates: the dock and
+## the open dialogue panel, each grown by KEEP_OUT (a chevron's reach: the spawn ring's widest
+## radius, 22 px x 1.35 for an elite, plus a GAP of clear space).
+const KEEP_OUT: float = 30.0 + GAP
+func keep_out_rects() -> Array[Rect2]:
+	var result: Array[Rect2] = []
+	var origin: Vector2 = edges.root.position
+	if slot_overlay.visible: result.append(Rect2(slot_overlay.position - origin, slot_overlay.size).grow(KEEP_OUT))
+	var panel: Control = app.dialogue.get_node_or_null("DialoguePanel") if app.get("dialogue") != null else null
+	if panel != null and panel.is_visible_in_tree(): result.append(Rect2(panel.get_global_rect().position - root.get_global_rect().position - origin, panel.size).grow(KEEP_OUT))
+	return result
 
 ## One frame of the HUD (main.gd's _process, every frame in play).
 func update(dt: float) -> void:
@@ -243,6 +288,8 @@ func refresh(dt: float = 0.0) -> void:
 	relayout = dock.update(dt) or relayout
 	relayout = _refresh_hints() or relayout
 	if relayout: layout()
+	# The dialogue box comes and goes between layouts: the keep-out follows it every frame.
+	edges.keep_out = keep_out_rects()
 	edges.update()
 	_minimap_elapsed += dt
 	if dt <= 0.0 or _minimap_elapsed >= MINIMAP_PERIOD:

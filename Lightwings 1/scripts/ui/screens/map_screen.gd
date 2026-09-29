@@ -24,7 +24,7 @@ var _panel: Panel
 var _column: VBoxContainer
 var _kicker: Label
 var _route: Label
-var _hint: Label
+var _hint: VBoxContainer
 var _model: MinimapModel
 var _optional: Array[Control] = []
 
@@ -35,10 +35,6 @@ func motion_items() -> Array:
 func build() -> void:
 	var campaign: CampaignState = app.campaign
 	_model = MinimapModel.build(campaign)
-	_title = UiKit.label(host,"THE AI-VERSE",Vector2(24,24),Vector2(620,40),UiTokens.TEXT_XL,WHITE)
-	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_bearing = UiKit.label(host,"BOSS BEARING  %s · %d %s" % [_model.bearing_direction,_model.bearing_distance,"NODE" if _model.bearing_distance == 1 else "NODES"],Vector2(26,66),Vector2(620,24),UiTokens.TEXT_M,GOLD)
-	_bearing.autowrap_mode = TextServer.AUTOWRAP_OFF
 	view = MapView.new()
 	view.name = "MapView"
 	host.add_child(view)
@@ -49,7 +45,15 @@ func build() -> void:
 	_column = VBoxContainer.new()
 	_column.add_theme_constant_override("separation",UiTokens.SPACE_3)
 	_panel.add_child(_column)
-	_kicker = UiKit.label(_column,"",Vector2.ZERO,Vector2(300,18),UiTokens.TEXT_XS,GOLD)
+	# M19 review: the title and the boss bearing head the detail column, on its glass (they sat over
+	# the blurred HUD), so the lattice takes the whole height left of the panel and centres in it.
+	_title = UiKit.label(_column,"THE AI-VERSE",Vector2.ZERO,Vector2(300,36),UiTokens.TEXT_XL,WHITE)
+	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_bearing = UiKit.label(_column,"Boss bearing %s · %d %s" % [_model.bearing_direction,_model.bearing_distance,"node" if _model.bearing_distance == 1 else "nodes"],Vector2.ZERO,Vector2(300,20),UiTokens.TEXT_S,MUTED)
+	var rule := Control.new()
+	rule.custom_minimum_size.y = UiTokens.SPACE_2
+	_column.add_child(rule)
+	_kicker = UiKit.label(_column,"",Vector2.ZERO,Vector2(300,18),UiTokens.TEXT_XS,UiTokens.KICKER)
 	_kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	map_detail = UiKit.label(_column,"",Vector2.ZERO,Vector2(300,96),UiTokens.TEXT_M,WHITE)
 	_route = UiKit.label(_column,"",Vector2.ZERO,Vector2(300,40),UiTokens.TEXT_S,MUTED)
@@ -60,25 +64,26 @@ func build() -> void:
 	for cell: MinimapModel.Cell in _model.cells:
 		if cell.in_bounds and (cell.explored or cell.current): explored += 1
 	var level: VBoxContainer = _section()
-	var level_kicker: Label = UiKit.label(level,"LEVEL %d" % campaign.level,Vector2.ZERO,Vector2(300,18),UiTokens.TEXT_XS,GOLD)
+	var level_kicker: Label = UiKit.label(level,"LEVEL %d" % campaign.level,Vector2.ZERO,Vector2(300,18),UiTokens.TEXT_XS,UiTokens.KICKER)
 	level_kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	UiKit.label(level,"%d of %d nodes explored.\nThe layout re-rolls every life." % [explored,_model.grid_size()*_model.grid_size()],Vector2.ZERO,Vector2(300,40),UiTokens.TEXT_S,MUTED)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_column.add_child(spacer)
-	_hint = UiKit.label(_column,"",Vector2.ZERO,Vector2(300,40),UiTokens.TEXT_XS,MUTED)
+	# The controls, as the device's glyph chips (PromptHints follows the device in hand): one per line.
+	_hint = VBoxContainer.new()
+	_hint.name = "MapHints"
+	_hint.add_theme_constant_override("separation",UiTokens.SPACE_1)
+	_column.add_child(_hint)
+	for hint: Array in [["map_move","MOVE"],["map_pan","PAN"],["map_zoom","ZOOM"],["ui_cancel|map","CLOSE"]]:
+		_hint.add_child(PromptHints.new([hint]))
 	# What a short panel (UI scale 140%, a 16:9 window) drops first: the level note, the legend,
-	# then the control hint. The node detail and RETURN always stay.
+	# then the control hints. The title, the node detail and RETURN always stay.
 	_optional = [level,legend,_hint]
 	var back: Button = button(_column,"RETURN TO FLIGHT",Rect2(0,0,0,44),app._close_overlay)
 	back.custom_minimum_size.y = 44
 	_focus = view
-	InputPrompts.shared().device_changed.connect(_on_device_changed)
-	_update_hint()
 	_select_map_sector(campaign.current_sector)
-
-func exit() -> void:
-	if InputPrompts.shared().device_changed.is_connected(_on_device_changed): InputPrompts.shared().device_changed.disconnect(_on_device_changed)
 
 ## A block of the detail column, set a step apart from what is above it.
 func _section() -> VBoxContainer:
@@ -123,13 +128,8 @@ func relayout() -> void:
 	_column.size = room
 	var left: float = safe.position.x
 	var width: float = _panel.position.x-UiTokens.SPACE_5-left
-	_title.position = Vector2(left,safe.position.y)
-	_title.size = Vector2(width,_title.get_minimum_size().y)
-	_bearing.position = Vector2(left+2.0,_title.position.y+_title.size.y)
-	_bearing.size = Vector2(width-2.0,_bearing.get_minimum_size().y)
-	var top: float = _bearing.position.y+_bearing.size.y+UiTokens.SPACE_3
-	view.position = Vector2(left,top)
-	view.size = Vector2(width,safe.end.y-top)
+	view.position = Vector2(left,safe.position.y)
+	view.size = Vector2(width,safe.size.y)
 	view.refit()
 
 ## The height the detail column's visible parts need (the spacer's share excluded).
@@ -145,15 +145,6 @@ func _column_height() -> float:
 func _on_view_focus(coord: Vector2i, audible: bool) -> void:
 	_select_map_sector(coord)
 	if audible: UiScreen.ui_cue(app,"ui_move")
-
-func _on_device_changed(_device: String, _family: String) -> void:
-	_update_hint()
-
-func _update_hint() -> void:
-	if InputPrompts.shared().device == InputPrompts.PAD:
-		_hint.text = "D-PAD  move between nodes\nR-STICK  pan · LT / RT  zoom"
-	else:
-		_hint.text = "ARROWS  move between nodes · CLICK  select\nDRAG  pan · WHEEL  zoom"
 
 func _select_map_sector(coord: Vector2i) -> void:
 	map_selected = coord
@@ -185,7 +176,7 @@ static func sector_color(campaign: CampaignState, coord: Vector2i, known: bool) 
 	if coord == campaign.current_sector: return WHITE
 	if not known: return Color("242b36")
 	if coord == Vector2i.ZERO: return WHITE
-	return ShipCatalog.get_color(str(campaign.sector_at(coord).get("element","fire")))
+	return ElementStyle.color(str(campaign.sector_at(coord).get("element","fire")))
 
 ## The lattice itself: a clipped Control that draws the level in view space (strokes stay one
 ## pixel weight at every zoom). The static layer (field, rails, nodes) redraws only while the
@@ -571,7 +562,7 @@ class MapView extends Control:
 			"explored":
 				# One dot per element colour: an explored node wears its own.
 				for i: int in range(3):
-					var ink: Color = [VisualStyle.CORAL,VisualStyle.ACCENT,VisualStyle.VIOLET][i]
+					var ink: Color = ElementStyle.color(["fire","lightning","plasma"][i])
 					canvas.draw_circle(at+Vector2(7.0*(i-1),0.0),3.2,Color(ink,0.92),true,-1.0,true)
 			"unexplored":
 				canvas.draw_circle(at,r*0.6,CORE,true,-1.0,true)

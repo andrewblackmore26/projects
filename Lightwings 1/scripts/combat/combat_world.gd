@@ -97,7 +97,8 @@ var cleared_emitted: bool = false
 var contact_timer: float = 0.0
 var tick: int = 0
 ## Modernization M1: an integer sim clock in 1/720 s units, exact at 30/60/120/144 Hz (720 is their
-## common multiple). Advanced by roundi(dt * time_scale * 720) per simulated step, alongside `tick`,
+## common multiple). Advanced by dt * time_scale * 720 per simulated step (rounded, the remainder
+## carried: review fix 3), alongside `tick`,
 ## which still advances +1 per step exactly as before - `tick` drives ShipMotion and is in every
 ## snapshot, so deriving it from sim_q would have been a behaviour change at non-60 Hz steps
 ## (movement_feel_test steps at 1/30..1/144). Reset with `tick` in setup_player. Not in the snapshot
@@ -105,10 +106,23 @@ var tick: int = 0
 ## snapshot bump.
 const SIM_Q_PER_SECOND: int = 720
 var sim_q: int = 0
+## Review fix 3: the sub-quantum remainder of dt * 720 carried into the next step, so sim_q stays
+## exact over time under any scale (a bare roundi(4.2) per tick at 0.35 lost 5 % and let a float
+## timer run out before its sim_q deadline). `_step_q` is this step's quanta while a step runs
+## (-1 outside one); the dash, the warp press and the wave clock all advance by it, so every
+## sim_q-keyed countdown moves with sim_q itself. `sim_q_carry_disabled` is a test control only.
+var _sim_q_carry: float = 0.0
+var _step_q: int = -1
+var sim_q_carry_disabled: bool = false
 ## Time-scale broker (M1): reason -> requested scale. The LOWEST active request wins (a slow-motion
 ## and a pause-dilation together give the slower one); 1.0 when nothing is requested. Scales the dt
 ## the sim integrates with; never Engine.time_scale, which would also scale UI tweens and audio.
 var _time_scale_requests: Dictionary = {}
+## Review fix 5: TIMED requests (the big-kill slow motion, the death beat's): reason ->
+## [scale, total_q, left_q, ease_fraction]. Counted down here in UNSCALED physics-step quanta, so a
+## slow motion's length and ease-out depend only on the physics steps, never on the render rate
+## (they ran on `_process(delta)` before, which made the sim's trace frame-rate dependent).
+var _timed_scales: Dictionary = {}
 ## Hitstop (M1; M10 is the first caller): while above zero a physics step advances nothing but
 ## this countdown. Grants are capped at HITSTOP_CAP_TICKS per rolling HITSTOP_WINDOW_TICKS of `tick`
 ## so a burst of kills cannot freeze the game; `_hitstop_grants` holds [tick, ticks granted] pairs.
@@ -120,6 +134,16 @@ var _hitstop_grants: Array[Vector2i] = []
 var hitstop_cap_disabled: bool = false
 ## Instrumentation for the `_grant_invulnerability` choke point: grants counted per reason.
 var invulnerability_grants: Dictionary = {}
+## Review fix 3: a grant sized by a sim_q deadline (the warp's, to the end of ARRIVAL) protects while
+## sim_q < this, checked in `_damage_actor`; the float `player_invulnerable` only mirrors it for
+## readers. 0: none. `invulnerable_q_disabled` is a test control only.
+var invulnerable_until_q: int = 0
+var invulnerable_q_disabled: bool = false
+## Review fix 6: true once a physics step has read `command` (`_update_player`). Until then a new
+## command ORs the old one's press edges in, so a press made during hitstop is not overwritten.
+## `command_latch_disabled` is a test control only.
+var _command_consumed: bool = true
+var command_latch_disabled: bool = false
 var benchmark_mode: bool = false
 var benchmark_target: int = 0
 var benchmark_stats: Dictionary = {}
@@ -200,6 +224,30 @@ var warp_reduced: bool = false
 ## Modernization M3 (whole-rim exits): input.outward a rim press needs to engage (raised from 0.2
 ## against accidental exits). A var only so tests/warp_test.gd can build its 0.2 control.
 var warp_engage_dot: float = 0.5
+## Modernization M18: a press engages only this close to the rim - touching the membrane (the ship
+## is clamped 3 px inside it), not anywhere in the 60 px zone as M3-M17 had it. Measured with the
+## acceptance fighter (a novice that steers off the rim once inside 60 px, 15-tick reaction), 10
+## seeds x interior/edge/corner x 120 s: the 60 px zone gave a median 0.50 accidental warps a minute
+## and up to 5 in one 60 s window; engaging on contact, 0 and 0. The plan's first fallback, a
+## lateral-velocity condition (no press while sliding faster along the rim than into it), measured
+## 0.50 and 4, and blocking a press while aiming back into the node measured 0 and 2. A var only so
+## the acceptance bot can build its 60 px control.
+var warp_engage_band: float = 8.0
+## M18: the player's flight velocity over its last free tick (displacement / dt, before any rim
+## clamp). A press now starts at the membrane, often in a dash's steep decay, where the end-of-tick
+## velocity had fallen to 0.935 of the speed the ship actually hit the rim at; the approach the
+## warp carries is this one. Not saved: a restore falls back to `player.vel` for one press.
+var _player_flight_vel: Vector2 = Vector2.ZERO
+## The rim zone: the arrival re-arm latch (below) lets go once the ship is this far inside the rim.
+const WARP_REARM_ZONE: float = 60.0
+## Modernization M18 re-arm latch: set on arrival; while set, no press can start. Without it the
+## input that carried the ship in, still held, warped it straight back out: at an edge node the
+## out-of-bounds arc folds into a neighbour, the arrival lands 44 px inside a rim point where that
+## input is still > 0.5 outward, and holding east at (6,0) bounced between (6,0) and (6,1) 8 times
+## in 6 s. Cleared once the input stops pointing out past `warp_engage_dot` or the ship leaves the
+## rim zone. `warp_rearm_enabled` is a seam for tests/warp_rearm_test.gd's control only.
+var warp_rearm: bool = false
+var warp_rearm_enabled: bool = true
 ## The velocity VECTOR when the press began, before the push's own slowdown: the arrival gives it
 ## back (through `arena.entry_velocity`), so the 40 % press never becomes the arrival speed.
 var warp_approach: Vector2 = Vector2.ZERO
@@ -319,6 +367,7 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  # tick the PREVIOUS life left behind. Reset it alongside `elapsed` here.
  tick=0
  sim_q=0
+ _reset_sim_q_state()
  hitstop_remaining=0
  _hitstop_grants.clear()
  run_kills=0
@@ -327,6 +376,22 @@ func setup_player(element: String, tier: int, energy: float, _stolen: Array, pos
  combo_timer=0.0
  _combo_drain_accum=0.0
  light_bank=0.0
+## Review fix 2: everything keyed to sim_q goes when sim_q is reset (a new life). Without it a death
+## in ARRIVAL or PUSH left the phase and the old life's deadline behind, and the next life could not
+## warp until its own sim_q caught up with the old one (up to the old life's whole length).
+func _reset_sim_q_state() -> void:
+ _sim_q_carry=0.0
+ _warp_finish()
+ warp_filling=false
+ warp_rearm=false
+ warp_commit_q=0
+ warp_phase_start_q=0
+ warp_deadline_q=0
+ warp_end_q=0
+ warp_release_q=-1000000
+ warp_release_depth=0.0
+ invulnerable_until_q=0
+ _wave_arrival_hold=false
 func set_player_hull(id: String, animate: bool = false) -> bool:
  var definition: ShipDefinition=ShipCatalog.get_ship(id)
  if definition==null or not definition.is_player: return false
@@ -363,9 +428,17 @@ func set_player_hull(id: String, animate: bool = false) -> bool:
 ## reach the player while invulnerable, decay is suppressed during the reshape and the warp lock,
 ## and the reshape grant set_player_hull makes just before is 0.8 s. The one exception is the
 ## benchmark's 1e6 s, which the max now keeps instead of cutting to 1.8 s.
-func _grant_invulnerability(seconds: float, reason: StringName) -> void:
+##
+## Review fix 3: a grant with a sim_q deadline (`until_q`, the warp's) also protects until that
+## deadline, checked against sim_q in `_damage_actor`, so the float's per-step decay can never end
+## it early under slow motion.
+func _grant_invulnerability(seconds: float, reason: StringName, until_q: int = -1) -> void:
  invulnerability_grants[reason]=int(invulnerability_grants.get(reason,0))+1
  player_invulnerable=maxf(player_invulnerable,seconds)
+ if until_q>=0: invulnerable_until_q=maxi(invulnerable_until_q,until_q)
+## True while damage cannot reach the player: the float grant, or a sim_q deadline grant.
+func player_protected() -> bool:
+ return player_invulnerable>0.0 or (sim_q<invulnerable_until_q and not invulnerable_q_disabled)
 func evolve_hull(id: String) -> bool:
  var definition: ShipDefinition=ShipCatalog.get_ship(id)
  if definition==null or definition.tier!=player_tier+1 or light_total<GameTuning.capacity(player_tier,max_player_tier) or player_tier>=max_player_tier: return false
@@ -397,7 +470,26 @@ func evolve_player(element: String, tier: int, _stolen: Array) -> void:
  set_player_hull(id,true)
  while hull_history.size()<tier: hull_history.append("player_%s_t%d_standard_a" % [element,hull_history.size()+1])
  hull_history[tier-1]=id
-func set_command(value: ShipCommand) -> void: command=value
+## Review fix 6: main.gd sends a fresh command every physics frame, with the abilities as
+## just-pressed edges. A hitstop tick returns before `_update_player`, so a press made on one was
+## overwritten next frame and lost. Until a step has read the pending command, the new one keeps
+## its press edges (and the dash), ORed in; a copy, so the caller's object is never written.
+func set_command(value: ShipCommand) -> void:
+ if not _command_consumed and not command_latch_disabled and value!=command and command!=null:
+  var merged: ShipCommand=ShipCommand.new()
+  merged.movement=value.movement
+  merged.aim=value.aim
+  merged.fire=value.fire
+  merged.secondary_held=value.secondary_held
+  merged.ability_primary=value.ability_primary or command.ability_primary
+  merged.ability_secondary=value.ability_secondary or command.ability_secondary
+  merged.dash=value.dash or command.dash
+  var slots: int=maxi(value.secondaries.size(),command.secondaries.size())
+  merged.secondaries.resize(slots)
+  for index: int in range(slots): merged.secondaries[index]=(index<value.secondaries.size() and value.secondaries[index]) or (index<command.secondaries.size() and command.secondaries[index])
+  value=merged
+ command=value
+ _command_consumed=false
 func collect_light(raw_amount: float, element: String) -> float:
  if raw_amount<=0.0 or not active: return 0.0
  var multiplier: float=1.25 if _has_ability(player,"siphon") else 1.0
@@ -709,6 +801,7 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
   _flush_debris() # so a mid-fade limb's light lands in the cached encounter, not nowhere
   CombatPersistence.cache_encounter(self,_sector_key(sector),CombatPersistence.encounter_snapshot(self,false))
  _clear_encounter()
+ release_timed_time_scales() # review fix 5: a big kill's slow motion ends with its encounter
  sector=description.duplicate(true)
  _rng.seed=int(sector.get("encounter_seed",734927))
  _configure_arena_exits()
@@ -721,6 +814,9 @@ func start_sector(description: Dictionary, fresh: bool = true) -> void:
  var key: String=_sector_key(sector)
  if encounter_records.has(key) or sector_cache.has(key):
   CombatPersistence.restore_encounter(self,CombatPersistence.read_cached_encounter(self,key))
+  # Review fix 10: the cached hold is whatever it was when the node was left; a swap made at a
+  # warp commit must hold the wave clock until the arrival, like a fresh node's `_begin_waves`.
+  _wave_arrival_hold=warp_locked()
   return
  var kind: String=str(sector.get("kind","regular"))
  # M13: a descriptor with a wave plan (every campaign node) spawns through the queue; a hand-built
@@ -782,18 +878,50 @@ func _update_feel_states() -> void:
 ## Time-scale broker (M1). A request is keyed by reason, so re-requesting replaces and releasing
 ## removes only that reason's request.
 func request_time_scale(reason: StringName, scale: float) -> void:
+ _timed_scales.erase(reason) # an open-ended request replaces a timed one of the same reason
  _time_scale_requests[reason]=maxf(0.0,scale)
 func release_time_scale(reason: StringName) -> void:
+ _timed_scales.erase(reason)
  _time_scale_requests.erase(reason)
 func time_scale() -> float:
  var lowest: float=1.0
  for reason: StringName in _time_scale_requests: lowest=minf(lowest,float(_time_scale_requests[reason]))
  return lowest
+## Review fix 5: a request that ends by itself after `seconds` of physics steps (unscaled, so the
+## slow motion does not stretch itself), its last `ease_fraction` easing back to 1 (quadratic).
+## Re-requesting the same reason while one runs keeps the lower scale and the longer time.
+func request_timed_time_scale(reason: StringName, scale: float, seconds: float, ease_fraction: float = 0.0) -> void:
+ var total: int=maxi(1,_q(seconds))
+ if _timed_scales.has(reason):
+  var running: Array=_timed_scales[reason]
+  scale=minf(scale,float(running[0]))
+  total=maxi(total,int(running[2]))
+ _timed_scales[reason]=[maxf(0.0,scale),total,total,clampf(ease_fraction,0.0,1.0)]
+ _time_scale_requests[reason]=maxf(0.0,scale)
+## Real seconds left on a timed request (0 when none).
+func timed_scale_remaining(reason: StringName) -> float:
+ return float(_timed_scales[reason][2])/SIM_Q_PER_SECOND if _timed_scales.has(reason) else 0.0
+## Every timed request ends with its encounter (a sector change), like the render-side timer did.
+func release_timed_time_scales() -> void:
+ for reason: StringName in _timed_scales.keys(): release_time_scale(reason)
+func _step_timed_scales(step_q: int) -> void:
+ for reason: StringName in _timed_scales.keys():
+  var entry: Array=_timed_scales[reason]
+  entry[2]=int(entry[2])-step_q
+  if int(entry[2])<=0:
+   release_time_scale(reason)
+   continue
+  var left: float=float(entry[2])/float(maxi(1,int(entry[1])))
+  var back: float=1.0-clampf(left/maxf(0.001,float(entry[3])),0.0,1.0) if float(entry[3])>0.0 else 0.0
+  _time_scale_requests[reason]=lerpf(float(entry[0]),1.0,back*back)
 ## Hitstop (M1): freeze the sim for `ticks` physics steps, extending (never shortening) a hitstop
 ## already running. The part of an extension that would push the ticks granted in the last
 ## HITSTOP_WINDOW_TICKS over HITSTOP_CAP_TICKS is clipped. Returns the ticks actually added.
-func request_hitstop(ticks: int, _reason: StringName) -> int:
- var wanted: int=maxi(0,maxi(hitstop_remaining,ticks)-hitstop_remaining)
+## `add` (review fix 9: the death beat) adds `ticks` on top of the hitstop running instead of
+## extending to it, still under the cap: the killing hit's own 4 had already covered a 3-tick
+## "extend", so the beat's request added nothing.
+func request_hitstop(ticks: int, _reason: StringName, add: bool = false) -> int:
+ var wanted: int=maxi(0,ticks) if add else maxi(0,maxi(hitstop_remaining,ticks)-hitstop_remaining)
  var granted_recently: int=0
  for index: int in range(_hitstop_grants.size()-1,-1,-1):
   if tick-_hitstop_grants[index].x>=HITSTOP_WINDOW_TICKS: _hitstop_grants.remove_at(index)
@@ -805,13 +933,18 @@ func request_hitstop(ticks: int, _reason: StringName) -> int:
  return added
 func _physics_process(delta: float) -> void:
  if not active or player.is_empty(): return
+ # Timed slow motions run on unscaled physics steps, hitstop ticks included (time passes in a freeze).
+ if not _timed_scales.is_empty(): _step_timed_scales(roundi(minf(delta,0.05)*SIM_Q_PER_SECOND))
  if hitstop_remaining>0:
   hitstop_remaining-=1
   return
  tick+=1
  var began: int=Time.get_ticks_usec()
  var dt: float=minf(delta,0.05)*time_scale()
- sim_q+=roundi(dt*SIM_Q_PER_SECOND)
+ var exact_q: float=dt*SIM_Q_PER_SECOND+(0.0 if sim_q_carry_disabled else _sim_q_carry)
+ _step_q=roundi(exact_q)
+ _sim_q_carry=exact_q-float(_step_q)
+ sim_q+=_step_q
  _last_dt=dt
  # `motion` had no section until S0: it ran before the first section_start, so the cost every
  # rail-grammar hull will add was invisible to the benchmark.
@@ -899,14 +1032,20 @@ func _physics_process(delta: float) -> void:
  # the sim budget and regressed it to mean 11.7/p95 16.9, a real, avoidable
  # cost that has nothing to do with simulating a tick.
  simulation_ms=(Time.get_ticks_usec()-began)/1000.0
+ _step_q=-1
  if profile_sections:
   section_ms.upload=(Time.get_ticks_usec()-section_start)/1000.0
   section_ms.total=simulation_ms
+## This step's sim_q quanta (review fix 3). Outside a physics step (a test driving `_update_player`
+## alone) it is dt's own rounding.
+func _quanta(dt: float) -> int:
+ return _step_q if _step_q>=0 else roundi(dt*SIM_Q_PER_SECOND)
 ## M12: ScreenRouter holds these while the evolution cards are open in slow motion: the player
 ## still moves, but fires nothing (the mouse is picking a card) and cannot engage a warp.
 var fire_suppressed: bool = false
 var warp_engage_blocked: bool = false
 func _update_player(dt: float) -> void:
+ _command_consumed=true # review fix 6: this step has read the command
  if bool(player.get("dead",false)): return # M12 death beat: the world runs on without its dead player
  _tick_cooldowns(player,dt)
  _update_warp(dt) # phase machine first: settles warp_phase/warp_direction/position for this tick
@@ -937,6 +1076,7 @@ func _update_player(dt: float) -> void:
   vel=stepped[0]
   moved+=stepped[1]
  player.vel=vel
+ _player_flight_vel=moved/dt if dt>0.0 else vel
  var desired: Vector2=Vector2(player.pos)+moved
  # While pushing into a membrane (spec §12: "the rim arc deforms outward at
  # the contact point"), the rim is soft, not a wall - skip the sealed-wall
@@ -1017,7 +1157,9 @@ func _movement_step(vel: Vector2, target: Vector2, dt: float, taus: Dictionary, 
 ## not a flag it clears; `tests/handling_test.gd` proves a bullet on the
 ## core mid-dash still damages, with a forced-invulnerable negative control.
 func _update_dash(dt: float, input_dir: Vector2) -> float:
- var step_q: int=maxi(1,roundi(dt*SIM_Q_PER_SECOND))
+ # Review fix 3/11: the step's own quanta (0 on a near-frozen step, which then advances nothing;
+ # the old maxi(1, ...) floor ran the burst and cooldown a quantum per tick at scale ~0).
+ var step_q: int=_quanta(dt)
  player.dash_cooldown_q=maxi(0,int(player.get("dash_cooldown_q",0))-step_q)
  var burst: int=int(player.get("dash_burst_q",0))
  if burst<=0 and bool(command.dash) and int(player.dash_cooldown_q)<=0:
@@ -1031,6 +1173,7 @@ func _update_dash(dt: float, input_dir: Vector2) -> float:
   _trail_kink(0)
   feel_event.emit(&"dash",player.pos,1.0,0)
  if burst<=0: return 0.0
+ if step_q<=0: return dt # mid-burst on a step too short to count: the burst owns it, unspent
  var used: int=mini(burst,step_q)
  player.dash_burst_q=burst-used
  return dt*float(used)/float(step_q)
@@ -1058,6 +1201,7 @@ func _warp_inbound_position() -> Vector2:
 ## Called once per tick from `_update_player`, before the locked check, so the phase is settled
 ## before the rest of the tick reads it. Owns every phase transition; every one is a sim_q deadline.
 func _update_warp(dt: float) -> void:
+ if not warp_locked(): _update_warp_rearm()
  if warp_phase==WARP_NONE or warp_phase==WARP_PUSH:
   _update_warp_push(dt)
   return
@@ -1115,6 +1259,7 @@ func _warp_arrive() -> void:
  warp_phase_start_q=warp_deadline_q
  warp_deadline_q=warp_end_q
  warp_progress=0.0
+ warp_rearm=warp_rearm_enabled
  feel_event.emit(&"warp_arrive",player.pos,1.0,0)
  warp_arrived.emit()
 ## Push accumulation while the player presses into the rim (spec §7 Push:
@@ -1131,14 +1276,14 @@ func _warp_arrive() -> void:
 ## tick, before the push's slowdown touches it. Each filling tick emits `warp_strain` (magnitude =
 ## depth); the first draining tick emits `warp_release` (the strain cue stops, the rim wobbles).
 func _update_warp_push(dt: float) -> void:
- var dir: Vector2i=_warp_engage_direction()
- var step_q: int=maxi(1,roundi(dt*SIM_Q_PER_SECOND))
+ var dir: Vector2i=_warp_engage_direction(dt)
+ var step_q: int=_quanta(dt) # review fix 3/11: sim_q's own step, 0 on a near-frozen one
  var push_total: int=_warp_q("warp.push_s")
  if warp_phase==WARP_NONE:
   if dir==Vector2i.ZERO: return
   warp_phase=WARP_PUSH
   warp_push_q=0
-  warp_approach=Vector2(player.vel)
+  warp_approach=_player_flight_vel if _player_flight_vel.length_squared()>0.0 else Vector2(player.vel)
  if dir!=Vector2i.ZERO:
   warp_direction=dir
   warp_contact_angle=(Vector2(player.pos)-arena.center).angle()
@@ -1162,14 +1307,27 @@ func _warp_released(depth: float) -> void:
  warp_release_q=sim_q
  warp_release_depth=depth
  feel_event.emit(&"warp_release",player.pos,depth,0)
-func _warp_engage_direction() -> Vector2i:
+## M18: "touching" includes reaching the membrane within this tick, so a ship flying in engages on
+## the tick BEFORE the rim would clip its outward speed, and the approach it carries through the
+## warp is its flight speed, not what is left after hitting the wall.
+func _warp_engage_direction(dt: float = 0.0) -> Vector2i:
  var pos: Vector2=Vector2(player.pos)
  var offset: Vector2=pos-arena.center
  var dist: float=offset.length()
- if warp_engage_blocked or dist<arena.radius-60.0 or dist<=0.001: return Vector2i.ZERO
+ if dist<=0.001: return Vector2i.ZERO
  var outward: Vector2=offset/dist
+ var reach: float=dist+maxf(0.0,Vector2(player.vel).dot(outward))*dt
+ if warp_rearm or warp_engage_blocked or reach<arena.radius-warp_engage_band: return Vector2i.ZERO
  if command.movement.limit_length(1.0).dot(outward)<warp_engage_dot: return Vector2i.ZERO
  return arena.arc_of(offset.angle())
+## M18: the re-arm latch (`warp_rearm`) lets go once the input stops pressing out past
+## `warp_engage_dot`, or once the ship is out of the rim zone. Checked every unlocked tick,
+## ARRIVAL included, so a release during ARRIVAL already re-arms.
+func _update_warp_rearm() -> void:
+ if not warp_rearm: return
+ var offset: Vector2=Vector2(player.pos)-arena.center
+ var dist: float=offset.length()
+ if dist<arena.radius-WARP_REARM_ZONE or dist<=0.001 or command.movement.limit_length(1.0).dot(offset/dist)<warp_engage_dot: warp_rearm=false
 ## Commit (spec §7 Break): control locks, every deadline is set from this tick's sim_q, the player
 ## is invulnerable from here to the end of ARRIVAL (one grant through the choke point, sized to that
 ## deadline), and every enemy projectile in the old node is discarded. The heading BREAK and TRAVEL
@@ -1192,7 +1350,7 @@ func _warp_commit() -> void:
  var heading: Vector2=arena.entry_velocity(warp_direction,warp_approach).normalized()
  warp_heading=heading if heading.length_squared()>0.5 else Vector2(warp_direction).normalized()
  player.vel=warp_heading*_warp_speed()
- _grant_invulnerability(float(warp_end_q-sim_q)/SIM_Q_PER_SECOND,&"warp")
+ _grant_invulnerability(float(warp_end_q-sim_q)/SIM_Q_PER_SECOND,&"warp",warp_end_q)
  _discard_enemy_projectiles()
  feel_event.emit(&"warp_snap",player.pos,1.0,0)
  var kept_trail: Variant=trail_pool.trails.get(0)
@@ -1220,6 +1378,7 @@ func _warp_spring_back() -> void:
  player.pos=arena.clamp_point(Vector2(player.pos),3.0)
  player.vel=Vector2.ZERO
  player_invulnerable=0.0
+ invulnerable_until_q=0
  _warp_finish()
  _warp_released(1.0)
 func _warp_finish() -> void:
@@ -1922,7 +2081,7 @@ func _update_waves(dt: float) -> void:
  if _wave_arrival_hold:
   if warp_phase!=WARP_NONE: return
   _wave_arrival_hold=false # the warp finished or sprang back without an arrival signal
- encounter_q+=_q(dt)
+ encounter_q+=_quanta(dt) # exactly sim_q's step (review fix 3)
  _advance_waves()
  _update_respawns()
  _queue_pending(GameTuning.SPAWN_TELEGRAPH_SECONDS,player.pos)
@@ -2437,7 +2596,7 @@ func _maybe_collar(at: Vector2, amount: float) -> void:
 func _damage_actor(actor: Dictionary, amount: float, source_id: int, source_faction: int = -999) -> void:
  if amount<=0.0 or bool(actor.dead) or float(actor.invulnerable)>0.0: return
  if int(actor.id)==0:
-  if player_invulnerable>0.0: return
+  if player_protected(): return
   light_total=maxf(0.0,light_total-amount/maxf(0.1,float(actor.hp_buffer)))
   actor.hp=light_total
   feel_event.emit(&"player_hit",actor.pos,amount,0)
@@ -2491,6 +2650,7 @@ func _check_regression() -> void:
  if surviving<previous:
   var id: String=hull_history[surviving-1] if hull_history.size()>=surviving else "player_seed"
   set_player_hull(id,true)
+  light_bank=minf(light_bank,light_bank_cap()) # review fix 11: the lower tier's cap holds at once
   _grant_invulnerability(GameTuning.RESHAPE_SECONDS+GameTuning.REGRESSION_GRACE,&"regression")
   player_regressed.emit(previous,surviving)
   feel_event.emit(&"regression",player.pos,float(previous-surviving),0)

@@ -48,16 +48,22 @@ const DEFAULT_POLICY: Dictionary = {"kind": "", "pauses": true, "escape_closes":
 ## M12: the evolution cards' sim scale, and the share of colour the world keeps behind them (~40%).
 const EVOLUTION_DILATION: float = 0.25
 const EVOLUTION_DESATURATE: float = 0.6
+## Options and the modal dialogs: darker than UiTokens.SCRIM_DIM (0.8, linear light). Captured at
+## 1920x1080 over the title: 0.8 left LIGHTSHIP legible behind Options' tabs, 0.92 still faintly;
+## 0.92 with Options' solid tab strip hides it while the dialogs keep a readable blur of the scene.
+const MODAL_DIM: float = 0.92
 const POLICY: Dictionary = {
 	"evolution": {"pauses": false, "escape_closes": true, "backdrop": "dim", "dim": 0.35, "desaturate": EVOLUTION_DESATURATE, "dilation": EVOLUTION_DILATION, "holds_fire": true, "holds_warp": true, "blocks_hud": false},
 	"map": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur", "layout": "fill"},
 	"pause": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur"},
-	"options": {"pauses": true, "escape_closes": true, "returns": true, "backdrop": "dim_blur"},
+	# M19 review: Options and the dialogs dim to MODAL_DIM, so the title's wordmark cannot read
+	# through the tab strip; the dialogs share Options' blurred backdrop.
+	"options": {"pauses": true, "escape_closes": true, "returns": true, "backdrop": "dim_blur", "dim": MODAL_DIM},
 	"death": {"pauses": false, "escape_closes": false, "backdrop": "none", "sound": "play", "blocks_hud": false},
 	"ending": {"pauses": true, "escape_closes": false},
 	"level_complete": {"kind": "ending", "pauses": true, "escape_closes": false},
-	"cloud": {"pauses": true, "escape_closes": true},
-	"confirm": {"pauses": true, "escape_closes": true},
+	"cloud": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur", "dim": MODAL_DIM},
+	"confirm": {"pauses": true, "escape_closes": true, "backdrop": "dim_blur", "dim": MODAL_DIM},
 	"level_select": {"kind": "confirm", "pauses": true, "escape_closes": true},
 }
 const SCREENS: Dictionary = {
@@ -172,6 +178,14 @@ func _apply_run_holds(current: Dictionary) -> void:
 	if director != null and director.get("post") != null:
 		director.post.focus_desaturation = float(current.desaturate) if playing else 0.0
 
+## M19 review: a screen that `blocks_hud` (Pause, Options, Map, the endings) hides the HUD under its
+## blurred backdrop, so no light bar or minimap smears through behind its title. `open` false (the
+## stack closed) shows it again in play; outside play the HUD is main.gd's to show or hide.
+func _cover_hud(current: Dictionary, open: bool) -> void:
+	var hud: Variant = app.get("hud")
+	if not hud is Control or app.mode != "play": return
+	(hud as Control).visible = not (open and bool(current.blocks_hud))
+
 func close_all() -> void:
 	for entry: Dictionary in stack: _exit(entry)
 	stack.clear()
@@ -184,6 +198,7 @@ func close_all() -> void:
 		app.run_controller.release_time_scale(DILATION_REASON)
 		_dilated = false
 	_apply_run_holds(DEFAULT_POLICY)
+	_cover_hud(DEFAULT_POLICY, false)
 	if app.sound != null: app.sound.set_context("play" if app.mode == "play" else "menu")
 	if is_instance_valid(app.combat): app.combat.set_command(ShipCommand.new())
 
@@ -225,6 +240,7 @@ func _build(entry: Dictionary) -> UiScreen:
 		app.run_controller.release_time_scale(DILATION_REASON)
 		_dilated = false
 	_apply_run_holds(current)
+	_cover_hud(current, true)
 	app.sound.set_context(str(current.sound) if app.mode == "play" else "menu")
 	app.dialogue.visible = false
 	var screen: UiScreen = SCREENS[id].new()

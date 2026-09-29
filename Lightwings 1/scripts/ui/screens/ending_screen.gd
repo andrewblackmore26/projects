@@ -7,7 +7,7 @@ extends UiScreen
 
 func build() -> void:
 	var is_demo: bool = bool(args.is_demo)
-	var kicker: Label = centered_label(host, "DEMO COMPLETE" if is_demo else "CAMPAIGN COMPLETE", Vector2(240, 86), Vector2(800, 20), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = centered_label(host, "DEMO COMPLETE" if is_demo else "CAMPAIGN COMPLETE", Vector2(240, 86), Vector2(800, 20), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	centered_label(host, "A SMALL LIGHT, AN OPEN WORLD" if is_demo else "YOU ARE MORE THAN YOUR ORIGIN", Vector2(100, 108), Vector2(1080, 56), UiTokens.TEXT_2XL, WHITE)
 	var text: String = "Lightning and Fire have both yielded. The demo ends here. Keep exploring, try another form, or carry this progress into the full campaign." if is_demo else "Five level bosses have yielded. Their signals are yours. You did not become a single perfect machine. You became the sum of what you chose to absorb."
@@ -20,6 +20,4 @@ func build() -> void:
 	_focus.theme_type_variation = UiTokens.PRIMARY_BUTTON
 	var menu: Button = button(host, "SAVE & MAIN MENU", Rect2(490, 612, 300, 44), func() -> void: app._save_game(); app._show_menu())
 	FocusChain.rows([[_focus], [menu]])
-	var hints := PromptHints.new([["ui_accept", "CONTINUE"], ["navigate", "MOVE"]])
-	hints.position = Vector2(64, 712)
-	host.add_child(hints)
+	LevelCompleteScreen.footer_hints(host, PromptHints.new([["ui_accept", "CONTINUE"], ["navigate", "MOVE"]]))

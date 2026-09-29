@@ -87,12 +87,29 @@ func _init() -> void:
 	caption.add_theme_color_override("font_color", UiTokens.INK_MUTED)
 	visible = false
 
+## M19 review: a bar is smoked glass, not black on the black void: the scrim at 94 %, and over it a
+## tint that deepens from the screen edge to the inner edge, where it takes on the rival's colour
+## (`present` sets it), then the hairline. It still darkens its band to < 15 % of a mid-grey.
 func _bar(preset: Control.LayoutPreset) -> ColorRect:
 	var result := ColorRect.new()
-	result.color = Color(0.0, 0.0, 0.0, 0.94)
+	result.color = Color(UiTokens.SCRIM, 0.94)
 	result.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	result.set_anchors_and_offsets_preset(preset)
 	root.add_child(result)
+	var tint := TextureRect.new()
+	tint.name = "Tint"
+	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tint.stretch_mode = TextureRect.STRETCH_SCALE
+	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var texture := GradientTexture2D.new()
+	texture.width = 4
+	texture.height = 64
+	texture.fill_from = Vector2(0.0, 0.0) if preset == Control.PRESET_TOP_WIDE else Vector2(0.0, 1.0)
+	texture.fill_to = Vector2(0.0, 1.0) if preset == Control.PRESET_TOP_WIDE else Vector2(0.0, 0.0)
+	texture.gradient = Gradient.new()
+	tint.texture = texture
+	result.add_child(tint)
 	# A hairline in the rival's colour on the inner edge, so the bars read over the near-black void.
 	var edge := ColorRect.new()
 	edge.name = "Edge"
@@ -122,6 +139,10 @@ func present(title: String, top_line: String, bottom_line: String, color: Color)
 	name_label.add_theme_color_override("font_color", UiTokens.INK)
 	bar_fill.color = color
 	for edge: ColorRect in [top_bar.get_node("Edge"), bottom_bar.get_node("Edge")]: edge.color = Color(color, 0.55)
+	for bar: ColorRect in [top_bar, bottom_bar]:
+		var gradient: Gradient = ((bar.get_node("Tint") as TextureRect).texture as GradientTexture2D).gradient
+		gradient.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+		gradient.colors = PackedColorArray([Color(UiTokens.GLASS_RAISED, 0.0), Color(UiTokens.GLASS_RAISED, 0.55), Color(color.lerp(UiTokens.GLASS_RAISED, 0.55), 0.5)])
 	rule.color = Color(color.lightened(0.5), 0.9)
 	elapsed = 0.0
 	shown_count += 1

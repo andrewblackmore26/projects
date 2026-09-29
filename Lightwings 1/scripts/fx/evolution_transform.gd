@@ -72,7 +72,7 @@ func _slam_card(ui: Control, definition: ShipDefinition) -> void:
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	kicker.autowrap_mode = TextServer.AUTOWRAP_OFF
-	var title: Label = UiKit.label(card, title_for(definition), Vector2(0, 24), Vector2(ui.size.x, 56), UiTokens.TEXT_2XL, ShipCatalog.get_color(definition.element))
+	var title: Label = UiKit.label(card, title_for(definition), Vector2(0, 24), Vector2(ui.size.x, 56), UiTokens.TEXT_2XL, ElementStyle.color(definition.element))
 	title.theme_type_variation = UiTokens.DISPLAY_LABEL
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF

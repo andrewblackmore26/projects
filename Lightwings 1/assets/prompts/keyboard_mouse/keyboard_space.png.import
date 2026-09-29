@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bje5xeabqohx3"
-path="res://.godot/imported/keyboard_space_icon.png-56fefae7bfdc3253524624eda94e3a1a.ctex"
+uid="uid://d0y6m81r053ty"
+path="res://.godot/imported/keyboard_space.png-be1e3730be9d501c9eca73fa9dcf6aa4.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prompts/keyboard_mouse/keyboard_space_icon.png"
-dest_files=["res://.godot/imported/keyboard_space_icon.png-56fefae7bfdc3253524624eda94e3a1a.ctex"]
+source_file="res://assets/prompts/keyboard_mouse/keyboard_space.png"
+dest_files=["res://.godot/imported/keyboard_space.png-be1e3730be9d501c9eca73fa9dcf6aa4.ctex"]
 
 [params]
 

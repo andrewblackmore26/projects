@@ -5,8 +5,9 @@ extends SceneTree
 ##   on the ship's core stays >= 60 % of the same patch with no cards up;
 ## - GHOST: focusing a card draws its hull over the ship: the light in a ring around the ship
 ##   (outside the ship's own hull, inside the offer's reach) rises when the ghost is up.
-## Controls: the pre-M19 centred row (EvolutionScreen.avoid_ship off) puts an opaque card over the
-## core (CORRIDOR); the ghost at alpha 0 (GHOST).
+## Controls: no framing (EvolutionScreen.avoid_ship off) leaves an opaque card over the core
+## (CORRIDOR); the ghost at alpha 0 (GHOST). M19 review: the camera frames the ship above the row,
+## so "open" is measured at the ship's framed position and zoom (the patch no longer stays put).
 ## Captures for a human look: artifacts/evolution_cards_corridor.png (ghost up) and
 ## artifacts/evolution_cards_centred_row.png (the control). The runner fails on any SHADER ERROR.
 
@@ -44,8 +45,12 @@ func _run() -> void:
 	var ghosted: Image = _capture()
 	var card_scale: float = (screen._cards[0].card as Control).scale.x
 	var ghost: HullGhost = screen._ghost
-	var reach: float = ShipPreview.animated_radius(ShipCatalog.get_ship(str(screen._cards[1].id)))
-	var own: float = ShipPreview.animated_radius(combat.player.definition)
+	# M19 review: the camera frames the ship above the row, so the ship is measured where it is now
+	# (and at the framing's zoom), not where it stood before the cards opened.
+	var framed: Vector2 = _ship_px()
+	var zoom: float = app.compositor.zoom
+	var reach: float = ShipPreview.animated_radius(ShipCatalog.get_ship(str(screen._cards[1].id))) * zoom
+	var own: float = ShipPreview.animated_radius(combat.player.definition) * zoom
 	if is_instance_valid(ghost) and ghost._fade != null: ghost._fade.kill()
 	if is_instance_valid(ghost): ghost.modulate.a = 0.0
 	await _settle(0.1)
@@ -58,19 +63,21 @@ func _run() -> void:
 	app.screen_router.relayout()
 	await _settle(0.2)
 	var centred: Image = _capture()
+	var unframed: Vector2 = _ship_px()
 	EvolutionScreen.avoid_ship = true
 	var core_bare: float = _lum(bare, ship, 3.0)
-	var core_open: float = _lum(ghosted, ship, 3.0)
-	var core_centred: float = _lum(centred, ship, 3.0)
+	var core_open: float = _lum(ghosted, framed, 3.0)
+	var core_centred: float = _lum(centred, unframed, 3.0)
 	var ring_inner: float = minf(own * 0.5, reach * 0.4)
-	var ring_ghost: float = _ring(ghosted, ship, ring_inner, reach)
-	var ring_none: float = _ring(unghosted, ship, ring_inner, reach)
-	var ring_reference: float = _ring(reference, ship, ring_inner, reach)
+	var ring_ghost: float = _ring(ghosted, framed, ring_inner, reach)
+	var ring_none: float = _ring(unghosted, framed, ring_inner, reach)
+	var ring_reference: float = _ring(reference, framed, ring_inner, reach)
 	var ring_base: float = _ring(bare, ship, ring_inner, reach)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://artifacts"))
 	ghosted.save_png("res://artifacts/evolution_cards_corridor.png")
 	unghosted.save_png("res://artifacts/evolution_cards_no_ghost.png")
 	centred.save_png("res://artifacts/evolution_cards_centred_row.png")
+	print("measure: ship at %s px, framed at %s (zoom %.3f), unframed %s" % [ship, framed, zoom, unframed])
 	print("measure: ship at %s px; core luma no cards %.4f, corridor %.4f, centred row %.4f; ring %.0f-%.0f px luma ghost %.5f, ghost at alpha 0 %.5f, ghost hidden %.5f, no cards %.5f; card scale %.3f" % [ship, core_bare, core_open, core_centred, ring_inner, reach, ring_ghost, ring_none, ring_reference, ring_base, card_scale])
 	t.check(bare.get_size() == root.size, "the capture is the full root.size (%s)" % bare.get_size())
 	t.check(core_bare > 0.05, "the ship's core is lit with no cards up (%.4f)" % core_bare)

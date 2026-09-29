@@ -17,13 +17,14 @@ extends RefCounted
 
 const WIDTH: float = 560.0
 const MIN_HEIGHT: float = 112.0
-const PORTRAIT: Vector2 = Vector2(72, 84)
+const PORTRAIT: Vector2 = Vector2(72, 72)
 const PAD: float = 16.0
 const PORTRAIT_SECONDS: float = 0.18
 const CHARS_PER_SECOND: float = 60.0
 const HOLD_MIN: float = 4.0
 const HOLD_PER_CHAR: float = 0.05
-## The runtime-only skip action (not rebindable, so not in InputBindings.ACTIONS).
+## The skip action. M19: an InputBindings action (Controls shows and rebinds it); registered here too
+## only for a box built before InputBindings.setup ran (tests that build the box alone).
 const SKIP_ACTION: StringName = &"dialogue_skip"
 ## Space kept between the box and a HUD cluster it steps around.
 const GAP: float = 12.0

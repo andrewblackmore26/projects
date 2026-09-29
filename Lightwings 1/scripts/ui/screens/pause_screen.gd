@@ -18,7 +18,7 @@ const TEXT_WIDTH: float = 330.0
 
 func build() -> void:
 	UiKit.glass(host, ACTIONS).name = "ActionsCard"
-	var kicker: Label = UiKit.label(host, "RUN PAUSED", ACTIONS.position + Vector2(32, 30), Vector2(376, 18), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = UiKit.label(host, "RUN PAUSED", ACTIONS.position + Vector2(32, 30), Vector2(376, 18), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	UiKit.label(host, "PAUSED", ACTIONS.position + Vector2(32, 50), Vector2(376, 52), UiTokens.TEXT_2XL, WHITE).autowrap_mode = TextServer.AUTOWRAP_OFF
 	UiKit.label(host, _where(), ACTIONS.position + Vector2(32, 120), Vector2(376, 22), UiTokens.TEXT_S, MUTED)
@@ -45,7 +45,7 @@ func _build_summary() -> void:
 	var combat: CombatWorld = app.combat
 	var ship: ShipDefinition = combat.player.get("definition") if is_instance_valid(combat) else null
 	var origin: Vector2 = BUILD.position + Vector2(32, 30)
-	var kicker: Label = UiKit.label(host, "CURRENT BUILD", origin, Vector2(300, 18), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = UiKit.label(host, "CURRENT BUILD", origin, Vector2(300, 18), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	if ship == null:
 		UiKit.label(host, "No ship is flying.", origin + Vector2(0, 30), Vector2(400, 24), UiTokens.TEXT_M, MUTED)
@@ -92,12 +92,16 @@ func _build_summary() -> void:
 	bar.progress = 0.0
 	host.add_child(bar)
 	UiMotion.tween(bar).tween_property(bar, "progress", 1.0, UiMotion.duration(UiTokens.CINE)).set_delay(UiMotion.duration(UiTokens.FAST)).set_trans(UiTokens.EASE_IN_TRANS).set_ease(UiTokens.EASE_IN_EASE)
-	# One row per mounted ability: glyph, name, kind, and the input that fires it.
+	# One row per mounted ability: glyph, name, kind, and the input that fires it. M19 review: the
+	# dash (every hull has it, the dock's first slot) and, while room is left, each secondary slot the
+	# hull has not mounted yet (dim, with its input), so a young hull's card is its whole kit.
 	var y: float = origin.y + 160
-	var rows: Array = [[ship.primary, "PRIMARY WEAPON", "fire"]]
+	var rows: Array = [[ship.primary, "PRIMARY WEAPON", "fire"], ["dash", "DASH", "dash"]]
 	for index: int in range(ship.secondaries.size()):
 		rows.append([ship.secondaries[index], "SECONDARY %d" % (index + 1), InputPrompts.SLOT_ACTIONS[index] if index < InputPrompts.SLOT_ACTIONS.size() else ""])
 	for passive: String in ship.passives: rows.append([passive, "PASSIVE", ""])
+	for index: int in range(ship.secondaries.size(), InputPrompts.SLOT_ACTIONS.size()):
+		rows.append(["", "SECONDARY %d · EMPTY" % (index + 1), InputPrompts.SLOT_ACTIONS[index]])
 	var room: int = int((BUILD.end.y - 84 - y) / ROW_HEIGHT)
 	for index: int in range(mini(rows.size(), room)):
 		_ability_row(str(rows[index][0]), str(rows[index][1]), str(rows[index][2]), Vector2(origin.x, y + index * ROW_HEIGHT))
@@ -107,19 +111,27 @@ func _build_summary() -> void:
 	stats_label.theme_type_variation = UiTokens.KICKER_LABEL
 	stats_label.add_theme_color_override("font_color", MUTED)
 
+## One build row; an empty `id` is a secondary slot not mounted yet (a dashed ring, dim text).
 func _ability_row(id: String, kind: String, action: String, at: Vector2) -> void:
+	var empty: bool = id.is_empty()
 	var glyph := MenuDraw.new(func(canvas: MenuDraw) -> void:
 		var centre: Vector2 = canvas.size * 0.5
+		if empty:
+			for dash: int in range(12):
+				var from: float = TAU * dash / 12.0
+				canvas.draw_arc(centre, 17.0, from, from + TAU / 24.0, 6, UiTokens.INK_DISABLED, 1.5, true)
+			return
 		var definition: AbilityDefinition = AbilityCatalog.get_definition(id)
-		var ink: Color = ShipCatalog.get_color(definition.visual_color) if definition != null else UiTokens.INK_MUTED
+		var ink: Color = UiTokens.PLAYER if id == "dash" else ElementStyle.color(definition.visual_color) if definition != null else UiTokens.INK_MUTED
 		canvas.draw_circle(centre, 17.0, Color(ink.r * 0.1, ink.g * 0.1, ink.b * 0.1))
 		canvas.draw_arc(centre, 17.0, 0.0, TAU, 32, Color(ink, 0.9), 1.5, true)
 		AbilityGlyphs.draw(canvas, id, centre, 13.0))
-	glyph.name = "Glyph_" + id
+	glyph.name = "Glyph_" + (id if not empty else "empty_" + action)
 	glyph.position = at
 	glyph.size = Vector2(36, 36)
 	host.add_child(glyph)
-	UiKit.label(host, UiKit.ability_name(id), at + Vector2(50, -4), Vector2(380, 22), UiTokens.TEXT_M, WHITE).autowrap_mode = TextServer.AUTOWRAP_OFF
+	var title: String = "Unlocks as the hull evolves" if empty else ("Dash" if id == "dash" else UiKit.ability_name(id))
+	UiKit.label(host, title, at + Vector2(50, -4), Vector2(380, 22), UiTokens.TEXT_M, UiTokens.INK_MUTED if empty else WHITE).autowrap_mode = TextServer.AUTOWRAP_OFF
 	var kind_label: Label = UiKit.label(host, kind, at + Vector2(50, 24), Vector2(300, 16), UiTokens.TEXT_XS, MUTED)
 	kind_label.theme_type_variation = UiTokens.KICKER_LABEL
 	kind_label.add_theme_color_override("font_color", MUTED)
@@ -131,8 +143,11 @@ func _ability_row(id: String, kind: String, action: String, at: Vector2) -> void
 		binding.texture = prompt.texture
 		binding.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		binding.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		binding.position = at + Vector2(490, 2)
-		binding.size = Vector2(32, 32)
+		# Right-aligned; a wide keycap (SPACE, SHIFT) keeps a letter key's height.
+		var width: float = 32.0 * maxf(1.0, float(prompt.texture.get_width()) / maxf(1.0, float(prompt.texture.get_height())))
+		binding.position = at + Vector2(522 - width, 2)
+		binding.size = Vector2(width, 32)
+		if empty: binding.modulate = Color(1, 1, 1, 0.45)
 		host.add_child(binding)
 	else:
 		var text: Label = UiKit.label(host, str(prompt.text), at + Vector2(430, 8), Vector2(92, 20), UiTokens.TEXT_XS, VisualStyle.CORAL if bool(prompt.missing) else WHITE)

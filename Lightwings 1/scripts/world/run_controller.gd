@@ -34,10 +34,14 @@ var death_stats: Dictionary = {}
 var death_next_sector: Dictionary = {}
 ## --- M12: death is a beat, not a card ---------------------------------------
 ## The world runs on (CombatWorld keeps the dead player out of it) at DEATH_SLOWMO_SCALE for the
-## first DEATH_SLOWMO_SECONDS, with DEATH_HITSTOP_TICKS of hitstop on top of the killing hit's own;
-## the hull bursts, a non-modal SIGNAL LOST banner slams in, and at `death_reboot_s` real seconds the
-## next life starts with no press. The life's stats follow as a DEATH_TOAST_SECONDS toast. Real
-## seconds, not ticks: this is the player's wait, and the sim under it is slowed and hit-stopped.
+## first DEATH_SLOWMO_SECONDS, with DEATH_HITSTOP_TICKS of hitstop added on top of the killing hit's
+## own (4 + 3 = 7, under the broker's 8-tick cap); the hull bursts, a non-modal SIGNAL LOST banner
+## slams in, and at `death_reboot_s` seconds the next life starts with no press. The life's stats
+## follow as a DEATH_TOAST_SECONDS toast. Unscaled seconds, not sim time: this is the player's wait,
+## and the sim under it is slowed and hit-stopped. Review fix 5: both clocks run on PHYSICS steps
+## (the slow motion as the world's timed request, the reboot wait in `step_death`, which main.gd
+## calls from `_physics_process`), so the sim's trace through a death no longer depends on the
+## render rate.
 const DEATH_REBOOT_S: float = 0.40
 const DEATH_SLOWMO_SCALE: float = 0.3
 const DEATH_SLOWMO_SECONDS: float = 0.25
@@ -54,7 +58,14 @@ var death_reboot_s: float = DEATH_REBOOT_S
 ## What the last reboot cost (ms, without its save when that was deferred), and whether it was.
 var last_reboot_ms: float = 0.0
 var reboot_save_deferred: bool = false
+## Review fix 1: a boss that dies during the death beat (the dead player's shot still in flight).
+## Its level-complete flow waits for the reboot: run straight away it replaced the death banner,
+## `step_death` read that as "cancelled" and the dead player was never rebooted.
+var _boss_defeated_in_beat: String = ""
 var _fx_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## M19: the profile's total play time (unpaused seconds in play), carried in the save envelope's
+## metadata (SaveService `meta`), not the profile: the cloud conflict card shows it.
+var play_seconds: float = 0.0
 
 func _init(owner: Node) -> void:
 	app = owner
@@ -75,6 +86,7 @@ func new_game_as(mode_id: String) -> void:
 	app.previous_offers.clear()
 	app.offer_serial = 0
 	app.dialogue_director.reset()
+	play_seconds = 0.0
 	app._start_game_view()
 	app.combat.setup_player("neutral",1,40,[],GameTuning.ARENA_CENTER)
 	app.combat.max_player_tier = app.mode_config.max_tier()
@@ -98,6 +110,7 @@ func continue_game(save_slot: String) -> void:
 			return
 		new_game(save_slot == "demo")
 		return
+	play_seconds = maxf(0.0, float(SaveService.load_meta(save_slot).play_seconds))
 	app.slot = save_slot
 	app.campaign = CampaignState.new()
 	app.campaign.from_dict(snapshot.get("profile",{}))
@@ -178,7 +191,7 @@ func on_death() -> void:
 	death_next_sector = campaign.sector_at(Vector2i.ZERO,0.0)
 	app.pending_offers.clear()
 	if not app.testing:
-		SaveService.save_snapshot(campaign.to_dict(),{"seen_lines":app.seen_lines,"previous_offers":app.previous_offers,"offer_serial":app.offer_serial},app.slot)
+		SaveService.save_snapshot(campaign.to_dict(),{"seen_lines":app.seen_lines,"previous_offers":app.previous_offers,"offer_serial":app.offer_serial},app.slot,{"play_seconds":play_seconds})
 	death_elapsed = 0.0
 	if is_instance_valid(combat) and not combat.player.is_empty():
 		var hull: ShipRenderer = combat.player.get("renderer") as ShipRenderer
@@ -186,19 +199,23 @@ func on_death() -> void:
 		var definition: ShipDefinition = combat.player.get("definition") as ShipDefinition
 		if definition != null: EvolutionTransform.burst(combat,definition,Vector2(combat.player.pos),_fx_rng)
 		combat.active = true # the world runs on through the beat; CombatWorld skips the dead player
-		combat.request_time_scale(DEATH_SCALE_REASON,DEATH_SLOWMO_SCALE)
-		combat.request_hitstop(DEATH_HITSTOP_TICKS,DEATH_SCALE_REASON)
+		combat.request_timed_time_scale(DEATH_SCALE_REASON,DEATH_SLOWMO_SCALE,DEATH_SLOWMO_SECONDS)
+		combat.request_hitstop(DEATH_HITSTOP_TICKS,DEATH_SCALE_REASON,true)
 
-## The death beat's real-time upkeep (main.gd's `_process` while the banner is up): the slow motion
-## ends at DEATH_SLOWMO_SECONDS, and the next life starts at `death_reboot_s` with no press.
+## The death beat's upkeep, once per physics step (main.gd's `_physics_process`): the next life
+## starts at `death_reboot_s` with no press (the slow motion ends on the world's own timer). The beat
+## is cancelled only when the player is no longer dead (a new game or a continue replaced the world);
+## while the player IS dead the reboot always comes, whatever overlay is up (review fix 1).
 func step_death(delta: float) -> void:
 	if death_elapsed < 0.0: return
-	if app.overlay_kind != "death":
+	var combat = app.combat # untyped: see enter_sector
+	var dead: bool = is_instance_valid(combat) and bool(combat.player.get("dead",false))
+	if app.overlay_kind != "death" and not dead:
 		death_elapsed = -1.0
+		_boss_defeated_in_beat = ""
 		release_time_scale(DEATH_SCALE_REASON)
 		return
 	death_elapsed += delta
-	if death_elapsed >= DEATH_SLOWMO_SECONDS: release_time_scale(DEATH_SCALE_REASON)
 	if death_elapsed >= death_reboot_s: app._reboot()
 
 func reboot() -> void:
@@ -225,11 +242,12 @@ func reboot() -> void:
 	# The reboot's save waits for the next frame (the fresh origin is calm). Measured on its own at
 	# a 7-7.5 ms median and an 8.3-8.8 ms max over three runs (tests/death_timing_test.gd), it was
 	# nearly all of the reboot's cost and over REBOOT_SAVE_BUDGET_MS; the reboot is ~1 ms without it.
-	var tree: SceneTree = app.get_tree()
-	reboot_save_deferred = tree != null
-	if tree == null: save_game()
-	elif not tree.process_frame.is_connected(save_game): tree.process_frame.connect(save_game,CONNECT_ONE_SHOT)
+	reboot_save_deferred = save_game_next_frame()
 	last_reboot_ms = float(Time.get_ticks_usec()-began)/1000.0
+	if not _boss_defeated_in_beat.is_empty():
+		var element: String = _boss_defeated_in_beat
+		_boss_defeated_in_beat = ""
+		_complete_boss(element,false)
 
 ## M12: the transformation after an evolution pick, from hull `from` into the current one (render
 ## only; see scripts/fx/evolution_transform.gd).
@@ -238,11 +256,21 @@ func present_evolution(from: ShipDefinition) -> void:
 
 func on_boss_defeated(element: String) -> void:
 	if element.is_empty(): return
+	if death_elapsed >= 0.0: # review fix 1: the player is already dead; finish the beat first
+		_boss_defeated_in_beat = element
+		return
+	_complete_boss(element,true)
+
+## `this_life` false: the boss fell after the player did, so the level counts, but the fresh life
+## (whose layout is a new epoch, `campaign.on_death` already ran) keeps its own boss_down.
+func _complete_boss(element: String, this_life: bool) -> void:
 	var campaign: CampaignState = app.campaign
+	var life_boss_down: bool = campaign.boss_down
 	# CampaignState.complete_level() is itself idempotent (tasks/todo.md:
 	# "call it every time a boss dies; it only fires level_completed... the
 	# first time"), so this handler needs no separate guard of its own.
 	var result: Dictionary = campaign.complete_level()
+	if not this_life: campaign.boss_down = life_boss_down
 	app._queue_defeat_line(element)
 	app._achieve("FIRST_RIVAL")
 	if bool(result.get("level_completed",false)):
@@ -257,6 +285,16 @@ func on_boss_defeated(element: String) -> void:
 			app._show_level_complete(result)
 	save_game()
 
+## One save on the next frame, however many callers ask during this one (the reboot, a node clear:
+## both land inside a physics tick). Saves at once, returning false, when there is no tree.
+func save_game_next_frame() -> bool:
+	var tree: SceneTree = app.get_tree()
+	if tree == null:
+		save_game()
+		return false
+	if not tree.process_frame.is_connected(save_game): tree.process_frame.connect(save_game,CONNECT_ONE_SHOT)
+	return true
+
 func save_game() -> void:
 	var combat = app.combat # untyped: see enter_sector
 	var campaign: CampaignState = app.campaign
@@ -264,12 +302,12 @@ func save_game() -> void:
 	var began: int = Time.get_ticks_usec()
 	var run: Dictionary = {"combat":combat.snapshot(),"pending_offers":app.pending_offers,"previous_offers":app.previous_offers,"offer_serial":app.offer_serial,"seen_lines":app.seen_lines,"line_queue":app.line_queue}
 	if combat.light_total <= 0.0: run = {"seen_lines":app.seen_lines,"previous_offers":app.previous_offers,"offer_serial":app.offer_serial}
-	var error: Error = SaveService.save_snapshot(campaign.to_dict(),run,app.slot)
+	var error: Error = SaveService.save_snapshot(campaign.to_dict(),run,app.slot,{"play_seconds":play_seconds})
 	save_timings_ms.append(float(Time.get_ticks_usec()-began)/1000.0)
 	if save_timings_ms.size() > SAVE_TIMING_WINDOW: save_timings_ms.remove_at(0)
 	if error != OK: app._toast("Save failed: "+error_string(error))
 	elif app.platform.online and app.cloud_sync_ready and app.mode_config.cloud_enabled():
-		app.platform.save_cloud(SaveService.encode_snapshot({"profile":campaign.to_dict(),"run":run}),app.slot)
+		app.platform.save_cloud(SaveService.encode_snapshot({"profile":campaign.to_dict(),"run":run},{"play_seconds":play_seconds}),app.slot)
 
 ## p95/max over the rolling timing window (plan P6 item 6's own reporting
 ## requirement) - a bot run or test calls this after driving many warps.

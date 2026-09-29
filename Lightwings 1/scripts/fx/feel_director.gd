@@ -13,8 +13,9 @@ extends Node
 ## `hurt`, `pickup` or `evolve` itself, so every hit is exactly one hurt cue.
 ##
 ## Presentation only. It holds no sim state and draws FX with its own RNG. The one thing it asks of
-## the sim is a time-scale request (big kills), released on its timer, on a sector change, on death
-## and when it lets go of the world, so it can never leak.
+## the sim is a timed time-scale request (big kills), which the world ends on its own physics-step
+## timer and on a sector change; this releases it on death and when it lets go of the world, so it
+## can never leak.
 
 const FX = preload("res://scripts/combat/combat_fx.gd")
 
@@ -24,7 +25,7 @@ const FX = preload("res://scripts/combat/combat_fx.gd")
 ## `fx`: a CombatFX template drawn at the event. `low_light`: enters/leaves the low-light post and
 ## audio state. `cue`: the Soundscape cue it plays; `positional` plays it where it happened;
 ## `stop_cue` cuts a sounding cue (the warp strain, when the press ends or snaps).
-## `slow_mo`: [time scale, real seconds]. Magnitude (0..1, <= 0 read as 1) scales flash, hurt and
+## `slow_mo`: [time scale, seconds of physics steps]. Magnitude (0..1, <= 0 read as 1) scales flash, hurt and
 ## rumble. Kinds with no cue on purpose: enemy_kill (every kill already sounds its combo_step),
 ## the low-light pair (the heartbeat loop is the sound), warp_strain is bent, not restarted.
 const MAP: Dictionary = {
@@ -63,14 +64,11 @@ var post: PostFx
 var rumble: Rumble
 var boss_intro: BossIntro
 var event_counts: Dictionary = {}
-## Real seconds of big-kill slow motion left (0: none requested).
+## Seconds of big-kill slow motion left (0: none requested), read from the world's timed request.
 var slow_mo_remaining: float = 0.0
 ## Test seams, each with its own negative control: the timer's release, and the once-per-boss rule.
 var slow_mo_release_enabled: bool = true
 var boss_intro_once: bool = true
-var _slow_mo_seconds: float = 0.0
-var _slow_mo_scale: float = 1.0
-var _slow_mo_sector: Dictionary = {}
 var _intro_sector: Dictionary = {}
 var _evolve_ready: bool = false
 var _intros_seen: Dictionary = {}
@@ -126,18 +124,13 @@ func bind(world: CombatWorld) -> void:
 	_leave_low_light()
 	_evolve_ready = _evolution_ready()
 
-## Real-time upkeep (tests drive it directly): the slow-motion timer and the evolution-ready edge.
-func step(dt: float) -> void:
+## Real-time upkeep (tests drive it directly): the evolution-ready edge, and a read of the slow
+## motion's time left. The slow motion itself (its countdown, ease-out and the release on a sector
+## change) runs inside CombatWorld on physics steps (review fix 5): counted here on `_process`, the
+## scale the sim integrates with depended on the render rate.
+func step(_dt: float) -> void:
 	if boss_intro.active() and (not is_instance_valid(_combat) or not is_same(_combat.sector, _intro_sector)): boss_intro.dismiss()
-	if slow_mo_remaining > 0.0:
-		slow_mo_remaining = maxf(0.0, slow_mo_remaining - dt)
-		if not is_instance_valid(_combat) or not is_same(_combat.sector, _slow_mo_sector): release_slow_mo()
-		elif slow_mo_remaining <= 0.0:
-			if slow_mo_release_enabled: release_slow_mo()
-		else:
-			var left: float = slow_mo_remaining / maxf(0.001, _slow_mo_seconds)
-			var back: float = 1.0 - clampf(left / SLOW_MO_EASE_FRACTION, 0.0, 1.0)
-			_combat.request_time_scale(SLOW_MO_REASON, lerpf(_slow_mo_scale, 1.0, back * back))
+	slow_mo_remaining = _combat.timed_scale_remaining(SLOW_MO_REASON) if is_instance_valid(_combat) else 0.0
 	var ready: bool = _evolution_ready()
 	if ready and not _evolve_ready: _sound_call("play_cue", [EVOLVE_READY_CUE, {}])
 	_evolve_ready = ready
@@ -188,17 +181,13 @@ static func unmapped(kinds: Array) -> Array:
 static func cue_for(kind: StringName) -> String:
 	return str(MAP.get(kind, {}).get("cue", ""))
 
-## Big-kill slow motion: the lowest scale and the longest time win when two overlap.
+## Big-kill slow motion: the lowest scale and the longest time win when two overlap (the world's
+## timed request merges them). The release-disabled control asks for an open-ended one instead.
 func _begin_slow_mo(scale: float, seconds: float) -> void:
 	if not is_instance_valid(_combat): return
-	if slow_mo_remaining > 0.0:
-		scale = minf(scale, _slow_mo_scale)
-		seconds = maxf(seconds, slow_mo_remaining)
-	_slow_mo_scale = scale
-	_slow_mo_seconds = seconds
-	slow_mo_remaining = seconds
-	_slow_mo_sector = _combat.sector
-	_combat.request_time_scale(SLOW_MO_REASON, scale)
+	if slow_mo_release_enabled: _combat.request_timed_time_scale(SLOW_MO_REASON, scale, seconds, SLOW_MO_EASE_FRACTION)
+	else: _combat.request_time_scale(SLOW_MO_REASON, scale)
+	slow_mo_remaining = _combat.timed_scale_remaining(SLOW_MO_REASON)
 
 func release_slow_mo() -> void:
 	slow_mo_remaining = 0.0

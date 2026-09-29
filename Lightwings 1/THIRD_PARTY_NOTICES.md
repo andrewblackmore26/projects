@@ -18,6 +18,10 @@ Input Prompts 1.5 by Kenney (www.kenney.nl), CC0 1.0 (public domain dedication):
 
 Fifteen more unmodified PNGs from the same Kenney Input Prompts 1.5 pack (CC0 1.0), for the menus' footer hints and the dialogue skip prompt: keyboard_enter, keyboard_arrows_horizontal, keyboard_arrows_vertical; xbox_button_b, xbox_button_y, xbox_dpad_horizontal, xbox_dpad_vertical; playstation_button_circle, playstation_button_triangle, playstation_dpad_horizontal, playstation_dpad_vertical; steamdeck_button_b, steamdeck_button_y, steamdeck_dpad_horizontal, steamdeck_dpad_vertical.
 
+### Readable keys and map prompts (M19 UX review)
+
+Fourteen more unmodified PNGs from the same Kenney Input Prompts 1.5 pack (CC0 1.0): the labelled keyboard_space and keyboard_shift keys (replacing their icon variants, unreadable at HUD size), keyboard_arrow_up, keyboard_arrow_down, keyboard_arrow_left and keyboard_arrow_right (the menus' MOVE and ADJUST hints, replacing keyboard_arrows_vertical and keyboard_arrows_horizontal), keyboard_arrows_all and mouse_scroll_vertical (the map's hints); xbox_dpad, xbox_stick_r, playstation_dpad, playstation_stick_r, steamdeck_dpad and steamdeck_stick_r (the map's pad hints).
+
 ## Sound effects
 
 Interface Sounds 1.0, Sci-Fi Sounds 1.0 and Impact Sounds 1.0 by Kenney (www.kenney.nl), CC0 1.0 (public domain dedication): 22 unmodified .ogg files (12 interface, 8 sci-fi, 2 impact) in assets/audio/kenney/, each pack's License.txt reproduced beside its files. The music stems in assets/audio/music/ and the weapon cues are synthesized for Lightship.

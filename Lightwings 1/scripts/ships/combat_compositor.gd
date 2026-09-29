@@ -32,6 +32,12 @@ var _shake_hitstop: int = 0
 ## M6: the visible rect (logical px) the stages were last sized for. The camera centres on its
 ## middle, so a 16:9 or 21:9 window shows more of the world sideways instead of letterboxing.
 var view_size: Vector2 = UiLayout.BASE_SIZE
+## M19 review: a screen's framing of the ship, presentation only. `frame_offset` (screen px) moves
+## the point the camera centres on and `frame_zoom` scales the rig's zoom; the evolution cards set
+## them (set_frame) so the ship sits in the clear band above the card row. screen_to_world inverts
+## them with the rest of the camera, so aim is unchanged.
+var frame_offset: Vector2 = Vector2.ZERO
+var frame_zoom: float = 1.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -118,12 +124,18 @@ func _fit_view() -> void:
 func screen_center() -> Vector2:
 	return view_size * 0.5
 
+## Sets the framing (see frame_offset) and applies it at once, so a frozen capture sees it too.
+func set_frame(offset: Vector2, zoom_factor: float) -> void:
+	frame_offset = offset
+	frame_zoom = zoom_factor
+	if is_instance_valid(world) and background_viewport != null and not _detaching: _update_camera()
+
 func _update_camera() -> void:
 	_step_rig()
 	_step_shake()
-	zoom = rig.zoom if follow_player else 1.0
+	zoom = rig.zoom * frame_zoom if follow_player else 1.0
 	var focus: Vector2 = rig.focus if follow_player else Vector2.ZERO
-	var centre: Vector2 = screen_center()
+	var centre: Vector2 = screen_center() + (frame_offset if follow_player else Vector2.ZERO)
 	camera_offset = (centre if follow_player else Vector2.ZERO) - focus * zoom
 	var xform := Transform2D(0.0, Vector2.ZERO).scaled(Vector2(zoom, zoom))
 	xform.origin = camera_offset

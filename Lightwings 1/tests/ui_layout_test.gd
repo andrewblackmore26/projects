@@ -20,10 +20,12 @@ extends SceneTree
 ## HUD cluster nudged off-screen (SAFE); a cluster moved onto its neighbour (APART); the UI layer
 ## scaled to 140 % without refitting the root (UI scale); the window's content scale forced to
 ## "expand" at 32:9 (the pillarbox rule); the pre-M6 fixed 1600x1000 trace tile at 21:9 (coverage).
+## M19 UX review: the "options_gameplay" state is retired (its two rows joined Accessibility) and
+## replaced by "options_accessibility", now the Options tab with the most rows.
 const Harness = preload("res://tests/support/harness.gd")
 const ViewportMatrix = preload("res://tests/support/viewport_matrix.gd")
 
-const SCREENS: Array[String] = ["menu", "menu_saves", "level_select_campaign", "level_select_dev", "options_audio", "options_display", "options_gameplay", "options_controls", "pause", "evolution", "evolution_dev", "map", "death", "level_complete", "ending_campaign", "ending_demo", "cloud", "confirm_new", "import_confirm", "hud_origin", "hud_combat", "hud_evolve_ready", "hud_radar", "hud_dev", "dialogue", "toast"]
+const SCREENS: Array[String] = ["menu", "menu_saves", "level_select_campaign", "level_select_dev", "options_audio", "options_display", "options_controls", "options_accessibility", "pause", "evolution", "evolution_dev", "map", "death", "level_complete", "ending_campaign", "ending_demo", "cloud", "confirm_new", "import_confirm", "hud_origin", "hud_combat", "hud_evolve_ready", "hud_radar", "hud_dev", "dialogue", "toast"]
 
 var h := Harness.new("UI layout")
 var measured: Dictionary = {"layouts": 0, "controls": 0}
@@ -67,8 +69,8 @@ func _build(app: Node, screen: String) -> void:
 			app._show_menu()
 		"level_select_campaign": app._show_level_select("campaign")
 		"level_select_dev": app._show_level_select("dev")
-		"options_audio", "options_display", "options_gameplay", "options_controls":
-			app.options_tab = ["options_audio", "options_display", "options_gameplay", "options_controls"].find(screen)
+		"options_audio", "options_display", "options_controls", "options_accessibility":
+			app.options_tab = OptionsScreen.TAB_TITLES.find(screen.trim_prefix("options_").capitalize())
 			app._show_options()
 		"pause":
 			app._new_game(false)

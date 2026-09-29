@@ -2,7 +2,7 @@ extends SceneTree
 ## M11: device-aware input prompts (scripts/ui/input_prompts.gd) and the ability glyph table
 ## (scripts/ui/ability_glyphs.gd). Headless: the prompts are resolved, not drawn; the pixels are
 ## a GPU capture of the HUD dock, recorded in the phase report.
-##   - every one of InputBindings' 16 actions resolves a glyph file for keyboard/mouse and for each
+##   - every one of InputBindings' 17 actions resolves a glyph file for keyboard/mouse and for each
 ##     pad family, from the action's CURRENT InputMap binding;
 ##   - a faked joypad event switches every prompt to the pad set, a faked key switches it back,
 ##     and drift / jitter below the thresholds switches nothing;
@@ -10,7 +10,11 @@ extends SceneTree
 ##   - rebinding changes the glyph.
 ## The InputMap is edited directly, never through InputBindings.rebind, which would write the
 ## player's user://controls.cfg.
+## Restated in the M19 UX review: the dialogue skip joined InputBindings (shown and rebindable in
+## Controls), so every "16 actions" count is ACTIONS (17); SPACE wears the labelled keyboard_space
+## glyph (cropped to its keycap) instead of keyboard_space_icon.
 const Harness = preload("res://tests/support/harness.gd")
+const ACTIONS: int = 17
 
 func _initialize() -> void: _run.call_deferred()
 
@@ -22,13 +26,13 @@ func _run() -> void:
 	prompts.device_changed.connect(func(device: String, family: String) -> void: switches.append([device, family]))
 	var kbm: String = InputPrompts.KEYBOARD_MOUSE
 	var pad: String = InputPrompts.PAD
-	h.check(InputBindings.ACTIONS.size() == 16, "InputBindings declares the 16 actions (found %d)" % InputBindings.ACTIONS.size())
+	h.check(InputBindings.ACTIONS.size() == ACTIONS, "InputBindings declares the %d actions (found %d)" % [ACTIONS, InputBindings.ACTIONS.size()])
 
 	# --- Every action resolves a real glyph file, per device and per pad family -----------------
 	for family: String in ["", "xbox", "playstation", "steamdeck"]:
 		var device: String = kbm if family.is_empty() else pad
 		var resolved: int = _resolved(prompts, device, family)
-		h.check(resolved == 16, "%s: all 16 actions resolve a glyph texture (found %d; unresolved: %s)" % [device + ("/" + family if not family.is_empty() else ""), resolved, _unresolved(prompts, device, family)])
+		h.check(resolved == ACTIONS, "%s: all %d actions resolve a glyph texture (found %d; unresolved: %s)" % [device + ("/" + family if not family.is_empty() else ""), ACTIONS, resolved, _unresolved(prompts, device, family)])
 		h.check(prompts.unbound_actions(device, family if not family.is_empty() else "xbox").is_empty(), "%s %s: no action is unbound" % [device, family])
 	h.check(bool(prompts.prompt_for("aim_up", kbm).implicit), "Keyboard/mouse aim is the pointer rule, flagged implicit")
 	h.check(str(prompts.prompt_for("ability_primary", pad, "playstation").path).ends_with("/playstation/playstation_trigger_l1.png"), "PlayStation: ability_primary (LB) wears L1")
@@ -36,10 +40,10 @@ func _run() -> void:
 	h.check(str(prompts.prompt_for("move_up", pad, "generic").path).ends_with("/xbox/xbox_stick_l_up.png"), "A generic pad wears the Xbox set")
 	h.check(prompts.text_for("ability_primary") == "SPACE", "Build readout text for slot 1 on keyboard is SPACE (got %s)" % prompts.text_for("ability_primary"))
 	# Control for the resolve instrument: a binding with no glyph on disk must drop out of the count
-	# (and draw as a text chip), so "16 resolved" is not true of any binding whatsoever.
+	# (and draw as a text chip), so "all resolved" is not true of any binding whatsoever.
 	_rebind(kbm, "ability_tertiary", _key(KEY_F))
 	var chip: Dictionary = prompts.prompt_for("ability_tertiary", kbm)
-	h.control("ability_tertiary rebound to F, which has no glyph file", _resolved(prompts, kbm, "") == 15 and chip.texture == null and str(chip.text) == "F" and not bool(chip.missing))
+	h.control("ability_tertiary rebound to F, which has no glyph file", _resolved(prompts, kbm, "") == ACTIONS - 1 and chip.texture == null and str(chip.text) == "F" and not bool(chip.missing))
 	_rebind(kbm, "ability_tertiary", _key(KEY_Q))
 
 	# --- Family from the pad's reported name -----------------------------------------------------
@@ -48,7 +52,7 @@ func _run() -> void:
 
 	# --- Live device switching -------------------------------------------------------------------
 	h.check(prompts.device == kbm, "Starts on keyboard/mouse")
-	h.check(_on_folder(prompts, "keyboard_mouse") == 16, "Before any pad input every prompt is a keyboard/mouse glyph")
+	h.check(_on_folder(prompts, "keyboard_mouse") == ACTIONS, "Before any pad input every prompt is a keyboard/mouse glyph")
 	var drift := InputEventJoypadMotion.new()
 	drift.axis = JOY_AXIS_LEFT_X
 	drift.axis_value = 0.1
@@ -62,20 +66,20 @@ func _run() -> void:
 	synthetic.action = "evolve"
 	synthetic.pressed = true
 	prompts.observe(synthetic)
-	h.control("a non-device InputEventAction offered as the switch", _on_folder(prompts, "xbox") != 16)
+	h.control("a non-device InputEventAction offered as the switch", _on_folder(prompts, "xbox") != ACTIONS)
 	var button := InputEventJoypadButton.new()
 	button.button_index = JOY_BUTTON_A
 	button.pressed = true
 	h.check(prompts.observe(button), "A pad button press switches the device")
 	h.check(prompts.device == pad and switches.size() == 1 and str(switches[0][0]) == pad, "device_changed fired once, with 'pad' (%s)" % [switches])
-	h.check(_on_folder(prompts, InputPrompts.folder_for(prompts.family)) == 16, "After the pad press every one of the 16 prompts is a pad glyph (%d)" % _on_folder(prompts, InputPrompts.folder_for(prompts.family)))
+	h.check(_on_folder(prompts, InputPrompts.folder_for(prompts.family)) == ACTIONS, "After the pad press every one of the %d prompts is a pad glyph (%d)" % [ACTIONS, _on_folder(prompts, InputPrompts.folder_for(prompts.family))])
 	h.check(prompts.text_for("ability_primary") == ("L1" if prompts.family in ["playstation", "steamdeck"] else "LB"), "Build readout text for slot 1 on a pad is the shoulder (got %s)" % prompts.text_for("ability_primary"))
 	h.check(not prompts.observe(button), "A second press on the same pad is not a switch")
 	var key := InputEventKey.new()
 	key.physical_keycode = KEY_W
 	key.pressed = true
 	h.check(prompts.observe(key) and prompts.device == kbm and switches.size() == 2, "A key press switches back to keyboard/mouse")
-	h.check(_on_folder(prompts, "keyboard_mouse") == 16, "After the key press every prompt is a keyboard/mouse glyph again")
+	h.check(_on_folder(prompts, "keyboard_mouse") == ACTIONS, "After the key press every prompt is a keyboard/mouse glyph again")
 	var stick := InputEventJoypadMotion.new()
 	stick.axis = JOY_AXIS_RIGHT_Y
 	stick.axis_value = -0.9
@@ -107,7 +111,7 @@ func _run() -> void:
 	_rebind(pad, "ability_primary", shoulder)
 	var after_pad: String = str(prompts.prompt_for("ability_primary", pad, "xbox").path)
 	h.check(before_pad.ends_with("xbox_lb.png") and after_pad.ends_with("xbox_rb.png"), "Rebinding ability_primary LB -> RB changes its pad glyph (%s -> %s)" % [before_pad.get_file(), after_pad.get_file()])
-	h.check(str(prompts.prompt_for("ability_primary", kbm).path).ends_with("keyboard_space_icon.png"), "A pad rebind leaves the keyboard glyph alone")
+	h.check(str(prompts.prompt_for("ability_primary", kbm).path).ends_with("keyboard_space.png"), "A pad rebind leaves the keyboard glyph alone")
 	InputBindings.setup()
 
 	_steam_input(h)
@@ -229,7 +233,7 @@ func _unresolved(prompts: InputPrompts, device: String, family: String) -> Array
 		if prompt.texture == null: result.append("%s(%s)" % [action, prompt.path])
 	return result
 
-## How many of the 16 actions' ACTIVE-device prompts are glyphs from `folder`.
+## How many of the actions' ACTIVE-device prompts are glyphs from `folder`.
 func _on_folder(prompts: InputPrompts, folder: String) -> int:
 	var count: int = 0
 	for action: String in InputBindings.ACTIONS:

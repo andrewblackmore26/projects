@@ -97,7 +97,7 @@ func draw_slots() -> void:
 		var fill: float = float(slot.fill)
 		var ready: bool = fill >= 1.0
 		var definition: AbilityDefinition = AbilityCatalog.get_definition(str(slot.id))
-		var ink: Color = VisualStyle.BLUE if str(slot.kind) == "dash" else (ShipCatalog.get_color(definition.visual_color) if definition != null else VisualStyle.MUTED)
+		var ink: Color = VisualStyle.BLUE if str(slot.kind) == "dash" else (ElementStyle.color(definition.visual_color) if definition != null else VisualStyle.MUTED)
 		if str(slot.kind) == "passive": ink = ink.lerp(VisualStyle.MUTED, 0.35)
 		root.draw_circle(at, radius, Color(0.03, 0.036, 0.055, 0.94))
 		root.draw_circle(at, radius - 1.0, Color(ink.r * 0.12, ink.g * 0.12, ink.b * 0.12, 0.9))
@@ -118,8 +118,8 @@ func draw_slots() -> void:
 			root.draw_arc(at, radius + 1.0 + 7.0 * t, 0.0, TAU, 40, Color(ink, 0.9 * (1.0 - t)), 2.5 * (1.0 - t) + 0.5, true)
 		var below := Vector2(at.x, SLOT + PROMPT_GAP + PROMPT_HEIGHT * 0.5 + 2.0)
 		if str(slot.action).is_empty():
-			var size: int = UiLayout.text_px(9)
-			root.draw_string(font, Vector2(at.x - PITCH * 0.5, below.y + size * 0.35), "PASSIVE", HORIZONTAL_ALIGNMENT_CENTER, PITCH, size, Color(VisualStyle.MUTED, 0.85))
+			var size: int = UiLayout.text_px(UiTokens.TEXT_XS)
+			root.draw_string(font, Vector2(at.x - PITCH * 0.5, below.y + size * 0.35), "PASSIVE", HORIZONTAL_ALIGNMENT_CENTER, PITCH, size, UiTokens.INK_MUTED)
 		else:
 			InputPrompts.shared().draw_prompt(root, str(slot.action), below, PROMPT_HEIGHT, Color(1, 1, 1, 0.92 if ready else 0.6))
 	Hud.draw_usec += Time.get_ticks_usec() - started

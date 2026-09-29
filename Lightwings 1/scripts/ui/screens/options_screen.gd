@@ -11,8 +11,49 @@ extends UiScreen
 ## and last). LB/RB (Q/E on a keyboard) switch tabs from anywhere on the screen. Controls shows each
 ## action's keyboard and controller glyph (InputPrompts) and opens a rebinding MODAL - a card that
 ## waits for the input and cancels on Escape or after REBIND_SECONDS - instead of the old 60 s toast.
+##
+## M19 review: four tabs. Gameplay's two rows (auto-fire, element labels) joined Accessibility, the
+## aids they are, so no tab is a near-empty panel; every tab keeps one panel size (the binding rows
+## no longer force Controls wider). Text size is a percentage row with a slider like its neighbours.
+## A caption under the panel says, in one line, what the focused row does (DESCRIPTIONS).
 
-const TAB_TITLES: Array[String] = ["Audio", "Display", "Gameplay", "Controls", "Accessibility"]
+const TAB_TITLES: Array[String] = ["Audio", "Display", "Controls", "Accessibility"]
+## Row name -> the one-line caption shown while it has focus. Binding rows share BINDING_CAPTION.
+const DESCRIPTIONS: Dictionary = {
+	"Row_volume": "Overall loudness of everything the game plays.",
+	"Row_ambience_volume": "Loudness of the adaptive music.",
+	"Row_effects_volume": "Loudness of weapons, hits, pickups and warps.",
+	"Row_interface_volume": "Loudness of menu moves, confirms and toasts.",
+	"Row_music": "Music follows the fight: calmer when a node is clear, fuller in a boss fight.",
+	"Row_pickup_cues": "A soft chime for every light pickup.",
+	"Row_window_mode": "Windowed, borderless full screen or exclusive full screen.",
+	"Row_resolution": "The window's size while windowed.",
+	"Row_vsync": "Syncs frames to the display to stop tearing; off gives the lowest input delay.",
+	"Row_fps_cap": "The most frames drawn per second.",
+	"Row_ui_scale": "The size of the whole interface, HUD included; the playfield is unchanged.",
+	"Row_glow": "The soft bloom around light, bullets and ships.",
+	"Row_auto_fire": "The primary weapon fires on its own while there is a target.",
+	"Row_show_elements": "Names each element and attack pattern next to its colour.",
+	"Row_screen_shake": "How hard hits, dashes and explosions shake the camera.",
+	"Row_flash_intensity": "How bright full-screen flashes get (evolutions, bosses, big hits).",
+	"Row_reduced_motion": "Menus and the HUD appear without sliding or springing.",
+	"Row_colorblind": "Element colours from a palette that stays apart under every colour-vision type.",
+	"Row_text_scale": "The size of all text; layouts reflow to fit.",
+	"Row_rumble": "How strongly the controller vibrates.",
+	"Row_damage_numbers": "Shows the damage of each hit where it lands.",
+	"Row_reduced_warp": "A calmer, shorter warp between nodes.",
+	"Done": "Saves every change and closes Options.",
+	"Tabs": "Switch category. Q / E (LB / RB) switch it from anywhere on the screen.",
+}
+const BINDING_CAPTION: String = "Select to rebind, then press the new key, button or stick. Esc cancels."
+## The design canvas rows: title, tab panel, caption, footer.
+const TABS_RECT: Rect2 = Rect2(90, 104, 1100, 580)
+const CAPTION_Y: float = 690.0
+const FOOTER_Y: float = 716.0
+## Every row's height (spinner, toggle): ten Accessibility rows fit TABS_RECT with the page margins.
+const ROW_HEIGHT: float = OptionRow.ROW_HEIGHT
+const PAGE_MARGIN_Y: int = 10
+const ROW_GAP: int = 3
 const REBIND_SECONDS: float = 10.0
 const RESOLUTIONS: Array[String] = ["1280x720", "1280x800", "1366x768", "1600x900", "1920x1080", "1920x1200", "2560x1080", "2560x1440", "3440x1440", "3840x2160"]
 const PERCENT_STEPS: Array = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
@@ -25,6 +66,7 @@ var _tabs: TabContainer
 var _done: Button
 var _pages: Dictionary = {}
 var _modal: Array[Control] = []
+var _caption: Label
 
 ## The title, the tab strip, then the open page's rows one by one, then DONE.
 func motion_items() -> Array:
@@ -38,23 +80,30 @@ func motion_items() -> Array:
 	return result
 
 func build() -> void:
-	var kicker: Label = UiKit.label(host, "SETTINGS", Vector2(90, 34), Vector2(400, 18), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = UiKit.label(host, "SETTINGS", Vector2(90, 28), Vector2(400, 18), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
-	UiKit.label(host, "OPTIONS", Vector2(90, 56), Vector2(600, 52), UiTokens.TEXT_2XL, WHITE).autowrap_mode = TextServer.AUTOWRAP_OFF
+	UiKit.label(host, "OPTIONS", Vector2(90, 48), Vector2(600, 52), UiTokens.TEXT_2XL, WHITE).autowrap_mode = TextServer.AUTOWRAP_OFF
 	var tabs := TabContainer.new()
 	_tabs = tabs
 	tabs.name = "OptionsTabs"
-	tabs.position = Vector2(90, 112)
-	tabs.size = Vector2(1100, 576)
+	tabs.position = TABS_RECT.position
+	tabs.size = TABS_RECT.size
+	# M19 review: the tab strip sits on solid glass (the panel's own fill, opaque), so nothing behind
+	# the screen - the title's wordmark, a bright hull - reads through the category names.
+	var strip: StyleBoxFlat = UiKit.glass_box(Color(UiTokens.GLASS, 1.0), UiTokens.STROKE, 1, UiTokens.RADIUS_PANEL)
+	strip.corner_radius_bottom_left = 0
+	strip.corner_radius_bottom_right = 0
+	strip.set_content_margin_all(0)
+	tabs.add_theme_stylebox_override("tabbar_background", strip)
 	host.add_child(tabs)
 	for title: String in TAB_TITLES:
 		var page := MarginContainer.new()
 		page.name = title
 		for side: String in ["left", "right"]: page.add_theme_constant_override("margin_" + side, 24)
-		for side: String in ["top", "bottom"]: page.add_theme_constant_override("margin_" + side, 18)
+		for side: String in ["top", "bottom"]: page.add_theme_constant_override("margin_" + side, PAGE_MARGIN_Y)
 		tabs.add_child(page)
 		var content := VBoxContainer.new()
-		content.add_theme_constant_override("separation", 4)
+		content.add_theme_constant_override("separation", ROW_GAP)
 		page.add_child(content)
 		_pages[title] = content
 	var audio: Node = _pages.Audio
@@ -72,15 +121,14 @@ func build() -> void:
 	_choice(display, "Frame-rate cap", "fps_cap", [30, 60, 120, 144, 0], ["30", "60", "120", "144", "Unlimited"])
 	_choice(display, "UI scale", "ui_scale", [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4], ["80%", "90%", "100%", "110%", "120%", "130%", "140%"])
 	_toggle(display, "Soft glow", "glow")
-	var gameplay: Node = _pages.Gameplay
-	_toggle(gameplay, "Auto-fire", "auto_fire")
-	_toggle(gameplay, "Element names and pattern labels", "show_elements")
 	var access: Node = _pages.Accessibility
+	_toggle(access, "Auto-fire", "auto_fire")
+	_toggle(access, "Element names and pattern labels", "show_elements")
 	_percent(access, "Screen shake", "screen_shake", PERCENT_STEPS)
 	_percent(access, "Flash intensity", "flash_intensity", PERCENT_STEPS)
 	_toggle(access, "Reduced motion", "reduced_motion")
 	_toggle(access, "Colourblind-safe element colours", "colorblind")
-	_choice(access, "Text size", "text_scale", [0.9, 1.0, 1.1, 1.2, 1.3], ["90%", "100%", "110%", "120%", "130%"])
+	_choice(access, "Text size", "text_scale", [0.9, 1.0, 1.1, 1.2, 1.3], ["90%", "100%", "110%", "120%", "130%"], true)
 	_percent(access, "Controller rumble", "rumble", PERCENT_STEPS)
 	_toggle(access, "Damage numbers", "damage_numbers")
 	_toggle(access, "Reduced warp effect", "reduced_warp")
@@ -93,13 +141,18 @@ func build() -> void:
 	# A listener, not content: full-bleed so the canvas fit does not count its empty rect at (0, 0).
 	UiLayout.mark_bleed(keys)
 	host.add_child(keys)
+	_caption = UiKit.label(host, "", Vector2(TABS_RECT.position.x + 24, CAPTION_Y), Vector2(TABS_RECT.size.x - 48, 20), UiTokens.TEXT_S, MUTED)
+	_caption.name = "Caption"
+	_caption.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	var hints := PromptHints.new([["navigate", "MOVE"], ["change", "ADJUST"], ["tabs", "TAB"], ["ui_cancel", "BACK"]])
 	hints.name = "Hints"
-	hints.position = Vector2(90, 714)
+	hints.position = Vector2(90, FOOTER_Y + 10)
 	host.add_child(hints)
-	var done: Button = button(host, "DONE", Rect2(870, 704, 320, 48), request_pop.emit)
+	var done: Button = button(host, "DONE", Rect2(870, FOOTER_Y, 320, 48), request_pop.emit)
 	done.name = "Done"
 	_done = done
+	_describe_on_focus()
 	_link.call_deferred()
 	_focus = _first_row(tabs.current_tab)
 	if not return_action.is_empty():
@@ -140,6 +193,25 @@ static func _row_hover(row: Control) -> void:
 	row.mouse_entered.connect(func() -> void:
 		if row.focus_mode != Control.FOCUS_NONE: row.grab_focus())
 
+## Every focusable row, the tab strip and DONE set the caption to their line when focused.
+func _describe_on_focus() -> void:
+	var targets: Array[Control] = [_tabs.get_tab_bar(), _done]
+	for page: Control in _pages.values():
+		for node: Node in page.find_children("*", "BaseButton", true, false): targets.append(node)
+	for target: Control in targets:
+		if target.focus_mode == Control.FOCUS_NONE: continue
+		target.focus_entered.connect(_describe.bind(target))
+	_describe(null)
+
+## The caption for `control` (null: the open tab's first row, what the screen opens on).
+func _describe(control: Control) -> void:
+	if not is_instance_valid(_caption): return
+	var key: String = "Tabs" if control == _tabs.get_tab_bar() else str(control.name) if control != null else ""
+	if control == null:
+		var first: Control = _first_row(_tabs.current_tab)
+		key = str(first.name) if first != null else ""
+	_caption.text = BINDING_CAPTION if key.begins_with("Bind_") else str(DESCRIPTIONS.get(key, ""))
+
 func _percent(parent: Node, caption: String, key: String, steps: Array) -> OptionRow:
 	var names := PackedStringArray()
 	for step: float in steps: names.append("%d%%" % roundi(step * 100.0))
@@ -150,7 +222,7 @@ func _toggle(parent: Node, caption: String, key: String) -> CheckButton:
 	var check := CheckButton.new()
 	check.name = "Row_" + key
 	check.text = caption
-	check.custom_minimum_size.y = 46
+	check.custom_minimum_size.y = ROW_HEIGHT
 	check.button_pressed = bool(app.settings.get(key, false))
 	parent.add_child(check)
 	_row_hover(check)
@@ -220,26 +292,29 @@ func _tab_keys(event: InputEvent) -> void:
 	host.get_viewport().set_input_as_handled()
 
 ## Controls: two columns of binding rows, each the action's name and its keyboard and controller
-## glyphs; a press opens the rebinding modal.
+## glyphs; a press opens the rebinding modal. The left column is flight (move, aim), the right
+## everything else (weapons, abilities, menus, dialogue skip). The caption under the panel explains
+## the rebind (BINDING_CAPTION), so the page carries no header note.
 func _build_controls(parent: Node) -> void:
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 16)
-	parent.add_child(header)
-	var note: Label = menu_label(header, "Choose a binding, then press the new key, button or stick.", UiTokens.TEXT_S, MUTED)
-	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 20)
 	grid.add_theme_constant_override("v_separation", 4)
 	parent.add_child(grid)
-	var actions: Array = InputBindings.ACTIONS.keys()
-	var half: int = ceili(actions.size() / 2.0)
-	# Column-major: the left column reads down movement and aim, the right the rest.
-	for row_index: int in range(half):
-		for column: int in range(2):
-			var index: int = row_index + column * half
-			if index >= actions.size(): continue
-			_binding_row(grid, str(actions[index]))
+	var left: Array = []
+	var right: Array = []
+	for action: String in InputBindings.ACTIONS:
+		if action.begins_with("move_") or action.begins_with("aim_"): left.append(action)
+		else: right.append(action)
+	for row_index: int in range(maxi(left.size(), right.size())):
+		for column: Array in [left, right]:
+			if row_index < column.size():
+				_binding_row(grid, str(column[row_index]))
+			else:
+				# A grid fills row by row: an empty cell keeps the shorter column's rows in place.
+				var gap := Control.new()
+				gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				grid.add_child(gap)
 	if app.platform.online: menu_action(parent, "STEAM CONTROLLER LAYOUT", func() -> void: app.platform.show_input_bindings())
 
 func _binding_row(parent: Node, action: String) -> Button:
@@ -247,7 +322,8 @@ func _binding_row(parent: Node, action: String) -> Button:
 	_row_hover(row)
 	row.name = "Bind_" + action
 	row.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	row.custom_minimum_size = Vector2(516, 44)
+	# No minimum width: the two columns share the page's width, so Controls keeps every tab's size.
+	row.custom_minimum_size = Vector2(0, 44)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for state: String in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
 		row.add_theme_stylebox_override(state, row.get_theme_stylebox(state, &"CheckButton"))
@@ -276,7 +352,8 @@ static func _chip(parent: Node, prompt: Dictionary) -> void:
 		glyph.texture = prompt.texture
 		glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		glyph.custom_minimum_size = Vector2(32, 32)
+		# A wide keycap (SPACE, SHIFT) keeps a letter key's height and takes the width it needs.
+		glyph.custom_minimum_size = Vector2(32.0 * maxf(1.0, float(prompt.texture.get_width()) / maxf(1.0, float(prompt.texture.get_height()))), 32)
 		glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		parent.add_child(glyph)
@@ -312,7 +389,7 @@ func _capture_binding(action: String) -> void:
 	var face: StyleBoxFlat = UiKit.glass_box(Color(UiTokens.GLASS_RAISED, 1.0), Color(UiTokens.FOCUS, 0.7), 1, UiTokens.RADIUS_PANEL, true)
 	face.shadow_size = UiTokens.FOCUS_GLOW_SIZE
 	card.add_theme_stylebox_override("panel", face)
-	var kicker: Label = centered_label(host, "REBIND", rect.position + Vector2(30, 30), Vector2(rect.size.x - 60, 18), UiTokens.TEXT_XS, GOLD)
+	var kicker: Label = centered_label(host, "REBIND", rect.position + Vector2(30, 30), Vector2(rect.size.x - 60, 18), UiTokens.TEXT_XS, UiTokens.KICKER)
 	kicker.theme_type_variation = UiTokens.KICKER_LABEL
 	var title: Label = centered_label(host, str(InputBindings.ACTIONS[action]).to_upper(), rect.position + Vector2(30, 52), Vector2(rect.size.x - 60, 44), UiTokens.TEXT_XL, WHITE)
 	var body: Label = centered_label(host, "Press a key, mouse button or controller input.", rect.position + Vector2(30, 104), Vector2(rect.size.x - 60, 24), UiTokens.TEXT_M, MUTED)

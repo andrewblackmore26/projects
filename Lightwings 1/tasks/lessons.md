@@ -172,3 +172,30 @@ Seeded 2026-09-20 from `C:\.vscode\Lightwings 2\tasks\lessons.md` — only the r
 - **A contact detector with a pixel dead band depends on tick rate.** Small steps fall inside the band.
 - **Bright-pixel counts miss a thin stroke's width.** To measure a thin stroke, integrate brightness
   along the scan line instead of counting bright pixels.
+
+## M19 adversarial review (2026-09-29)
+
+- **"Trace identical" only covers what the scripted route reaches.** The golden route never runs
+  `_process`, so three things escaped every trace check: render-driven slow motion, the death-beat
+  release, and a warp into a cached node. The render-driven slow motion also made the sim depend on
+  frame rate. A frame-rate dependency needs its own test: run the same inputs at several
+  render/physics interleavings and compare the sim state.
+- **A float-seconds timer and an integer sim-clock deadline drift apart under time scaling.**
+  `sim_q += roundi(dt*720)` lost 5% at a scale of 0.35, and warp protection (float) expired before
+  ARRIVAL (sim_q) ended. Carry the fractional remainder, and check protection against the same
+  clock that ends the phase.
+- **Every reset of the sim clock must also reset the state keyed to it.** `setup_player` zeroed
+  `sim_q` but kept an old warp deadline, so the next life could not warp for up to the length of the
+  previous life.
+- **A cancel path must never leave a dead player behind.** A boss killed during the death beat
+  replaced the death overlay, and the reboot, which was keyed to that overlay, never ran.
+- **A design target that fails is a game bug, not a band to loosen.** Accidental warps measured
+  0.5/min. The lateral-velocity condition and an aim-back block both still failed; an engage band at
+  the membrane got it to 0. Try the fallbacks and measure each one; don't widen the gate.
+- **Check the policy against the instrument.** A bot that never reaches the rim can never produce an
+  accidental warp, so its zero proves nothing. Also, a sabotage copied from another line may no
+  longer flip the line it is now attached to.
+- **Save an HDR readback as sRGB before looking at it.** Linear PNGs crush anti-aliased edges and
+  make crisp text look jagged.
+- **A container never shrinks a child it already enlarged.** After a text-scale change, reset the
+  label's size and re-sort its parent.

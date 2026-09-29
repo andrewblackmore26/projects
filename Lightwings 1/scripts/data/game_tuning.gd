@@ -259,12 +259,13 @@ const FEEL_DEFAULTS: Dictionary = {
 	# M10 layer switches (1 on, 0 off) so the §9 order can be tuned one layer at a time: `cam <layer> off`.
 	"cam.lag_on": 1.0, "cam.zoom_on": 1.0, "cam.aim_on": 1.0, "shake.on": 1.0,
 	# M10 hitstop, in sim ticks, per feel_event kind (h). A kind with no key gets none. The M1 broker
-	# caps grants at 8 ticks per rolling 60, so a 12-tick boss kill is granted 8 on its own.
+	# caps grants at 8 ticks per rolling 60; the boss kill was 12 and could only ever be granted 8,
+	# so review fix 9 states it at the cap.
 	"hitstop.player_hit": 4.0,
 	"hitstop.elite_limb": 3.0,
 	"hitstop.elite_kill": 3.0,
 	"hitstop.boss_phase": 6.0,
-	"hitstop.boss_kill": 12.0,
+	"hitstop.boss_kill": 8.0,
 	"hitstop.enemy_kill": 0.0,
 }
 static var _feel_live: Dictionary = {}

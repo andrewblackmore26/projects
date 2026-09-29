@@ -4,13 +4,18 @@ extends SceneTree
 ## evolution_cards_render_test.gd's).
 ## - CORRIDOR: at every size of tests/support/viewport_matrix.gd, with the ship where the camera
 ##   keeps it (the centre) and pushed off-centre, no card's rect (as drawn: position, scale and the
-##   canvas fit) touches the ship's disc (its animated radius on screen). The cards shrink only as
-##   far as the corridor needs: the scale is measured and must stay >= MIN_CARD_SCALE.
-## - RE-SPLIT: a ship that flies under a card while the cards are up gets its corridor back.
+##   canvas fit) touches the ship's disc (its animated radius on screen).
+## - FULL SIZE (M19 review, restating the old "scale >= MIN_CARD_SCALE (0.6)" line, retired on
+##   purpose: at 0.6 the stats were ~7 px): the cards stay at scale 1, every label on a card is at
+##   least 12 UI px on screen, and the camera keeps the ship clear by framing it above the row, its
+##   zoom never below FRAME_MIN_ZOOM.
+## - RE-FRAME (restating RE-SPLIT, whose "fly sideways under a card" cannot happen with the row
+##   docked under the ship): a ship that drifts down under the row gets framed clear again.
 ## - GHOST: focusing a card puts that hull over the ship (HullGhost, in the compositor's
 ##   foreground, at the player's position); moving focus swaps it; closing the cards removes it.
-## Controls, one per line: the pre-M19 centred row (EvolutionScreen.avoid_ship off) covers the ship
-## at 1280x800 (CORRIDOR) and never re-splits (RE-SPLIT); the ghost switched off (GHOST).
+## Controls, one per line: no framing (EvolutionScreen.avoid_ship off) leaves the row over the ship
+## at 1280x800 (CORRIDOR) and never re-frames (RE-FRAME); a card shrunk to the old 0.6 (FULL SIZE);
+## the ghost switched off (GHOST).
 
 const Harness = preload("res://tests/support/harness.gd")
 const ViewportMatrix = preload("res://tests/support/viewport_matrix.gd")
@@ -71,8 +76,19 @@ func _covering(screen: EvolutionScreen) -> Array[String]:
 	return result
 
 func _smallest_scale(screen: EvolutionScreen) -> float:
-	var smallest: float = 1.0
+	var smallest: float = INF
 	for entry: Dictionary in screen._cards: smallest = minf(smallest, (entry.card as Control).scale.x)
+	return smallest
+
+## The smallest text on any card, in UI px as drawn (font size times the card's scale on the UI).
+func _smallest_text(screen: EvolutionScreen) -> float:
+	var smallest: float = INF
+	for entry: Dictionary in screen._cards:
+		for node: Node in (entry.card as Control).find_children("*", "Label", true, false):
+			var label := node as Label
+			if not label.is_visible_in_tree() or label.text.strip_edges().is_empty(): continue
+			var scale: float = absf(label.get_global_transform().get_scale().y)
+			smallest = minf(smallest, float(label.get_theme_font_size(&"font_size")) * scale)
 	return smallest
 
 ## Moves the camera so the ship sits `offset` px (world) from the view's centre, and lays out again.
@@ -95,21 +111,30 @@ func _corridor() -> void:
 			var ship: Vector3 = _ship()
 			var covering: Array[String] = _covering(screen)
 			var smallest: float = _smallest_scale(screen)
-			print("measure: %s ship at (%.0f, %.0f) r %.0f: cards at scale %.3f, x %s" % [ViewportMatrix.label(size), ship.x, ship.y, ship.z, smallest, str(screen._cards.map(func(entry: Dictionary) -> int: return roundi((entry.card as Control).position.x)))])
+			var text: float = _smallest_text(screen)
+			var frame_zoom: float = app.compositor.frame_zoom
+			print("measure: %s ship at (%.0f, %.0f) r %.0f: cards at scale %.3f, smallest card text %.1f px, frame offset %s zoom %.3f, x %s" % [ViewportMatrix.label(size), ship.x, ship.y, ship.z, smallest, text, app.compositor.frame_offset, frame_zoom, str(screen._cards.map(func(entry: Dictionary) -> int: return roundi((entry.card as Control).position.x)))])
 			t.check(covering.is_empty(), "%s, ship offset %s: no card covers the ship (covering: %s)" % [ViewportMatrix.label(size), offset, ", ".join(covering)])
-			t.check(smallest >= EvolutionScreen.MIN_CARD_SCALE - 0.0001, "%s, ship offset %s: the cards stay at scale >= %.2f (%.3f)" % [ViewportMatrix.label(size), offset, EvolutionScreen.MIN_CARD_SCALE, smallest])
+			t.check(is_equal_approx(smallest, 1.0) and text >= 12.0 - 0.001, "%s, ship offset %s: the cards stay at full size (scale %.3f) with no text under 12 px (%.1f)" % [ViewportMatrix.label(size), offset, smallest, text])
+			t.check(frame_zoom >= EvolutionScreen.FRAME_MIN_ZOOM - 0.0001, "%s, ship offset %s: the framing zooms out no further than %.2f (%.3f)" % [ViewportMatrix.label(size), offset, EvolutionScreen.FRAME_MIN_ZOOM, frame_zoom])
 	await _size(Vector2i(1280, 800))
 	await _offset_ship(Vector2.ZERO)
+	# FULL SIZE's control: one card at the pre-review corridor's floor scale.
+	var shrunk: Control = screen._cards[0].card
+	shrunk.scale = Vector2.ONE * 0.6
+	var shrunk_text: float = _smallest_text(screen)
+	t.control("a card at the old 0.6 floor (smallest text %.1f px)" % shrunk_text, not (is_equal_approx(_smallest_scale(screen), 1.0) and shrunk_text >= 12.0 - 0.001))
+	app.screen_router.relayout()
 	EvolutionScreen.avoid_ship = false
 	app.screen_router.relayout()
 	await process_frame
 	var old: Array[String] = _covering(screen)
-	t.control("the pre-M19 centred row at 1280x800 (covering: %s)" % ", ".join(old), not old.is_empty())
+	t.control("no framing: the row over a centred ship at 1280x800 (covering: %s)" % ", ".join(old), not old.is_empty())
 	EvolutionScreen.avoid_ship = true
 	app._close_overlay()
 
-## The ship flies under a card (the camera moved, the layout did not): the next tick glides the
-## cards off it.
+## The ship drifts down under the row (the camera moved, the layout did not): the next tick glides
+## the framing after it.
 func _resplit() -> void:
 	var screen: EvolutionScreen = _open()
 	if screen == null: return
@@ -118,16 +143,16 @@ func _resplit() -> void:
 	for avoid: bool in [true, false]:
 		EvolutionScreen.avoid_ship = avoid
 		await _offset_ship(Vector2.ZERO)
-		app.compositor.rig.reset(app.combat.player_position + Vector2(-390, 0))
+		app.compositor.rig.reset(app.combat.player_position + Vector2(0, -300))
 		await process_frame
 		var under: bool = screen.ship_under_card()
 		app.screen_router.tick(1.0 / 60.0)
 		await create_timer(EvolutionScreen.RESPLIT_SECONDS + 0.15, true, false, true).timeout
 		results.append(under and not screen.ship_under_card())
-		print("measure: re-split (avoid %s): under a card before %s, after %s" % [avoid, under, screen.ship_under_card()])
+		print("measure: re-frame (avoid %s): under a card before %s, after %s" % [avoid, under, screen.ship_under_card()])
 	EvolutionScreen.avoid_ship = true
-	t.check(results[0], "a ship that flies under a card gets its corridor back on the next tick")
-	t.control("re-splitting off (the pre-M19 row)", not results[1])
+	t.check(results[0], "a ship that drifts under the row is framed clear again from the next tick")
+	t.control("re-framing off", not results[1])
 	app._close_overlay()
 
 func _ghost() -> void:

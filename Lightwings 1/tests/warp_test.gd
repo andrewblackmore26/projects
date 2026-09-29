@@ -230,6 +230,7 @@ func arrival_hits(grant_ends_with_travel: bool) -> Array:
 	if grant_ends_with_travel:
 		w.player_invulnerable = 0.0
 		w.player.invulnerable = 0.0
+		w.invulnerable_until_q = w.sim_q # review fix 3: the grant's sim_q deadline ends here too
 	while w.warp_phase == CombatWorld.WARP_ARRIVAL and ticks < 60:
 		playable = playable and not w.warp_locked()
 		w._damage_actor(w.player, 1000.0, 5, 1)

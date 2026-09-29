@@ -1,7 +1,9 @@
 class_name InputBindings
 extends RefCounted
 
-const ACTIONS: Dictionary = {"move_up":"Move up", "move_down":"Move down", "move_left":"Move left", "move_right":"Move right", "aim_up":"Aim up", "aim_down":"Aim down", "aim_left":"Aim left", "aim_right":"Aim right", "fire":"Fire primary", "dash":"Dash", "ability_primary":"Secondary 1", "ability_secondary":"Secondary 2", "ability_tertiary":"Secondary 3", "evolve":"Evolve", "map":"Node map", "pause":"Pause"}
+## M19 review: `dialogue_skip` (DialogueBox.SKIP_ACTION) joined the table, so the Controls tab shows
+## and rebinds it like every other input.
+const ACTIONS: Dictionary = {"move_up":"Move up", "move_down":"Move down", "move_left":"Move left", "move_right":"Move right", "aim_up":"Aim up", "aim_down":"Aim down", "aim_left":"Aim left", "aim_right":"Aim right", "fire":"Fire primary", "dash":"Dash", "ability_primary":"Secondary 1", "ability_secondary":"Secondary 2", "ability_tertiary":"Secondary 3", "evolve":"Evolve", "map":"Node map", "pause":"Pause", "dialogue_skip":"Skip dialogue"}
 const PATH: String = "user://controls.cfg"
 
 static func setup() -> void:
@@ -19,6 +21,8 @@ static func setup() -> void:
 	key("evolve", KEY_E)
 	key("map", KEY_TAB)
 	key("pause", KEY_ESCAPE)
+	key("dialogue_skip", KEY_ENTER)
+	key("dialogue_skip", KEY_KP_ENTER)
 	var mouse := InputEventMouseButton.new()
 	mouse.button_index = MOUSE_BUTTON_LEFT
 	InputMap.action_add_event("fire", mouse)
@@ -41,6 +45,7 @@ static func setup() -> void:
 	button("evolve", JOY_BUTTON_A)
 	button("map", JOY_BUTTON_BACK)
 	button("pause", JOY_BUTTON_START)
+	button("dialogue_skip", JOY_BUTTON_Y)
 	var config := ConfigFile.new()
 	if config.load(PATH) == OK:
 		for action: String in ACTIONS:

@@ -170,7 +170,8 @@ func layout(size: Vector2, animate: bool = false) -> void:
 		text_label.size = Vector2(text_width, ceilf(text_height) + 2.0)
 		count_label.size = count_label.get_minimum_size()
 		count_label.position = Vector2(width - PAD - count_label.size.x, height * 0.5 - count_label.size.y * 0.5)
-		var slot := Vector2(roundf(size.x * 0.5 - width * 0.5), top)
+		# Centred, and never outside the safe rect whatever the window or the stack's depth.
+		var slot := Vector2(clampf(roundf(size.x * 0.5 - width * 0.5), safe.position.x, maxf(safe.position.x, safe.end.x - width)), clampf(top, safe.position.y, maxf(safe.position.y, safe.end.y - height)))
 		# Only a toast that already has a slot slides to a new one; a newcomer is placed.
 		if animate and bool(toast.get("placed", false)):
 			_move(toast, slot, UiTokens.FAST)
@@ -181,15 +182,19 @@ func layout(size: Vector2, animate: bool = false) -> void:
 		toast.placed = true
 		top += height + GAP
 
-## The stack's top edge: just under every visible HUD cluster that overlaps the centre column.
+## The stack's top edge: just under every visible HUD cluster that overlaps the centre column (the
+## light bar, and in a boss node the boss bar, which may sit on the row under it). Clusters are
+## compared in the toast parent's own coordinates.
 func _top(size: Vector2, column: float, safe: Rect2) -> float:
 	var top: float = safe.position.y + 64.0
 	var app: Node = parent.get_parent().get_parent() if parent.get_parent() != null else null
 	var hud: Variant = app.get("hud_view") if app != null else null
 	if hud == null or not hud.has_method("clusters"): return top
 	var band := Rect2(size.x * 0.5 - column * 0.5, safe.position.y, column, size.y * 0.3)
+	var origin: Vector2 = parent.get_global_rect().position
 	for cluster: Variant in hud.clusters():
 		if not cluster is Control or not (cluster as Control).is_visible_in_tree(): continue
 		var rect: Rect2 = (cluster as Control).get_global_rect()
+		rect.position -= origin
 		if rect.size.x > 0.0 and rect.size.y > 0.0 and rect.intersects(band): top = maxf(top, rect.end.y + 12.0)
 	return top

@@ -82,7 +82,9 @@ func _death_to_playing(seed_index: int, reboot_s: float, observe: bool) -> float
 	var world: CombatWorld = app.combat
 	if observe:
 		t.check(app.overlay_kind == "death" and not paused and app.overlay.find_child("Backdrop",true,false) == null,"The death banner is up, non-modal: no backdrop and no pause")
-		t.check(world.active and world.hitstop_remaining >= RunController.DEATH_HITSTOP_TICKS,"The world runs on through the beat, frozen first by %d hitstop tick(s)" % world.hitstop_remaining)
+		# Review fix 9: the beat's ticks ADD to the killing hit's (this passed on the hit's 4 alone before).
+		var want_hitstop: int = GameTuning.hitstop_ticks(&"player_hit")+RunController.DEATH_HITSTOP_TICKS
+		t.check(world.active and world.hitstop_remaining == want_hitstop,"The world runs on through the beat, frozen first by %d hitstop tick(s) (want %d)" % [world.hitstop_remaining,want_hitstop])
 		t.check(is_equal_approx(world.time_scale(),RunController.DEATH_SLOWMO_SCALE),"The beat slows the world to %.1f (got %.2f)" % [RunController.DEATH_SLOWMO_SCALE,world.time_scale()])
 	var seconds: float = 0.0
 	var q_at_start: int = world.sim_q

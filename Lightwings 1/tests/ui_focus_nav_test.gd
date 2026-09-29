@@ -22,7 +22,7 @@ extends SceneTree
 const Harness = preload("res://tests/support/harness.gd")
 const ViewportMatrix = preload("res://tests/support/viewport_matrix.gd")
 
-const SCREENS: Array[String] = ["title", "title_saves", "level_select_campaign", "level_select_dev", "options_audio", "options_display", "options_gameplay", "options_controls", "options_accessibility", "options_over_pause", "pause", "level_complete", "ending_campaign", "ending_demo", "confirm_new", "import_confirm", "cloud", "evolution"]
+const SCREENS: Array[String] = ["title", "title_saves", "level_select_campaign", "level_select_dev", "options_audio", "options_display", "options_controls", "options_accessibility", "options_over_pause", "pause", "level_complete", "ending_campaign", "ending_demo", "confirm_new", "import_confirm", "cloud", "evolution"]
 const DIRECTIONS: Array[String] = ["ui_up", "ui_down", "ui_left", "ui_right"]
 const LAUNCH_BUDGET_MS: int = 2500
 
@@ -78,7 +78,7 @@ func _build(app: Node, screen: String) -> void:
 			app._show_menu()
 		"level_select_campaign": app._show_level_select("campaign")
 		"level_select_dev": app._show_level_select("dev")
-		"options_audio", "options_display", "options_gameplay", "options_controls", "options_accessibility":
+		"options_audio", "options_display", "options_controls", "options_accessibility":
 			app.options_tab = OptionsScreen.TAB_TITLES.find(screen.trim_prefix("options_").capitalize())
 			app._show_options()
 		"options_over_pause", "pause":
@@ -236,6 +236,10 @@ func _screen(screen: String) -> void:
 	h.check(report.trapped.is_empty(), "%s RETURN: every reached control leads back to the default focus (trapped: %s)" % [screen, ", ".join(report.trapped)])
 	h.check(report.outside.is_empty(), "%s INSIDE: focus never leaves the screen (%s)" % [screen, "; ".join(report.outside)])
 	# Also still laid out cleanly at 1280x800 once walked (spinners and tabs were exercised).
+	# M19: the walk's last restore can be a text-size step put back; containers re-sort on the next
+	# frame, so judge the settled layout (the title's wordmark letters read mid-sort otherwise).
+	await process_frame
+	await process_frame
 	var controls: Array[Control] = ViewportMatrix.visible_controls(app.ui)
 	var problems: PackedStringArray = ViewportMatrix.safe_violations(controls, app.ui.size, [app.ui, app.hud, app.menu, app.overlay, app.dialogue])
 	problems.append_array(ViewportMatrix.text_overflows(controls))
@@ -391,7 +395,9 @@ func _controls() -> void:
 	report = await judge(app, "pause + trap")
 	h.control("a button whose four neighbours are itself (RETURN lists %s)" % str(report.trapped), "Trap" in report.trapped)
 	trap.free()
-	# INSIDE: RESUME's left neighbour pointed at the HUD's map button behind the blur.
+	# INSIDE: RESUME's left neighbour pointed at a button behind the blur, outside the screen. M19:
+	# Pause hides the HUD (policy blocks_hud), so when no HUD button is visible the stand-in sits on
+	# the UI root beside the overlay (a hidden control could never take the focus).
 	var hud_button: Control = null
 	for node: Node in app.hud.find_children("*", "BaseButton", true, false):
 		if (node as Control).is_visible_in_tree() and (node as Control).focus_mode != Control.FOCUS_NONE:
@@ -402,7 +408,7 @@ func _controls() -> void:
 		hud_button.name = "HudStandIn"
 		hud_button.position = Vector2(20, 20)
 		hud_button.size = Vector2(80, 30)
-		app.hud.add_child(hud_button)
+		(app.hud if app.hud.visible else app.ui).add_child(hud_button)
 	resume.grab_focus()
 	resume.focus_neighbor_left = resume.get_path_to(hud_button)
 	report = await judge(app, "pause + escape hatch")

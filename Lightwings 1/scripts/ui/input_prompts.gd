@@ -59,6 +59,12 @@ const MOUSE_BUTTONS: Dictionary = {
 	MOUSE_BUTTON_WHEEL_DOWN: ["mouse_scroll_down", "WHEEL DOWN"],
 }
 
+## Wide labelled keys -> the rect of the 64 px Kenney PNG that `_texture` crops them to. Their keycaps
+## (measured alpha bounds: space 8,18 48x28, shift 8,16 48x32) are short and wide; the crop keeps the
+## side margins and trims the top and bottom so that, at a prompt's height, the keycap stands about
+## as tall as a letter key's (48 of 64 px) and its word reads.
+const KEYCAPS: Dictionary = {"keyboard_space": Rect2(6, 13, 52, 38), "keyboard_shift": Rect2(6, 13, 52, 38)}
+
 static var _shared: InputPrompts
 static var _textures: Dictionary = {}
 
@@ -169,8 +175,9 @@ func _describe(event: InputEvent, pad_family: String) -> Array:
 			if local != 0: code = local
 		var name: String = OS.get_keycode_string(code)
 		var stem: String = "keyboard_" + name.to_lower().replace(" ", "_")
-		# Word keys use Kenney's icon variant: "SPACE" printed on a key is unreadable at HUD size.
-		if stem in ["keyboard_space", "keyboard_shift", "keyboard_tab"]: stem += "_icon"
+		# M19 review: SPACE and SHIFT wear Kenney's LABELLED keys, cropped to the keycap (`_texture`,
+		# KEYCAPS): the icon variants' symbols did not read at HUD size. TAB keeps its icon.
+		if stem == "keyboard_tab": stem += "_icon"
 		return [stem, name.to_upper()]
 	if event is InputEventMouseButton:
 		var mouse: Array = MOUSE_BUTTONS.get(event.button_index, ["", "MOUSE %d" % event.button_index])
@@ -192,7 +199,16 @@ func _describe(event: InputEvent, pad_family: String) -> Array:
 static func _texture(path: String) -> Texture2D:
 	if path.is_empty(): return null
 	if not _textures.has(path):
-		_textures[path] = load(path) if ResourceLoader.exists(path) else null
+		var texture: Texture2D = load(path) if ResourceLoader.exists(path) else null
+		var region: Variant = KEYCAPS.get(path.get_file().get_basename())
+		if texture != null and region != null:
+			# A wide labelled key is a short keycap in a 64 px square: drawn uncropped at a prompt's
+			# height its word is ~4 px tall. Cropped, it fills the height and keeps its own aspect.
+			var cap := AtlasTexture.new()
+			cap.atlas = texture
+			cap.region = region
+			texture = cap
+		_textures[path] = texture
 	return _textures[path]
 
 ## Draw the prompt centred on `center`, `height` px tall. A glyph when there is one; otherwise a

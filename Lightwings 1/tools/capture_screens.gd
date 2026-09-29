@@ -37,8 +37,11 @@ func _run() -> void:
 		return
 	root.size = window_size
 	DisplayServer.window_move_to_foreground()
+	# Hover is focus on every screen: wherever the OS cursor happens to rest over the new window
+	# would otherwise move the focus (M19: a level-select capture came back focused on level 2).
+	root.gui_disable_input = true
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	for screen: String in ["menu","menu_saves","level_select_campaign","level_select_dev","options_audio","options_display","options_gameplay","options_controls","options_accessibility","pause","options_over_pause","pause_after_options","evolution","evolution_dev","map","death","level_complete","ending_campaign","ending_demo","cloud","confirm_new","import_confirm","dialogue","hud_origin","hud_combat","hud_evolve_ready","hud_dev","toast"]:
+	for screen: String in ["menu","menu_saves","level_select_campaign","level_select_dev","options_audio","options_display","options_controls","options_accessibility","pause","options_over_pause","pause_after_options","evolution","evolution_dev","map","death","level_complete","ending_campaign","ending_demo","cloud","confirm_new","import_confirm","dialogue","hud_origin","hud_combat","hud_evolve_ready","hud_dev","toast","hud_boss"]:
 		if not only.is_empty() and not screen in only.split(","): continue
 		await _capture(screen)
 	print("SCREEN CAPTURE: %d screens, %d failures" % [captured,failures])
@@ -78,8 +81,8 @@ func _capture(screen: String) -> void:
 			app._show_menu()
 		"level_select_campaign": app._show_level_select("campaign")
 		"level_select_dev": app._show_level_select("dev")
-		"options_audio","options_display","options_gameplay","options_controls","options_accessibility":
-			app.options_tab = ["options_audio","options_display","options_gameplay","options_controls","options_accessibility"].find(screen)
+		"options_audio","options_display","options_controls","options_accessibility":
+			app.options_tab = OptionsScreen.TAB_TITLES.find(screen.trim_prefix("options_").capitalize())
 			app._show_options()
 		"pause","options_over_pause","pause_after_options":
 			app._new_game(false)
@@ -116,7 +119,7 @@ func _capture(screen: String) -> void:
 			_step_combat(app,1)
 			app._show_ending(screen == "ending_demo")
 		"cloud":
-			app.cloud_review = {"state":"conflict","local_summary":"Level 2 · T3 · 14 nodes","remote_summary":"Level 1 · T2 · 6 nodes"}
+			app.cloud_review = {"state":"conflict","local_summary":"Level 2 · T3 · 14 nodes","remote_summary":"Level 1 · T2 · 6 nodes","local_meta":{"saved_at":1790000000,"play_seconds":11540},"remote_meta":{"saved_at":1789650000,"play_seconds":-1}}
 			app._show_cloud_review()
 		"confirm_new": app._confirm_new(false)
 		"import_confirm":
@@ -150,6 +153,18 @@ func _capture(screen: String) -> void:
 				app.combat.setup_player("fire",2,0,[],Vector2(896,560))
 				app.combat.collect_light(float(EvolutionRules.threshold(2))+5.0,"fire")
 			_step_combat(app,45)
+		"hud_boss":
+			# M19 review: a boss node - the boss bar's slot, a rival off screen below the ship (its
+			# chevron must clear the dock), absorptions with a 0 % element, and a toast under the bar.
+			app._new_game(false)
+			app.line_queue.clear()
+			app.combat.set_physics_process(false)
+			app.combat.setup_player("plasma",4,700,[],Vector2(896,560))
+			_step_combat(app,2)
+			app.combat._spawn_enemy("void",4,app.combat.player_position+Vector2(60,1400),true)
+			app.combat.absorption = {"plasma":320.0,"fire":140.0,"void":0.0}
+			_step_combat(app,20)
+			app._toast("NODE CLEAR · 0,0")
 		"hud_dev":
 			app._new_game_as("dev")
 			app.line_queue.clear()
@@ -167,10 +182,11 @@ func _capture(screen: String) -> void:
 		app.settings.text_scale = text_scale
 		app.settings.ui_scale = ui_scale
 		app.apply_settings()
-		# A preview refitted by the new layout draws its new scale on its next _process, which the
-		# freeze below would otherwise never let run.
-		for preview: Node in get_nodes_in_group("ship_previews"):
-			if is_instance_valid(preview.renderer): preview.renderer._process(0)
+	# A preview draws its fitted scale (and a refit after a new layout) on its renderer's next
+	# _process, which the freeze below would otherwise never let run: the M19 review's captures
+	# showed every card's hull unfitted and clipped by its frame, which the live game never does.
+	for preview: Node in get_nodes_in_group("ship_previews"):
+		if is_instance_valid(preview.renderer): preview.renderer._process(0)
 	if app.mode == "play" and is_instance_valid(app.combat):
 		app._refresh_hud()
 		for actor: Dictionary in app.combat.actors_by_id.values():
